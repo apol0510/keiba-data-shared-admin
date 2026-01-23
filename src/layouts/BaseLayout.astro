@@ -1,0 +1,59 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const {
+  title,
+  description = 'KEIBA Data Shared Admin - 競馬データ共有管理画面'
+} = Astro.props;
+
+const siteTitle = `${title} | KEIBA Data Shared Admin`;
+---
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="generator" content={Astro.generator}>
+  <title>{siteTitle}</title>
+  <meta name="description" content={description}>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style is:global>
+    @import '../styles/global.scss';
+  </style>
+</head>
+<body>
+  <nav class="main-nav">
+    <div class="container">
+      <div class="nav-content">
+        <a href="/" class="logo">
+          <span class="logo-icon">📊</span>
+          <span class="logo-text">KEIBA Data Shared Admin</span>
+        </a>
+        <div class="nav-links">
+          <a href="/admin/results-manager">結果管理</a>
+          <a href="https://github.com/apol0510/keiba-data-shared" target="_blank">Data Repo</a>
+          <a href="https://github.com/apol0510/keiba-data-shared-admin" target="_blank">Admin Repo</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <slot />
+  </main>
+
+  <footer class="main-footer">
+    <div class="container">
+      <p>&copy; 2026 KEIBA Data Shared Admin - 全プロジェクト共有データ管理</p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "keiba-data-shared-admin",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "KEIBA Data Shared Admin - 競馬データ共有管理画面",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "astro": "^5.16.0",
+    "@astrojs/netlify": "^6.0.0",
+    "sass": "^1.83.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.0",
+    "typescript": "^5.7.3"
+  }
+}

@@ -11,6 +11,10 @@
  * - GITHUB_REPO_OWNER: apol0510
  */
 
+// ローカル開発環境用に.envファイルを読み込む
+import { config } from 'dotenv';
+config();
+
 export default async (req, context) => {
   // CORSヘッダー設定
   const headers = {
@@ -136,7 +140,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       },
       body: JSON.stringify({
         message: commitMessage,
-        content: Buffer.from(resultsJSON).toString('base64'),
+        content: btoa(unescape(encodeURIComponent(resultsJSON))),
         branch: GITHUB_BRANCH,
         ...(fileSha && { sha: fileSha }) // 更新の場合のみSHAを含める
       })

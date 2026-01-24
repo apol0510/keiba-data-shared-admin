@@ -94,21 +94,28 @@ function extractRaceInfo(text) {
   const raceNumberMatch = text.match(/第(\d+)日|第(\d+)R|(\d+)R/);
   const raceNumber = raceNumberMatch ? parseInt(raceNumberMatch[1] || raceNumberMatch[2] || raceNumberMatch[3], 10) : 1;
 
-  // レース名: 複数パターンに対応（全角・半角スペース、日/R、Ｂ区切り）
+  // レース名: クラス表記（Ａ２Ｂ１など）を含む行全体を取得
+  // 例: "鯛ノ浦特別 Ａ２Ｂ１(一)" → "鯛ノ浦特別 Ａ２Ｂ１(一)"
   let raceName = '';
-  const raceNamePattern1 = text.match(/日[\s\u3000]+(.+?)[\s\u3000]+Ｂ/);
-  const raceNamePattern2 = text.match(/日[\s\u3000]+(.+?)[\s\u3000]*$/m);
-  const raceNamePattern3 = text.match(/R[\s\u3000]+(.+?)[\s\u3000]+Ｂ/);
-  const raceNamePattern4 = text.match(/R[\s\u3000]+(.+?)[\s\u3000]*$/m);
+  const lines = text.split('\n');
+  for (let line of lines) {
+    const trimmedLine = line.trim();
+    // クラス表記（Ａ、Ｂ、Ｃ + 数字）を含む行を探す
+    if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
+      raceName = trimmedLine;
+      break;
+    }
+  }
 
-  if (raceNamePattern1) {
-    raceName = raceNamePattern1[1].trim();
-  } else if (raceNamePattern2) {
-    raceName = raceNamePattern2[1].trim();
-  } else if (raceNamePattern3) {
-    raceName = raceNamePattern3[1].trim();
-  } else if (raceNamePattern4) {
-    raceName = raceNamePattern4[1].trim();
+  // フォールバック: 「特別」「賞」「杯」を含む行
+  if (!raceName) {
+    for (let line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.match(/特別|賞|杯/)) {
+        raceName = trimmedLine;
+        break;
+      }
+    }
   }
 
   const distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
@@ -168,7 +175,6 @@ function extractPayouts(text) {
   const lines = payoutSection.split('\n').filter(l => l.trim());
 
   // 第1テーブル：単勝〜馬単（横並びテーブル）
-  // データ構造: 単勝 複勝 枠複 普通馬複 枠単 馬単（各3値：組番 金額 人気）
   let table1HeaderIndex = -1;
   for (let i = 0; i < lines.length; i++) {
     if (lines[i].includes('単勝') && lines[i].includes('馬単')) {
@@ -178,41 +184,99 @@ function extractPayouts(text) {
   }
 
   if (table1HeaderIndex > -1) {
-    // データ行を見つける（ヘッダーの後、最初の数字で始まる行）
+    // データ行を収集（複勝は3行、他は1行）
+    const dataRows = [];
     for (let i = table1HeaderIndex + 1; i < lines.length; i++) {
       const line = lines[i];
       if (/^[\d-]/.test(line) && !line.includes('組番')) {
-        // データ行を空白で分割
-        const values = line.split(/[\s\u3000]+/).filter(v => v);
+        dataRows.push(line);
+      } else if (dataRows.length > 0) {
+        break; // データ行が終わったら停止
+      }
+    }
 
-        // 単勝: values[0-2]
-        if (values.length >= 3) {
-          payouts.tansho = {
-            number: parseInt(values[0], 10),
-            payout: parseInt(values[1].replace(/,/g, ''), 10),
-            popularity: parseInt(values[2], 10)
-          };
-        }
+    // 1行目: 単勝、複勝1、枠複、普通馬複、枠単、馬単
+    if (dataRows.length >= 1) {
+      const values = dataRows[0].split(/[\s\u3000]+/).filter(v => v);
 
-        // 普通馬複: values[9-11]
-        if (values.length >= 12) {
-          payouts.umaren = {
-            combination: values[9],
-            payout: parseInt(values[10].replace(/,/g, ''), 10),
-            popularity: parseInt(values[11], 10)
-          };
-        }
+      // 単勝: values[0-2]
+      if (values.length >= 3 && values[0] !== '-') {
+        payouts.tansho = {
+          number: parseInt(values[0], 10),
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        };
+      }
 
-        // 馬単: values[15-17]
-        if (values.length >= 18) {
-          payouts.umatan = {
-            combination: values[15],
-            payout: parseInt(values[16].replace(/,/g, ''), 10),
-            popularity: parseInt(values[17], 10)
-          };
-        }
+      // 複勝1: values[3-5]
+      if (values.length >= 6 && values[3] !== '-') {
+        payouts.fukusho = [{
+          number: parseInt(values[3], 10),
+          payout: parseInt(values[4].replace(/,/g, ''), 10),
+          popularity: parseInt(values[5], 10)
+        }];
+      }
 
-        break;
+      // 枠複: values[6-8]
+      if (values.length >= 9 && values[6] !== '-') {
+        payouts.wakufuku = {
+          combination: values[6],
+          payout: parseInt(values[7].replace(/,/g, ''), 10),
+          popularity: parseInt(values[8], 10)
+        };
+      }
+
+      // 普通馬複: values[9-11]
+      if (values.length >= 12 && values[9] !== '-') {
+        payouts.umaren = {
+          combination: values[9],
+          payout: parseInt(values[10].replace(/,/g, ''), 10),
+          popularity: parseInt(values[11], 10)
+        };
+      }
+
+      // 枠単: values[12-14]
+      if (values.length >= 15 && values[12] !== '-') {
+        payouts.wakutan = {
+          combination: values[12],
+          payout: parseInt(values[13].replace(/,/g, ''), 10),
+          popularity: parseInt(values[14], 10)
+        };
+      }
+
+      // 馬単: values[15-17]
+      if (values.length >= 18 && values[15] !== '-') {
+        payouts.umatan = {
+          combination: values[15],
+          payout: parseInt(values[16].replace(/,/g, ''), 10),
+          popularity: parseInt(values[17], 10)
+        };
+      }
+    }
+
+    // 2行目: 複勝2
+    if (dataRows.length >= 2) {
+      const values = dataRows[1].split(/[\s\u3000]+/).filter(v => v);
+      if (values.length >= 3 && values[0] !== '-') {
+        if (!payouts.fukusho) payouts.fukusho = [];
+        payouts.fukusho.push({
+          number: parseInt(values[0], 10),
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        });
+      }
+    }
+
+    // 3行目: 複勝3
+    if (dataRows.length >= 3) {
+      const values = dataRows[2].split(/[\s\u3000]+/).filter(v => v);
+      if (values.length >= 3 && values[0] !== '-') {
+        if (!payouts.fukusho) payouts.fukusho = [];
+        payouts.fukusho.push({
+          number: parseInt(values[0], 10),
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        });
       }
     }
   }
@@ -227,32 +291,72 @@ function extractPayouts(text) {
   }
 
   if (table2HeaderIndex > -1) {
-    // データ行を見つける
+    // データ行を収集（ワイドは3行）
+    const dataRows = [];
     for (let i = table2HeaderIndex + 1; i < lines.length; i++) {
       const line = lines[i];
       if (/^[\d-]/.test(line) && !line.includes('組番')) {
-        // データ行を空白で分割
-        const values = line.split(/[\s\u3000]+/).filter(v => v);
-
-        // 三連複: values[3-5] (ワイドは0-2)
-        if (values.length >= 6) {
-          payouts.sanrenpuku = {
-            combination: values[3],
-            payout: parseInt(values[4].replace(/,/g, ''), 10),
-            popularity: parseInt(values[5], 10)
-          };
-        }
-
-        // 三連単: values[6-8]
-        if (values.length >= 9) {
-          payouts.sanrentan = {
-            combination: values[6],
-            payout: parseInt(values[7].replace(/,/g, ''), 10),
-            popularity: parseInt(values[8], 10)
-          };
-        }
-
+        dataRows.push(line);
+      } else if (dataRows.length > 0) {
         break;
+      }
+    }
+
+    // 1行目: ワイド1、三連複、三連単
+    if (dataRows.length >= 1) {
+      const values = dataRows[0].split(/[\s\u3000]+/).filter(v => v);
+
+      // ワイド1: values[0-2]
+      if (values.length >= 3 && values[0] !== '-') {
+        payouts.wide = [{
+          combination: values[0],
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        }];
+      }
+
+      // 三連複: values[3-5]
+      if (values.length >= 6 && values[3] !== '-') {
+        payouts.sanrenpuku = {
+          combination: values[3],
+          payout: parseInt(values[4].replace(/,/g, ''), 10),
+          popularity: parseInt(values[5], 10)
+        };
+      }
+
+      // 三連単: values[6-8]
+      if (values.length >= 9 && values[6] !== '-') {
+        payouts.sanrentan = {
+          combination: values[6],
+          payout: parseInt(values[7].replace(/,/g, ''), 10),
+          popularity: parseInt(values[8], 10)
+        };
+      }
+    }
+
+    // 2行目: ワイド2
+    if (dataRows.length >= 2) {
+      const values = dataRows[1].split(/[\s\u3000]+/).filter(v => v);
+      if (values.length >= 3 && values[0] !== '-') {
+        if (!payouts.wide) payouts.wide = [];
+        payouts.wide.push({
+          combination: values[0],
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        });
+      }
+    }
+
+    // 3行目: ワイド3
+    if (dataRows.length >= 3) {
+      const values = dataRows[2].split(/[\s\u3000]+/).filter(v => v);
+      if (values.length >= 3 && values[0] !== '-') {
+        if (!payouts.wide) payouts.wide = [];
+        payouts.wide.push({
+          combination: values[0],
+          payout: parseInt(values[1].replace(/,/g, ''), 10),
+          popularity: parseInt(values[2], 10)
+        });
       }
     }
   }
@@ -565,7 +669,7 @@ function generateRaceCommentary(race) {
                   <span>タイム</span>
                   <span>人気</span>
                 </div>
-                {result.parsedData.races[0].results.slice(0, 3).map((horse) => (
+                {result.parsedData.races[0].results.map((horse) => (
                   <div class={`table-row rank-${horse.rank}`}>
                     <span class="rank">{horse.rank}着</span>
                     <span>{horse.bracket}</span>
@@ -590,6 +694,34 @@ function generateRaceCommentary(race) {
                     <span class="payout-value">{result.parsedData.races[0].payouts.tansho.payout.toLocaleString()}円</span>
                   </div>
                 )}
+                {result.parsedData.races[0].payouts.fukusho && result.parsedData.races[0].payouts.fukusho.map((fukusho) => (
+                  <div class="payout-item">
+                    <span class="payout-type">複勝</span>
+                    <span class="payout-combo">{fukusho.number}番</span>
+                    <span class="payout-value">{fukusho.payout.toLocaleString()}円</span>
+                  </div>
+                ))}
+                {result.parsedData.races[0].payouts.wakufuku && (
+                  <div class="payout-item">
+                    <span class="payout-type">枠複</span>
+                    <span class="payout-combo">{result.parsedData.races[0].payouts.wakufuku.combination}</span>
+                    <span class="payout-value">{result.parsedData.races[0].payouts.wakufuku.payout.toLocaleString()}円</span>
+                  </div>
+                )}
+                {result.parsedData.races[0].payouts.umaren && (
+                  <div class="payout-item">
+                    <span class="payout-type">馬複</span>
+                    <span class="payout-combo">{result.parsedData.races[0].payouts.umaren.combination}</span>
+                    <span class="payout-value">{result.parsedData.races[0].payouts.umaren.payout.toLocaleString()}円</span>
+                  </div>
+                )}
+                {result.parsedData.races[0].payouts.wakutan && (
+                  <div class="payout-item">
+                    <span class="payout-type">枠単</span>
+                    <span class="payout-combo">{result.parsedData.races[0].payouts.wakutan.combination}</span>
+                    <span class="payout-value">{result.parsedData.races[0].payouts.wakutan.payout.toLocaleString()}円</span>
+                  </div>
+                )}
                 {result.parsedData.races[0].payouts.umatan && (
                   <div class="payout-item">
                     <span class="payout-type">馬単</span>
@@ -597,6 +729,13 @@ function generateRaceCommentary(race) {
                     <span class="payout-value">{result.parsedData.races[0].payouts.umatan.payout.toLocaleString()}円</span>
                   </div>
                 )}
+                {result.parsedData.races[0].payouts.wide && result.parsedData.races[0].payouts.wide.map((wide) => (
+                  <div class="payout-item">
+                    <span class="payout-type">ワイド</span>
+                    <span class="payout-combo">{wide.combination}</span>
+                    <span class="payout-value">{wide.payout.toLocaleString()}円</span>
+                  </div>
+                ))}
                 {result.parsedData.races[0].payouts.sanrenpuku && (
                   <div class="payout-item">
                     <span class="payout-type">三連複</span>

@@ -114,8 +114,20 @@ function extractGlobalInfo(text) {
 
 // テキストをレース単位に分割
 function splitRaceTexts(text) {
-  // 「第NR」または「発走時刻」で分割
-  // 例: "第1R", "第2R", "第11R"
+  // 「第NR」パターンでレースを検出
+  const raceMatches = Array.from(text.matchAll(/第(\d+)R/g));
+
+  // レースが1つもない場合、全体を1レースとして扱う
+  if (raceMatches.length === 0) {
+    return [text];
+  }
+
+  // レースが1つだけの場合、全体を1レースとして扱う
+  if (raceMatches.length === 1) {
+    return [text];
+  }
+
+  // 複数レースの場合、分割処理
   const lines = text.split('\n');
   const raceTexts = [];
   let currentRaceLines = [];
@@ -123,11 +135,7 @@ function splitRaceTexts(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-
-    // 「第NR」パターンを検出（第1R、第2R、...第12R）
-    // または「発走時刻」を含む行の前後を検出
-    const isRaceStart = line.match(/第(\d+)R/) ||
-                       (line.match(/発走時刻/) && i > 0 && lines[i-1].match(/第(\d+)R/));
+    const isRaceStart = line.match(/第(\d+)R/);
 
     if (isRaceStart && foundFirstRace && currentRaceLines.length > 0) {
       // 新しいレースの開始 = 前のレースを保存
@@ -146,9 +154,9 @@ function splitRaceTexts(text) {
     raceTexts.push(currentRaceLines.join('\n'));
   }
 
-  // 有効なレースのみ返す（最低限の情報があるもの）
+  // 「第NR」を含むテキストのみ返す（空テキストを除外）
   return raceTexts.filter(raceText =>
-    raceText.match(/第\d+R/) && raceText.match(/発走時刻/)
+    raceText.trim().length > 0 && raceText.match(/第\d+R/)
   );
 }
 

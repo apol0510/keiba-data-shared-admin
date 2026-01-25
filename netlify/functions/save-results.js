@@ -40,7 +40,7 @@ export default async (req, context) => {
   try {
     // リクエストボディをパース
     const body = await req.json();
-    const { resultsJSON } = body;
+    const { resultsJSON, archiveResultsJSON } = body;
 
     // バリデーション
     if (!resultsJSON) {
@@ -161,6 +161,88 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
     const result = await createFileResponse.json();
 
+    // archiveResults.json保存（的中判定データ）
+    let archiveCommitUrl = null;
+    if (archiveResultsJSON) {
+      try {
+        const archivePath = 'nankan/archive/archiveResults.json';
+
+        // 既存のarchiveResults.jsonを取得
+        const getArchiveUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${archivePath}?ref=${GITHUB_BRANCH}`;
+        let archiveSha = null;
+        let existingArchive = {};
+
+        const getArchiveResponse = await fetch(getArchiveUrl, {
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Netlify-Function'
+          }
+        });
+
+        if (getArchiveResponse.ok) {
+          const archiveData = await getArchiveResponse.json();
+          archiveSha = archiveData.sha;
+          // Base64デコード
+          const content = atob(archiveData.content);
+          existingArchive = JSON.parse(content);
+        }
+
+        // 新しいデータをマージ（深くマージ）
+        const newArchive = JSON.parse(archiveResultsJSON);
+        const mergedArchive = { ...existingArchive };
+
+        // 年月日階層でマージ
+        for (const year in newArchive) {
+          if (!mergedArchive[year]) mergedArchive[year] = {};
+          for (const month in newArchive[year]) {
+            if (!mergedArchive[year][month]) mergedArchive[year][month] = {};
+            for (const day in newArchive[year][month]) {
+              mergedArchive[year][month][day] = newArchive[year][month][day];
+            }
+          }
+        }
+
+        // archiveResults.jsonを保存
+        const archiveCommitMessage = `📊 ${date} ${venue} 的中判定データ更新
+
+【的中情報】
+- 開催日: ${date}
+- 競馬場: ${venue}（${venueCode}）
+- 全${parsedData.races?.length || 0}R
+- ファイル: ${archivePath}
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+
+        const saveArchiveUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${archivePath}`;
+        const saveArchiveResponse = await fetch(saveArchiveUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${GITHUB_TOKEN}`,
+            'Accept': 'vnd.github.v3+json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'Netlify-Function'
+          },
+          body: JSON.stringify({
+            message: archiveCommitMessage,
+            content: btoa(unescape(encodeURIComponent(JSON.stringify(mergedArchive, null, 2)))),
+            branch: GITHUB_BRANCH,
+            ...(archiveSha && { sha: archiveSha })
+          })
+        });
+
+        if (saveArchiveResponse.ok) {
+          const archiveResult = await saveArchiveResponse.json();
+          archiveCommitUrl = archiveResult.commit?.html_url;
+        }
+      } catch (archiveError) {
+        console.error('Archive save error:', archiveError);
+        // archiveの保存に失敗してもメインの処理は成功とする
+      }
+    }
+
     // 成功レスポンス
     return new Response(
       JSON.stringify({
@@ -171,7 +253,9 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         repoUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`,
         commitUrl: result.commit?.html_url,
         commitSha: result.commit?.sha,
-        rawUrl: `https://raw.githubusercontent.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/${GITHUB_BRANCH}/${filePath}`
+        rawUrl: `https://raw.githubusercontent.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/${GITHUB_BRANCH}/${filePath}`,
+        archiveCommitUrl: archiveCommitUrl,
+        archiveSaved: !!archiveCommitUrl
       }),
       { status: 200, headers }
     );

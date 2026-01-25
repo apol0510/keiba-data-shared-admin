@@ -18,9 +18,18 @@ if (Astro.request.method === 'POST') {
     // パーサーを直接実装（parse-nankan-results.jsから移植）
     const parsedData = parseNankanResults(copiedText);
 
+    // 予想データ取得
+    const predictionData = await fetchPredictionData(parsedData.date);
+
+    // archiveResults生成（的中判定含む）
+    const archiveResults = generateArchiveResults(parsedData, predictionData);
+
     result = {
       parsedData,
-      json: JSON.stringify(parsedData, null, 2)
+      json: JSON.stringify(parsedData, null, 2),
+      predictionData,
+      archiveResults,
+      archiveJson: JSON.stringify(archiveResults, null, 2)
     };
 
   } catch (error) {
@@ -550,6 +559,118 @@ function generateRaceCommentary(race) {
 
   return commentary;
 }
+
+// 予想データ取得関数
+async function fetchPredictionData(date) {
+  try {
+    const [year, month] = date.split('-');
+    const predUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/nankan/predictions/${year}/${month}/${date}.json`;
+    const response = await fetch(predUrl);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+}
+
+// 購入点数計算関数（出走頭数から）
+function calculatePoints(horses) {
+  if (!horses) return 10;
+  if (horses <= 6) return 8;
+  if (horses <= 9) return 9;
+  if (horses <= 12) return 10;
+  if (horses <= 14) return 11;
+  if (horses <= 16) return 12;
+  return 12;
+}
+
+// 的中判定関数（馬単main/sub判定）
+function checkHit(prediction, result) {
+  if (!prediction || !result) return { hit: false, hitType: null, payout: 0 };
+
+  const umatanCombo = result.payouts?.umatan?.combination;
+  if (!umatanCombo) return { hit: false, hitType: null, payout: 0 };
+
+  // main的中判定
+  if (prediction.bettingLines?.umatan?.main?.includes(umatanCombo)) {
+    return {
+      hit: true,
+      hitType: 'main',
+      payout: result.payouts.umatan.payout || 0
+    };
+  }
+
+  // sub的中判定
+  if (prediction.bettingLines?.umatan?.sub?.includes(umatanCombo)) {
+    return {
+      hit: true,
+      hitType: 'sub',
+      payout: result.payouts.umatan.payout || 0
+    };
+  }
+
+  return { hit: false, hitType: null, payout: 0 };
+}
+
+// archiveResults.json生成関数
+function generateArchiveResults(parsedData, predictionData) {
+  const [year, month, day] = parsedData.date.split('-');
+
+  let totalRaces = 0;
+  let hitRaces = 0;
+  let totalPayout = 0;
+  let totalPoints = 0;
+  const races = [];
+
+  parsedData.races.forEach(race => {
+    totalRaces++;
+
+    // 予想データを取得
+    const prediction = predictionData?.races?.find(p => p.raceNumber === race.raceNumber);
+
+    // 購入点数計算
+    const betPoints = calculatePoints(race.horses);
+    totalPoints += betPoints;
+
+    // 的中判定
+    const hitResult = checkHit(prediction, race);
+
+    if (hitResult.hit) {
+      hitRaces++;
+      totalPayout += hitResult.payout;
+    }
+
+    races.push({
+      raceNumber: `${race.raceNumber}R`,
+      raceName: race.raceName || '-',
+      betType: '馬単',
+      betPoints: betPoints,
+      hit: hitResult.hit,
+      hitType: hitResult.hitType,
+      payout: hitResult.payout
+    });
+  });
+
+  const purchaseAmount = totalPoints * 100;
+  const recoveryRate = purchaseAmount > 0 ? Math.round((totalPayout / purchaseAmount) * 100) : 0;
+  const perfectHit = totalRaces > 0 && hitRaces === totalRaces;
+
+  return {
+    [year]: {
+      [month]: {
+        [day]: {
+          venue: parsedData.venue,
+          totalRaces: totalRaces,
+          hitRaces: hitRaces,
+          perfectHit: perfectHit,
+          totalPayout: totalPayout,
+          recoveryRate: recoveryRate,
+          races: races
+        }
+      }
+    }
+  };
+}
 ---
 
 <BaseLayout
@@ -761,6 +882,11 @@ function generateRaceCommentary(race) {
                 rows="20"
                 class="json-textarea"
               >{result.json}</textarea>
+              <textarea
+                readonly
+                style="display: none;"
+                class="archive-json-textarea"
+              >{result.archiveJson}</textarea>
               <div class="button-group">
                 <button
                   type="button"
@@ -1137,6 +1263,7 @@ function generateRaceCommentary(race) {
       const btn = document.getElementById('saveToGitBtn');
       const statusDiv = document.getElementById('saveStatus');
       const jsonTextarea = document.querySelector('.json-textarea');
+      const archiveJsonTextarea = document.querySelector('.archive-json-textarea');
 
       if (!jsonTextarea) {
         alert('JSONデータが見つかりません');
@@ -1144,6 +1271,7 @@ function generateRaceCommentary(race) {
       }
 
       const resultsJSON = jsonTextarea.value;
+      const archiveResultsJSON = archiveJsonTextarea ? archiveJsonTextarea.value : null;
 
       // ボタン無効化
       btn.disabled = true;
@@ -1161,7 +1289,10 @@ function generateRaceCommentary(race) {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ resultsJSON })
+          body: JSON.stringify({
+            resultsJSON,
+            archiveResultsJSON
+          })
         });
 
         const data = await response.json();

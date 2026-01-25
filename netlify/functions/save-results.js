@@ -87,9 +87,10 @@ export default async (req, context) => {
     const fileName = `${date}.json`;
     const filePath = `nankan/results/${year}/${month}/${fileName}`;
 
-    // GitHub API: ファイルの現在のSHAを取得（更新の場合に必要）
+    // GitHub API: 既存ファイルを取得してマージ
     const getFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}?ref=${GITHUB_BRANCH}`;
     let fileSha = null;
+    let existingData = null;
 
     const getFileResponse = await fetch(getFileUrl, {
       headers: {
@@ -102,23 +103,39 @@ export default async (req, context) => {
     if (getFileResponse.ok) {
       const fileData = await getFileResponse.json();
       fileSha = fileData.sha;
+
+      // 既存ファイルをデコードしてパース
+      try {
+        const content = atob(fileData.content);
+        existingData = JSON.parse(content);
+      } catch (e) {
+        console.error('Existing file parse error:', e);
+      }
     }
 
-    // レース情報取得
-    const race = parsedData.races?.[0];
-    const raceNumber = race?.raceNumber || 'N/A';
-    const raceName = race?.raceName || '';
-    const winner = race?.results?.[0];
-    const winnerText = winner ? `${winner.number}番 ${winner.name}` : 'N/A';
+    // 既存レースと新規レースをマージ
+    if (existingData && existingData.races) {
+      // 既存レースのレース番号を取得
+      const existingRaceNumbers = new Set(existingData.races.map(r => r.raceNumber));
+
+      // 新規レースのうち、既存にないレースのみ追加
+      const newRaces = parsedData.races.filter(r => !existingRaceNumbers.has(r.raceNumber));
+
+      // マージ（既存 + 新規）してレース番号順にソート
+      parsedData.races = [...existingData.races, ...newRaces].sort((a, b) => a.raceNumber - b.raceNumber);
+    }
+
+    // レース情報一覧生成
+    const racesList = parsedData.races.map(r => `第${r.raceNumber}R ${r.raceName || ''}`).join(', ');
+    const totalRaces = parsedData.races.length;
 
     // コミットメッセージ生成
-    const commitMessage = `✨ ${date} ${venue} 第${raceNumber}R結果${fileSha ? '更新' : '追加'}
+    const commitMessage = `✨ ${date} ${venue} 結果${fileSha ? '更新' : '追加'}（${totalRaces}レース）
 
 【結果データ】
 - 開催日: ${date}
 - 競馬場: ${venue}（${venueCode}）
-- レース: 第${raceNumber}R ${raceName}
-- 1着: ${winnerText}
+- レース: ${racesList}
 - ファイル: ${filePath}
 
 【keiba-data-shared】
@@ -127,6 +144,9 @@ export default async (req, context) => {
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>`;
+
+    // マージ後のデータをJSON化
+    const mergedJSON = JSON.stringify(parsedData, null, 2);
 
     // GitHub API: ファイルをコミット・プッシュ
     const createFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}`;
@@ -140,7 +160,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       },
       body: JSON.stringify({
         message: commitMessage,
-        content: btoa(unescape(encodeURIComponent(resultsJSON))),
+        content: btoa(unescape(encodeURIComponent(mergedJSON))),
         branch: GITHUB_BRANCH,
         ...(fileSha && { sha: fileSha }) // 更新の場合のみSHAを含める
       })

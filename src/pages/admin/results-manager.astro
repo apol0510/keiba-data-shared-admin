@@ -830,21 +830,44 @@ function generateArchiveResults(parsedData, predictionData) {
 
             <!-- 全レースサマリー -->
             <div class="all-races-summary">
-              <h3>🏁 全レース概要</h3>
-              {result.parsedData.races.map((race) => (
-                <div class="race-summary-item">
-                  <div class="race-summary-header">
-                    <strong>第{race.raceNumber}R</strong> {race.raceName}
-                    <span class="race-details">
-                      {race.surface}{race.distance}m {race.track && `（${race.track}）`} {race.horses}頭 {race.startTime}
-                    </span>
+              <h3>🏁 保存されるレース</h3>
+              {result.parsedData.races.map((race) => {
+                // 的中判定取得
+                const archiveRace = result.archiveResults &&
+                  Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0]?.races?.find(
+                    r => r.raceNumber === `${race.raceNumber}R`
+                  );
+
+                return (
+                  <div class="race-summary-item">
+                    <div class="race-summary-header">
+                      <div>
+                        <strong class="race-number">第{race.raceNumber}R</strong>
+                        <span class="race-name">{race.raceName}</span>
+                        {archiveRace && (
+                          <span class={`hit-badge-inline ${archiveRace.hit ? (archiveRace.hitType === 'main' ? 'hit-main' : 'hit-sub') : 'hit-miss'}`}>
+                            {archiveRace.hit
+                              ? (archiveRace.hitType === 'main' ? '🎯本線的中' : '✅抑え的中')
+                              : '❌不的中'
+                            }
+                          </span>
+                        )}
+                      </div>
+                      <span class="race-details">
+                        {race.surface}{race.distance}m {race.horses}頭
+                      </span>
+                    </div>
+                    <div class="race-summary-result">
+                      <strong>1着:</strong> {race.results?.[0]?.number}番 {race.results?.[0]?.name}
+                      {race.payouts?.umatan && (
+                        <span class="payout-info">
+                          <strong>馬単:</strong> {race.payouts.umatan.combination} → {race.payouts.umatan.payout.toLocaleString()}円
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div class="race-summary-result">
-                    1着: {race.results?.[0]?.number}番 {race.results?.[0]?.name}
-                    {race.payouts?.umatan && ` | 馬単: ${race.payouts.umatan.combination} ${race.payouts.umatan.payout.toLocaleString()}円`}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <!-- 的中判定情報 -->
@@ -1259,6 +1282,61 @@ function generateArchiveResults(parsedData, predictionData) {
       background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
       border-radius: var(--radius-lg);
       border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* 的中バッジ（インライン） */
+    .hit-badge-inline {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-left: var(--spacing-md);
+    }
+
+    .hit-badge-inline.hit-main {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+      border: 1px solid var(--success);
+    }
+
+    .hit-badge-inline.hit-sub {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning);
+      border: 1px solid var(--warning);
+    }
+
+    .hit-badge-inline.hit-miss {
+      background: rgba(100, 116, 139, 0.2);
+      color: var(--text-tertiary);
+      border: 1px solid var(--text-tertiary);
+    }
+
+    /* レース概要の改善 */
+    .race-summary-header {
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .race-number {
+      color: var(--primary-end);
+      font-size: 1.1rem;
+    }
+
+    .race-name {
+      color: var(--text-primary);
+      margin-left: var(--spacing-sm);
+    }
+
+    .race-summary-result {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs);
+    }
+
+    .payout-info {
+      color: var(--text-secondary);
+      font-size: 0.875rem;
     }
 
     .mt-2 {

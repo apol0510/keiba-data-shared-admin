@@ -43,47 +43,57 @@ function parseNankanResults(text) {
     throw new Error('テキストが空です');
   }
 
-  const raceInfo = extractRaceInfo(text);
-  const results = extractResults(text);
-  const payouts = extractPayouts(text);
-  const timeData = extractTimeData(text);
-  const cornerData = extractCornerData(text);
+  // 全体から日付と会場を抽出
+  const globalInfo = extractGlobalInfo(text);
 
-  // レース解説を自動生成
-  const commentary = generateRaceCommentary({
-    results,
-    payouts,
-    timeData,
-    cornerData
+  // テキストをレース単位に分割
+  const raceTexts = splitRaceTexts(text);
+
+  // 各レースをパース
+  const races = raceTexts.map(raceText => {
+    const raceInfo = extractRaceInfo(raceText, globalInfo);
+    const results = extractResults(raceText);
+    const payouts = extractPayouts(raceText);
+    const timeData = extractTimeData(raceText);
+    const cornerData = extractCornerData(raceText);
+
+    // レース解説を自動生成
+    const commentary = generateRaceCommentary({
+      results,
+      payouts,
+      timeData,
+      cornerData
+    });
+
+    return {
+      raceNumber: raceInfo.raceNumber,
+      raceName: raceInfo.raceName,
+      distance: raceInfo.distance,
+      surface: raceInfo.surface,
+      track: raceInfo.track,
+      horses: raceInfo.horses,
+      startTime: raceInfo.startTime,
+      results,
+      payouts,
+      timeData,
+      cornerData,
+      commentary,
+      enteredAt: new Date().toISOString(),
+      enteredBy: 'staff-ui'
+    };
   });
 
   return {
-    date: raceInfo.date,
-    venue: raceInfo.venue,
-    venueCode: raceInfo.venueCode,
-    races: [
-      {
-        raceNumber: raceInfo.raceNumber,
-        raceName: raceInfo.raceName,
-        distance: raceInfo.distance,
-        surface: raceInfo.surface,
-        track: raceInfo.track,
-        horses: raceInfo.horses,
-        startTime: raceInfo.startTime,
-        results,
-        payouts,
-        timeData,
-        cornerData,
-        commentary,
-        enteredAt: new Date().toISOString(),
-        enteredBy: 'staff-ui'
-      }
-    ],
+    date: globalInfo.date,
+    venue: globalInfo.venue,
+    venueCode: globalInfo.venueCode,
+    races: races,
     dataVersion: '1.0'
   };
 }
 
-function extractRaceInfo(text) {
+// 全体情報（日付・会場）を抽出
+function extractGlobalInfo(text) {
   const dateMatch = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
   if (!dateMatch) throw new Error('日付が見つかりません');
 
@@ -99,9 +109,53 @@ function extractRaceInfo(text) {
   const venueCodeMap = { '船橋': 'FU', '大井': 'OI', '川崎': 'KA', '浦和': 'UR' };
   const venueCode = venueCodeMap[venue];
 
-  // レース番号: 第5日、第5R、5Rなど複数パターン対応
-  const raceNumberMatch = text.match(/第(\d+)日|第(\d+)R|(\d+)R/);
-  const raceNumber = raceNumberMatch ? parseInt(raceNumberMatch[1] || raceNumberMatch[2] || raceNumberMatch[3], 10) : 1;
+  return { date, venue, venueCode };
+}
+
+// テキストをレース単位に分割
+function splitRaceTexts(text) {
+  // 「第NR」または「発走時刻」で分割
+  // 例: "第1R", "第2R", "第11R"
+  const lines = text.split('\n');
+  const raceTexts = [];
+  let currentRaceLines = [];
+  let foundFirstRace = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // 「第NR」パターンを検出（第1R、第2R、...第12R）
+    // または「発走時刻」を含む行の前後を検出
+    const isRaceStart = line.match(/第(\d+)R/) ||
+                       (line.match(/発走時刻/) && i > 0 && lines[i-1].match(/第(\d+)R/));
+
+    if (isRaceStart && foundFirstRace && currentRaceLines.length > 0) {
+      // 新しいレースの開始 = 前のレースを保存
+      raceTexts.push(currentRaceLines.join('\n'));
+      currentRaceLines = [line];
+    } else {
+      if (isRaceStart) {
+        foundFirstRace = true;
+      }
+      currentRaceLines.push(line);
+    }
+  }
+
+  // 最後のレースを追加
+  if (currentRaceLines.length > 0) {
+    raceTexts.push(currentRaceLines.join('\n'));
+  }
+
+  // 有効なレースのみ返す（最低限の情報があるもの）
+  return raceTexts.filter(raceText =>
+    raceText.match(/第\d+R/) && raceText.match(/発走時刻/)
+  );
+}
+
+function extractRaceInfo(text, globalInfo) {
+  // レース番号: 第1R、第2R、第11Rなど
+  const raceNumberMatch = text.match(/第(\d+)R/);
+  const raceNumber = raceNumberMatch ? parseInt(raceNumberMatch[1], 10) : 1;
 
   // レース名: クラス表記（Ａ２Ｂ１など）を含む行全体を取得
   // 例: "鯛ノ浦特別 Ａ２Ｂ１(一)" → "鯛ノ浦特別 Ａ２Ｂ１(一)"
@@ -141,7 +195,7 @@ function extractRaceInfo(text) {
   const startTimeMatch = text.match(/発走時刻(\d{1,2}):(\d{2})/);
   const startTime = startTimeMatch ? `${startTimeMatch[1]}:${startTimeMatch[2]}` : null;
 
-  return { date, venue, venueCode, raceNumber, raceName, distance, surface, track, horses, startTime };
+  return { raceNumber, raceName, distance, surface, track, horses, startTime };
 }
 
 function extractResults(text) {

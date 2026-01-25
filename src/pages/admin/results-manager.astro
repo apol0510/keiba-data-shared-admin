@@ -787,9 +787,9 @@ function generateArchiveResults(parsedData, predictionData) {
           <div class="race-card card">
             <h2 class="section-title">✅ プレビュー確認</h2>
 
-            <!-- レース情報 -->
+            <!-- 全体情報 -->
             <div class="race-info-summary">
-              <h3>📅 レース情報</h3>
+              <h3>📅 開催情報</h3>
               <div class="info-grid">
                 <div class="info-item">
                   <span class="info-label">日付:</span>
@@ -800,133 +800,59 @@ function generateArchiveResults(parsedData, predictionData) {
                   <span class="info-value">{result.parsedData.venue}</span>
                 </div>
                 <div class="info-item">
-                  <span class="info-label">レース:</span>
-                  <span class="info-value">
-                    第{result.parsedData.races[0].raceNumber}R {result.parsedData.races[0].raceName}
-                  </span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">距離:</span>
-                  <span class="info-value">
-                    {result.parsedData.races[0].surface}{result.parsedData.races[0].distance}m
-                    {result.parsedData.races[0].track && `（${result.parsedData.races[0].track}）`}
-                  </span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">頭数:</span>
-                  <span class="info-value">{result.parsedData.races[0].horses}頭</span>
-                </div>
-                <div class="info-item">
-                  <span class="info-label">発走:</span>
-                  <span class="info-value">{result.parsedData.races[0].startTime}</span>
+                  <span class="info-label">レース数:</span>
+                  <span class="info-value">{result.parsedData.races.length}レース</span>
                 </div>
               </div>
             </div>
 
-            <!-- レース解説 -->
-            {result.parsedData.races[0].commentary && (
-              <div class="commentary-display">
-                <h3>📝 レース解説（自動生成・SEO最適化）</h3>
-                <p class="commentary-text">{result.parsedData.races[0].commentary}</p>
+            <!-- 全レースサマリー -->
+            <div class="all-races-summary">
+              <h3>🏁 全レース概要</h3>
+              {result.parsedData.races.map((race) => (
+                <div class="race-summary-item">
+                  <div class="race-summary-header">
+                    <strong>第{race.raceNumber}R</strong> {race.raceName}
+                    <span class="race-details">
+                      {race.surface}{race.distance}m {race.track && `（${race.track}）`} {race.horses}頭 {race.startTime}
+                    </span>
+                  </div>
+                  <div class="race-summary-result">
+                    1着: {race.results?.[0]?.number}番 {race.results?.[0]?.name}
+                    {race.payouts?.umatan && ` | 馬単: ${race.payouts.umatan.combination} ${race.payouts.umatan.payout.toLocaleString()}円`}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <!-- 的中判定情報 -->
+            {result.archiveResults && (
+              <div class="hit-summary">
+                <h3>🎯 的中判定サマリー</h3>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-label">的中レース:</span>
+                    <span class="info-value">
+                      {Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0].hitRaces} /
+                      {Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0].totalRaces}R
+                    </span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">的中率:</span>
+                    <span class="info-value">
+                      {Math.round((Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0].hitRaces /
+                                  Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0].totalRaces) * 100)}%
+                    </span>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-label">回収率:</span>
+                    <span class="info-value">
+                      {Object.values(Object.values(Object.values(result.archiveResults)[0])[0])[0].recoveryRate}%
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
-
-            <!-- 着順表示 -->
-            <div class="results-display">
-              <h3>🏁 着順</h3>
-              <div class="results-table">
-                <div class="table-header">
-                  <span>着順</span>
-                  <span>枠</span>
-                  <span>馬番</span>
-                  <span>馬名</span>
-                  <span>騎手</span>
-                  <span>タイム</span>
-                  <span>人気</span>
-                </div>
-                {result.parsedData.races[0].results.map((horse) => (
-                  <div class={`table-row rank-${horse.rank}`}>
-                    <span class="rank">{horse.rank}着</span>
-                    <span>{horse.bracket}</span>
-                    <span class="horse-number">{horse.number}</span>
-                    <span class="horse-name">{horse.name}</span>
-                    <span>{horse.jockey}</span>
-                    <span>{horse.time}</span>
-                    <span>{horse.popularity}人気</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <!-- 払戻金表示 -->
-            <div class="payouts-display">
-              <h3>💰 払戻金</h3>
-              <div class="payouts-grid">
-                {result.parsedData.races[0].payouts.tansho && (
-                  <div class="payout-item">
-                    <span class="payout-type">単勝</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.tansho.number}番</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.tansho.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.fukusho && result.parsedData.races[0].payouts.fukusho.map((fukusho) => (
-                  <div class="payout-item">
-                    <span class="payout-type">複勝</span>
-                    <span class="payout-combo">{fukusho.number}番</span>
-                    <span class="payout-value">{fukusho.payout.toLocaleString()}円</span>
-                  </div>
-                ))}
-                {result.parsedData.races[0].payouts.wakufuku && (
-                  <div class="payout-item">
-                    <span class="payout-type">枠複</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.wakufuku.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.wakufuku.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.umaren && (
-                  <div class="payout-item">
-                    <span class="payout-type">馬複</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.umaren.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.umaren.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.wakutan && (
-                  <div class="payout-item">
-                    <span class="payout-type">枠単</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.wakutan.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.wakutan.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.umatan && (
-                  <div class="payout-item">
-                    <span class="payout-type">馬単</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.umatan.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.umatan.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.wide && result.parsedData.races[0].payouts.wide.map((wide) => (
-                  <div class="payout-item">
-                    <span class="payout-type">ワイド</span>
-                    <span class="payout-combo">{wide.combination}</span>
-                    <span class="payout-value">{wide.payout.toLocaleString()}円</span>
-                  </div>
-                ))}
-                {result.parsedData.races[0].payouts.sanrenpuku && (
-                  <div class="payout-item">
-                    <span class="payout-type">三連複</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.sanrenpuku.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.sanrenpuku.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-                {result.parsedData.races[0].payouts.sanrentan && (
-                  <div class="payout-item">
-                    <span class="payout-type">三連単</span>
-                    <span class="payout-combo">{result.parsedData.races[0].payouts.sanrentan.combination}</span>
-                    <span class="payout-value">{result.parsedData.races[0].payouts.sanrentan.payout.toLocaleString()}円</span>
-                  </div>
-                )}
-              </div>
-            </div>
 
             <!-- JSON出力 -->
             <div class="json-output">
@@ -1270,6 +1196,47 @@ function generateArchiveResults(parsedData, predictionData) {
 
     .w-full {
       width: 100%;
+    }
+
+    /* 全レースサマリー */
+    .all-races-summary {
+      margin-top: var(--spacing-xl);
+    }
+
+    .race-summary-item {
+      padding: var(--spacing-md);
+      margin-bottom: var(--spacing-md);
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-md);
+      border-left: 3px solid var(--primary-end);
+    }
+
+    .race-summary-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--spacing-sm);
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+    }
+
+    .race-details {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    .race-summary-result {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+    }
+
+    /* 的中判定サマリー */
+    .hit-summary {
+      margin-top: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+      border-radius: var(--radius-lg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
     .mt-2 {

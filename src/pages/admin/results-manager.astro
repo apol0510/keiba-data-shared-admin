@@ -114,16 +114,18 @@ function extractGlobalInfo(text) {
 
 // テキストをレース単位に分割
 function splitRaceTexts(text) {
-  // 「第NR」パターンでレースを検出
-  const raceMatches = Array.from(text.matchAll(/第(\d+)R/g));
+  // 「第NR」または先頭の「NR」パターンでレースを検出
+  const raceMatches1 = Array.from(text.matchAll(/第(\d+)R/g));
+  const raceMatches2 = Array.from(text.matchAll(/^(\d+)R/gm));
+  const totalMatches = raceMatches1.length + raceMatches2.length;
 
   // レースが1つもない場合、全体を1レースとして扱う
-  if (raceMatches.length === 0) {
+  if (totalMatches === 0) {
     return [text];
   }
 
   // レースが1つだけの場合、全体を1レースとして扱う
-  if (raceMatches.length === 1) {
+  if (totalMatches === 1) {
     return [text];
   }
 
@@ -135,7 +137,8 @@ function splitRaceTexts(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const isRaceStart = line.match(/第(\d+)R/);
+    // 「第NR」または先頭の「NR」パターンを検出
+    const isRaceStart = line.match(/第(\d+)R/) || line.match(/^(\d+)R/);
 
     if (isRaceStart && foundFirstRace && currentRaceLines.length > 0) {
       // 新しいレースの開始 = 前のレースを保存
@@ -154,16 +157,27 @@ function splitRaceTexts(text) {
     raceTexts.push(currentRaceLines.join('\n'));
   }
 
-  // 「第NR」を含むテキストのみ返す（空テキストを除外）
+  // レース番号を含むテキストのみ返す（空テキストを除外）
   return raceTexts.filter(raceText =>
-    raceText.trim().length > 0 && raceText.match(/第\d+R/)
+    raceText.trim().length > 0 && (raceText.match(/第\d+R/) || raceText.match(/^\d+R/m))
   );
 }
 
 function extractRaceInfo(text, globalInfo) {
-  // レース番号: 第1R、第2R、第11Rなど
-  const raceNumberMatch = text.match(/第(\d+)R/);
-  const raceNumber = raceNumberMatch ? parseInt(raceNumberMatch[1], 10) : 1;
+  // レース番号: 第1R、第2R、第11Rなど、または先頭の1R、2R、11Rなど
+  let raceNumber = 1;
+
+  // まず「第NR」パターンを探す（「第N回」と混同しないように「R」必須）
+  const raceNumberMatch1 = text.match(/第(\d+)R/);
+  if (raceNumberMatch1) {
+    raceNumber = parseInt(raceNumberMatch1[1], 10);
+  } else {
+    // 「第NR」がない場合、先頭の「NR」パターンを探す
+    const raceNumberMatch2 = text.match(/^(\d+)R/);
+    if (raceNumberMatch2) {
+      raceNumber = parseInt(raceNumberMatch2[1], 10);
+    }
+  }
 
   // レース名: クラス表記（Ａ２Ｂ１など）を含む行全体を取得
   // 例: "鯛ノ浦特別 Ａ２Ｂ１(一)" → "鯛ノ浦特別 Ａ２Ｂ１(一)"

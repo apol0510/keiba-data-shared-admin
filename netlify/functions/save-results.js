@@ -160,7 +160,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       },
       body: JSON.stringify({
         message: commitMessage,
-        content: btoa(unescape(encodeURIComponent(mergedJSON))),
+        content: Buffer.from(mergedJSON, 'utf8').toString('base64'),
         branch: GITHUB_BRANCH,
         ...(fileSha && { sha: fileSha }) // 更新の場合のみSHAを含める
       })
@@ -247,7 +247,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
           },
           body: JSON.stringify({
             message: archiveCommitMessage,
-            content: btoa(unescape(encodeURIComponent(JSON.stringify(mergedArchive, null, 2)))),
+            content: Buffer.from(JSON.stringify(mergedArchive, null, 2), 'utf8').toString('base64'),
             branch: GITHUB_BRANCH,
             ...(archiveSha && { sha: archiveSha })
           })

@@ -1001,23 +1001,32 @@ export const prerender = false;
     function extractTimeData(text) {
       const timeData = {};
 
-      // 直接的なパターンマッチング（ブラウザコピペ対応）
+      // まず「タイム」セクションを抽出（レース結果テーブルの「上がり3F」列と区別するため）
+      const timeSection = text.match(/タイム[\s\S]*?(?=通過順|払戻金|コーナー通過順|$)/);
+      if (!timeSection) {
+        console.log('[DEBUG] タイムセクション: 見つかりません');
+        return null;
+      }
+
+      const timeSectionText = timeSection[0];
+      console.log('[DEBUG] タイムセクション抽出成功');
+
       // 「上がり3F」の後に数値を探す
-      const last3FMatch = text.match(/上がり3F[^\d]*([\d.]+)/);
+      const last3FMatch = timeSectionText.match(/上がり3F[^\d]*([\d.]+)/);
       if (last3FMatch) {
         timeData.last3F = parseFloat(last3FMatch[1]);
         console.log('[DEBUG] 上がり3F抽出成功:', timeData.last3F);
       }
 
       // 「上がり4F」の後に数値を探す
-      const last4FMatch = text.match(/上がり4F[^\d]*([\d.]+)/);
+      const last4FMatch = timeSectionText.match(/上がり4F[^\d]*([\d.]+)/);
       if (last4FMatch) {
         timeData.last4F = parseFloat(last4FMatch[1]);
         console.log('[DEBUG] 上がり4F抽出成功:', timeData.last4F);
       }
 
       // 「ハロンタイム」の後にハイフン区切りの数値列を探す
-      const furlongMatch = text.match(/ハロンタイム[^\d]*([\d.]+-[\d.]+[-\d.]*)/);
+      const furlongMatch = timeSectionText.match(/ハロンタイム[^\d]*([\d.]+-[\d.]+[-\d.]*)/);
       if (furlongMatch) {
         const furlongStr = furlongMatch[1];
         console.log('[DEBUG] ハロンタイム文字列:', furlongStr);
@@ -1034,14 +1043,22 @@ export const prerender = false;
     function extractCornerData(text) {
       const corners = [];
 
+      // まず「通過順」または「コーナー通過順」セクションを抽出
+      const cornerSection = text.match(/(通過順|コーナー通過順)[\s\S]*?(?=払戻金|$)/);
+      if (!cornerSection) {
+        console.log('[DEBUG] コーナー通過順セクション: 見つかりません');
+        return null;
+      }
+
+      const cornerSectionText = cornerSection[0];
+      console.log('[DEBUG] コーナー通過順セクション抽出成功');
+
       // 直接的なパターンマッチング（グローバル検索、ブラウザコピペ対応）
       // タブ文字も含めた空白文字に対応
       const cornerRegex = /([１２]周)?([１２３４])角[\s\t\u3000]+([\d,()]+)/g;
 
-      console.log('[DEBUG] コーナーデータ抽出開始');
-
       let match;
-      while ((match = cornerRegex.exec(text)) !== null) {
+      while ((match = cornerRegex.exec(cornerSectionText)) !== null) {
         const lapPrefix = match[1] || '';
         const cornerNumber = match[2];
         const orderStr = match[3];

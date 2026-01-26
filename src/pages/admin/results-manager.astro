@@ -826,14 +826,28 @@ export const prerender = false;
     function extractRaceInfo(text, raceNumber) {
       let raceName = '';
       const lines = text.split('\n');
+
+      // 優先順位1: 重賞レース名（「第○回」「（ＳI」「（ＳII」「（ＧI」「（ＧII」「（ＧIII」「（ＪｐｎI」を含む）
       for (let line of lines) {
         const trimmedLine = line.trim();
-        if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
+        if (trimmedLine.match(/第\d+回|[（(][ＳＧＪ][ＩIｐｎ]/)) {
           raceName = trimmedLine;
           break;
         }
       }
 
+      // 優先順位2: 地方競馬グレード（Ａ１、Ｂ２など）
+      if (!raceName) {
+        for (let line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
+            raceName = trimmedLine;
+            break;
+          }
+        }
+      }
+
+      // 優先順位3: 「特別」「賞」「杯」を含む行（副題の可能性あり）
       if (!raceName) {
         for (let line of lines) {
           const trimmedLine = line.trim();

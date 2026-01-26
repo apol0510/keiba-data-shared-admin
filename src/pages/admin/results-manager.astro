@@ -1001,86 +1001,30 @@ export const prerender = false;
     function extractTimeData(text) {
       const timeData = {};
 
-      // タイムセクションを抽出（表形式対応）
-      const timeSection = text.match(/タイム[\s\S]*?(?=\n\n|通過順|払戻金|$)/);
-      if (timeSection) {
-        const timeSectionText = timeSection[0];
-        const lines = timeSectionText.split('\n').map(l => l.trim()).filter(l => l);
-
-        console.log('[DEBUG] タイムセクション全行:', lines);
-
-        // 上がり3F/4F/ハロンタイムのヘッダー行を探す
-        const headerIdx = lines.findIndex(l => l.includes('上がり3F') && l.includes('ハロンタイム'));
-
-        console.log('[DEBUG] ヘッダー行インデックス:', headerIdx);
-        if (headerIdx > -1) {
-          console.log('[DEBUG] ヘッダー行:', lines[headerIdx]);
-          console.log('[DEBUG] データ行:', lines[headerIdx + 1]);
-        }
-
-        if (headerIdx > -1 && lines[headerIdx + 1]) {
-          // データ行（ヘッダーの次の行）
-          const dataLine = lines[headerIdx + 1];
-          const values = dataLine.split(/[\s\u3000]+/).filter(v => v);
-
-          // ヘッダー列の順番を確認
-          const headers = lines[headerIdx].split(/[\s\u3000]+/).filter(v => v);
-          const last3FIdx = headers.indexOf('上がり3F');
-          const last4FIdx = headers.indexOf('上がり4F');
-          const furlongIdx = headers.indexOf('ハロンタイム');
-
-          console.log('[DEBUG] ヘッダー列:', headers);
-          console.log('[DEBUG] データ列:', values);
-          console.log('[DEBUG] 上がり3Fインデックス:', last3FIdx, '値:', values[last3FIdx]);
-          console.log('[DEBUG] 上がり4Fインデックス:', last4FIdx, '値:', values[last4FIdx]);
-          console.log('[DEBUG] ハロンタイムインデックス:', furlongIdx, '値:', values[furlongIdx]);
-
-          // 上がり3F
-          if (last3FIdx > -1 && values[last3FIdx]) {
-            timeData.last3F = parseFloat(values[last3FIdx]);
-          }
-
-          // 上がり4F
-          if (last4FIdx > -1 && values[last4FIdx]) {
-            timeData.last4F = parseFloat(values[last4FIdx]);
-          }
-
-          // ハロンタイム
-          if (furlongIdx > -1 && values[furlongIdx]) {
-            const furlongStr = values[furlongIdx];
-            console.log('[DEBUG] ハロンタイム文字列:', furlongStr);
-            const furlongs = furlongStr.split(/[,-]/).map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
-            console.log('[DEBUG] ハロンタイム配列:', furlongs);
-            if (furlongs.length > 0) {
-              timeData.furlongTimes = furlongs;
-            }
-          }
-        }
+      // 直接的なパターンマッチング（ブラウザコピペ対応）
+      // 「上がり3F」の後に数値を探す
+      const last3FMatch = text.match(/上がり3F[^\d]*([\d.]+)/);
+      if (last3FMatch) {
+        timeData.last3F = parseFloat(last3FMatch[1]);
+        console.log('[DEBUG] 上がり3F抽出成功:', timeData.last3F);
       }
 
-      // フォールバック：従来形式（単一行）にも対応
-      if (!timeData.last3F) {
-        const last3FMatch = text.match(/上がり3F[\s\u3000]+([\d.]+)/);
-        if (last3FMatch) {
-          timeData.last3F = parseFloat(last3FMatch[1]);
-        }
+      // 「上がり4F」の後に数値を探す
+      const last4FMatch = text.match(/上がり4F[^\d]*([\d.]+)/);
+      if (last4FMatch) {
+        timeData.last4F = parseFloat(last4FMatch[1]);
+        console.log('[DEBUG] 上がり4F抽出成功:', timeData.last4F);
       }
 
-      if (!timeData.last4F) {
-        const last4FMatch = text.match(/上がり4F[\s\u3000]+([\d.]+)/);
-        if (last4FMatch) {
-          timeData.last4F = parseFloat(last4FMatch[1]);
-        }
-      }
-
-      if (!timeData.furlongTimes) {
-        const furlongMatch = text.match(/ハロンタイム[\s\u3000]+([\d.,-]+)/);
-        if (furlongMatch) {
-          const furlongStr = furlongMatch[1];
-          const furlongs = furlongStr.split(/[,-]/).map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
-          if (furlongs.length > 0) {
-            timeData.furlongTimes = furlongs;
-          }
+      // 「ハロンタイム」の後にハイフン区切りの数値列を探す
+      const furlongMatch = text.match(/ハロンタイム[^\d]*([\d.]+-[\d.]+[-\d.]*)/);
+      if (furlongMatch) {
+        const furlongStr = furlongMatch[1];
+        console.log('[DEBUG] ハロンタイム文字列:', furlongStr);
+        const furlongs = furlongStr.split('-').map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
+        console.log('[DEBUG] ハロンタイム配列:', furlongs);
+        if (furlongs.length > 0) {
+          timeData.furlongTimes = furlongs;
         }
       }
 
@@ -1090,39 +1034,32 @@ export const prerender = false;
     function extractCornerData(text) {
       const corners = [];
 
-      const cornerSection = text.match(/コーナー通過順[\s\S]*?(?=\n\n|払戻金|$)/);
-      if (!cornerSection) {
-        console.log('[DEBUG] コーナー通過順セクション: 見つかりません');
-        return null;
-      }
+      // 直接的なパターンマッチング（グローバル検索、ブラウザコピペ対応）
+      // タブ文字も含めた空白文字に対応
+      const cornerRegex = /([１２]周)?([１２３４])角[\s\t\u3000]+([\d,()]+)/g;
 
-      console.log('[DEBUG] コーナー通過順セクション抽出成功');
-      const lines = cornerSection[0].split('\n');
-      console.log('[DEBUG] コーナー通過順全行:', lines);
+      console.log('[DEBUG] コーナーデータ抽出開始');
 
-      for (let line of lines) {
-        // 「１周３角」「２周４角」「１角」「２角」「３角」「４角」などに対応
-        const cornerMatch = line.match(/([１２]周)?([１２３４])角[\s\u3000]+([\d,()]+)/);
-        if (cornerMatch) {
-          console.log('[DEBUG] コーナー行マッチ:', line);
-          console.log('[DEBUG] マッチ結果:', cornerMatch);
+      let match;
+      while ((match = cornerRegex.exec(text)) !== null) {
+        const lapPrefix = match[1] || '';
+        const cornerNumber = match[2];
+        const orderStr = match[3];
 
-          const lapPrefix = cornerMatch[1] || ''; // '１周' or '２周' or ''
-          const cornerNumber = cornerMatch[2];
-          const orderStr = cornerMatch[3];
+        console.log('[DEBUG] コーナーマッチ:', match[0]);
+        console.log('[DEBUG] - lapPrefix:', lapPrefix, 'cornerNumber:', cornerNumber, 'orderStr:', orderStr);
 
-          // 括弧を除去して馬番を抽出（例: "(4,14)" → "4,14"）
-          const cleanedStr = orderStr.replace(/[()]/g, '');
-          const order = cleanedStr.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+        // 括弧を除去して馬番を抽出（例: "(4,14)" → "4,14"）
+        const cleanedStr = orderStr.replace(/[()]/g, '');
+        const order = cleanedStr.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
 
+        if (order.length > 0) {
           const cornerName = lapPrefix ? `${lapPrefix}${cornerNumber}角` : `${cornerNumber}角`;
-
-          console.log('[DEBUG] コーナー名:', cornerName, '頭数:', order.length);
-
           corners.push({
             corner: cornerName,
             order
           });
+          console.log('[DEBUG] コーナー抽出成功:', cornerName, '頭数:', order.length);
         }
       }
 

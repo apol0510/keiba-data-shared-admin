@@ -791,42 +791,100 @@ export const prerender = false;
       const payoutSection = payoutMatch[0];
       const lines = payoutSection.split('\n').filter(l => l.trim());
 
-      let table1HeaderIndex = -1;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes('単勝') && lines[i].includes('馬単')) {
-          table1HeaderIndex = i;
-          break;
-        }
-      }
+      // テーブル1: 単勝/複勝/枠複/馬複/枠単/馬単
+      const table1HeaderIdx = lines.findIndex(l =>
+        l.includes('単勝') && l.includes('複勝') && l.includes('馬単')
+      );
 
-      if (table1HeaderIndex > -1) {
+      if (table1HeaderIdx > -1) {
         const dataRows = [];
-        for (let i = table1HeaderIndex + 1; i < lines.length; i++) {
+        for (let i = table1HeaderIdx + 1; i < lines.length; i++) {
           const line = lines[i];
-          if (/^[\d-]/.test(line) && !line.includes('組番')) {
+          if (line.includes('組番')) continue;
+          if (line.includes('ワイド') || line.includes('三連')) break;
+          if (/^[\d-]/.test(line)) {
             dataRows.push(line);
           } else if (dataRows.length > 0) {
             break;
           }
         }
 
-        if (dataRows.length >= 1) {
-          const values = dataRows[0].split(/[\s\u3000]+/).filter(v => v);
+        // 各券種の列位置（組番/金額/人気 が3列1セット）
+        // 単勝(0-2), 複勝(3-5), 枠複(6-8), 馬複(9-11), 枠単(12-14), 馬単(15-17)
+        const ticketTypes = [
+          { key: 'tansho', offset: 0, hasNumber: true },
+          { key: 'fukusho', offset: 3, hasNumber: true },
+          { key: 'wakuren', offset: 6, hasNumber: false },
+          { key: 'umaren', offset: 9, hasNumber: false },
+          { key: 'wakutan', offset: 12, hasNumber: false },
+          { key: 'umatan', offset: 15, hasNumber: false }
+        ];
 
-          if (values.length >= 3 && values[0] !== '-') {
-            payouts.tansho = {
-              number: parseInt(values[0], 10),
-              payout: parseInt(values[1].replace(/,/g, ''), 10),
-              popularity: parseInt(values[2], 10)
-            };
+        for (const type of ticketTypes) {
+          const items = [];
+          for (const row of dataRows) {
+            const values = row.split(/[\s\u3000]+/).filter(v => v);
+            const numOrCombo = values[type.offset];
+            const payout = values[type.offset + 1];
+            const popularity = values[type.offset + 2];
+
+            if (numOrCombo && numOrCombo !== '-' && payout && payout !== '-' && popularity && popularity !== '-') {
+              items.push({
+                [type.hasNumber ? 'number' : 'combination']: numOrCombo,
+                payout: parseInt(payout.replace(/,/g, ''), 10),
+                popularity: parseInt(popularity, 10)
+              });
+            }
           }
+          if (items.length > 0) {
+            payouts[type.key] = items;
+          }
+        }
+      }
 
-          if (values.length >= 18 && values[15] !== '-') {
-            payouts.umatan = {
-              combination: values[15],
-              payout: parseInt(values[16].replace(/,/g, ''), 10),
-              popularity: parseInt(values[17], 10)
-            };
+      // テーブル2: ワイド/三連複/三連単
+      const table2HeaderIdx = lines.findIndex(l =>
+        l.includes('ワイド') && l.includes('三連')
+      );
+
+      if (table2HeaderIdx > -1) {
+        const dataRows = [];
+        for (let i = table2HeaderIdx + 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.includes('組番')) continue;
+          if (line.includes('備考')) break;
+          if (/^[\d-]/.test(line)) {
+            dataRows.push(line);
+          } else if (dataRows.length > 0) {
+            break;
+          }
+        }
+
+        // ワイド(0-2), 三連複(3-5), 三連単(6-8)
+        const ticketTypes = [
+          { key: 'wide', offset: 0 },
+          { key: 'sanrenpuku', offset: 3 },
+          { key: 'sanrentan', offset: 6 }
+        ];
+
+        for (const type of ticketTypes) {
+          const items = [];
+          for (const row of dataRows) {
+            const values = row.split(/[\s\u3000]+/).filter(v => v);
+            const combo = values[type.offset];
+            const payout = values[type.offset + 1];
+            const popularity = values[type.offset + 2];
+
+            if (combo && combo !== '-' && payout && payout !== '-' && popularity && popularity !== '-') {
+              items.push({
+                combination: combo,
+                payout: parseInt(payout.replace(/,/g, ''), 10),
+                popularity: parseInt(popularity, 10)
+              });
+            }
+          }
+          if (items.length > 0) {
+            payouts[type.key] = items;
           }
         }
       }

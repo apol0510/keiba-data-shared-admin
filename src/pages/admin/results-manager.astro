@@ -1075,16 +1075,21 @@ export const prerender = false;
       const lines = cornerSection[0].split('\n');
 
       for (let line of lines) {
-        const cornerMatch = line.match(/(２周目)?([１２３４])角[\s\u3000]+([\d,]+)/);
+        // 「１周３角」「２周４角」「１角」「２角」「３角」「４角」などに対応
+        const cornerMatch = line.match(/([１２]周)?([１２３４])角[\s\u3000]+([\d,()]+)/);
         if (cornerMatch) {
-          const isSecondLap = !!cornerMatch[1];
+          const lapPrefix = cornerMatch[1] || ''; // '１周' or '２周' or ''
           const cornerNumber = cornerMatch[2];
           const orderStr = cornerMatch[3];
 
-          const order = orderStr.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+          // 括弧を除去して馬番を抽出（例: "(4,14)" → "4,14"）
+          const cleanedStr = orderStr.replace(/[()]/g, '');
+          const order = cleanedStr.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+
+          const cornerName = lapPrefix ? `${lapPrefix}${cornerNumber}角` : `${cornerNumber}角`;
 
           corners.push({
-            corner: isSecondLap ? `2周目${cornerNumber}角` : `${cornerNumber}角`,
+            corner: cornerName,
             order
           });
         }

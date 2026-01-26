@@ -104,9 +104,9 @@ export default async (req, context) => {
       const fileData = await getFileResponse.json();
       fileSha = fileData.sha;
 
-      // 既存ファイルをデコードしてパース
+      // 既存ファイルをデコードしてパース（UTF-8対応）
       try {
-        const content = atob(fileData.content);
+        const content = Buffer.from(fileData.content, 'base64').toString('utf8');
         existingData = JSON.parse(content);
       } catch (e) {
         console.error('Existing file parse error:', e);
@@ -212,8 +212,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         if (getArchiveResponse.ok) {
           const archiveData = await getArchiveResponse.json();
           archiveSha = archiveData.sha;
-          // Base64デコード
-          const content = atob(archiveData.content);
+          // Base64デコード（UTF-8対応）
+          const content = Buffer.from(archiveData.content, 'base64').toString('utf8');
           existingArchive = JSON.parse(content);
         }
 

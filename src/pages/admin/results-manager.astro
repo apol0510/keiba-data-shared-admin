@@ -492,6 +492,11 @@ export const prerender = false;
         const payouts = extractPayouts(text);
         const timeData = extractTimeData(text);
         const cornerData = extractCornerData(text);
+
+        // デバッグログ
+        console.log(`[Race ${raceNum}] タイムデータ抽出結果:`, timeData);
+        console.log(`[Race ${raceNum}] コーナー通過順抽出結果:`, cornerData);
+
         const commentary = generateRaceCommentary({results, payouts, timeData, cornerData});
 
         const raceData = {

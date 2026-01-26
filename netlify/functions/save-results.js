@@ -40,7 +40,7 @@ export default async (req, context) => {
   try {
     // リクエストボディをパース
     const body = await req.json();
-    const { resultsJSON, archiveResultsJSON } = body;
+    const { resultsJSON, archiveResultsJSON, forceOverwrite } = body;
 
     // バリデーション
     if (!resultsJSON) {
@@ -92,37 +92,54 @@ export default async (req, context) => {
     let fileSha = null;
     let existingData = null;
 
-    const getFileResponse = await fetch(getFileUrl, {
-      headers: {
-        'Authorization': `token ${GITHUB_TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Netlify-Function'
+    // forceOverwrite=true の場合は既存ファイルを読まずに完全上書き
+    if (!forceOverwrite) {
+      const getFileResponse = await fetch(getFileUrl, {
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Netlify-Function'
+        }
+      });
+
+      if (getFileResponse.ok) {
+        const fileData = await getFileResponse.json();
+        fileSha = fileData.sha;
+
+        // 既存ファイルをデコードしてパース
+        try {
+          const content = atob(fileData.content);
+          existingData = JSON.parse(content);
+        } catch (e) {
+          console.error('Existing file parse error:', e);
+        }
       }
-    });
 
-    if (getFileResponse.ok) {
-      const fileData = await getFileResponse.json();
-      fileSha = fileData.sha;
+      // 既存レースと新規レースをマージ
+      if (existingData && existingData.races) {
+        // 既存レースのレース番号を取得
+        const existingRaceNumbers = new Set(existingData.races.map(r => r.raceNumber));
 
-      // 既存ファイルをデコードしてパース
-      try {
-        const content = atob(fileData.content);
-        existingData = JSON.parse(content);
-      } catch (e) {
-        console.error('Existing file parse error:', e);
+        // 新規レースのうち、既存にないレースのみ追加
+        const newRaces = parsedData.races.filter(r => !existingRaceNumbers.has(r.raceNumber));
+
+        // マージ（既存 + 新規）してレース番号順にソート
+        parsedData.races = [...existingData.races, ...newRaces].sort((a, b) => a.raceNumber - b.raceNumber);
       }
-    }
+    } else {
+      // forceOverwrite=true の場合でもSHAは必要
+      const getFileResponse = await fetch(getFileUrl, {
+        headers: {
+          'Authorization': `token ${GITHUB_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'Netlify-Function'
+        }
+      });
 
-    // 既存レースと新規レースをマージ
-    if (existingData && existingData.races) {
-      // 既存レースのレース番号を取得
-      const existingRaceNumbers = new Set(existingData.races.map(r => r.raceNumber));
-
-      // 新規レースのうち、既存にないレースのみ追加
-      const newRaces = parsedData.races.filter(r => !existingRaceNumbers.has(r.raceNumber));
-
-      // マージ（既存 + 新規）してレース番号順にソート
-      parsedData.races = [...existingData.races, ...newRaces].sort((a, b) => a.raceNumber - b.raceNumber);
+      if (getFileResponse.ok) {
+        const fileData = await getFileResponse.json();
+        fileSha = fileData.sha;
+      }
     }
 
     // レース情報一覧生成

@@ -4,12 +4,22 @@
 
 function extractRaceInfo(text, raceNumber) {
   let raceName = '';
-  const lines = text.split('\n');
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 
-  // 優先順位1: 重賞レース名（「第○回」「（ＳI」「（ＳII」「（ＧI」「（ＧII」「（ＧIII」「（ＪｐｎI」を含む）
+  // 優先順位1: 重賞レース名
+  // 「第○回」を含み、かつ「競馬」「月」「日」を含まない行（日付情報と区別）
+  // または、重賞グレード記号を含む行
   for (let line of lines) {
     const trimmedLine = line.trim();
-    if (trimmedLine.match(/第\d+回|[（(][ＳＧＪ][ＩIｐｎ]/)) {
+
+    // 「第○回」を含むが、日付情報や競馬場名でない
+    const hasKaisuu = trimmedLine.match(/第\d+回/);
+    const isDateOrVenue = trimmedLine.match(/競馬|月|日|年/);
+
+    // 重賞グレード記号を含む
+    const hasGrade = trimmedLine.match(/[（(][ＳＧＪ][ＩIｐｎ]/);
+
+    if ((hasKaisuu && !isDateOrVenue) || hasGrade) {
       raceName = trimmedLine;
       break;
     }
@@ -30,7 +40,7 @@ function extractRaceInfo(text, raceNumber) {
   if (!raceName) {
     for (let line of lines) {
       const trimmedLine = line.trim();
-      if (trimmedLine.match(/特別|賞|杯/)) {
+      if (trimmedLine.match(/特別|賞|杯|盃/)) {
         raceName = trimmedLine;
         break;
       }
@@ -40,8 +50,11 @@ function extractRaceInfo(text, raceNumber) {
   return { raceNumber, raceName };
 }
 
-// テストケース1: 重賞レース（金盃）
+// テストケース1: 重賞レース（金盃）+ 日付情報あり
 const testData1 = `
+11R
+2025年1月29日
+第16回 大井競馬 第3日
 東京中日スポーツ賞
 第６９回 金盃（ＳII）
 ダート2,600m（外）

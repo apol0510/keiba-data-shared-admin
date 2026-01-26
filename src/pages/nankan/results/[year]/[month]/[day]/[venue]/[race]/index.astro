@@ -1,0 +1,657 @@
+---
+/**
+ * SEO向け結果ページ
+ * URL: /nankan/results/YYYY/MM/DD/{venueSlug}/{raceNumber}/
+ */
+
+export const prerender = false; // SSR mode
+
+const { year, month, day, venue, race } = Astro.params;
+
+// venueSlugからvenue名への変換
+const venueMap = {
+  'ooi': '大井',
+  'funabashi': '船橋',
+  'kawasaki': '川崎',
+  'urawa': '浦和'
+};
+
+const venueName = venueMap[venue] || venue;
+const raceNumber = parseInt(race, 10);
+
+// JSONデータの取得
+const jsonUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/nankan/results/${year}/${month.padStart(2, '0')}/${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}.json`;
+
+let raceData = null;
+let allRaces = [];
+let errorMessage = null;
+
+try {
+  const response = await fetch(jsonUrl);
+  if (response.ok) {
+    const json = await response.json();
+    allRaces = json.races || [];
+    raceData = allRaces.find(r => r.raceNumber === raceNumber);
+  } else {
+    errorMessage = 'データが見つかりません';
+  }
+} catch (error) {
+  errorMessage = 'データの取得に失敗しました';
+}
+
+// 404チェック
+if (!raceData) {
+  return Astro.redirect('/404');
+}
+
+// canonical URL
+const canonicalUrl = `${Astro.site}nankan/results/${year}/${month}/${day}/${venue}/${race}/`;
+
+// パンくずリスト
+const breadcrumbs = [
+  { name: 'トップ', url: '/' },
+  { name: '南関競馬', url: '/nankan/' },
+  { name: '結果', url: '/nankan/results/' },
+  { name: `${year}年`, url: `/nankan/results/${year}/` },
+  { name: `${year}年${month}月`, url: `/nankan/results/${year}/${month}/` },
+  { name: `${year}年${month}月${day}日`, url: `/nankan/results/${year}/${month}/${day}/` },
+  { name: `${venueName}競馬`, url: `/nankan/results/${year}/${month}/${day}/${venue}/` },
+  { name: `第${raceNumber}R` }
+];
+
+// title生成
+const title = `${year}年${month}月${day}日 ${venueName}競馬 第${raceNumber}R ${raceData.raceName} 結果 | ${raceData.surface}${raceData.distance}m ${raceData.horses}頭立て`;
+
+// meta description生成
+const winner = raceData.results[0];
+const metaDescription = `${year}年${month}月${day}日 ${venueName}競馬 第${raceNumber}R ${raceData.raceName}の結果。1着${winner.name}（${winner.jockey}）${winner.time}。${raceData.surface}${raceData.distance}m ${raceData.horses}頭立て、着順・払戻金・ラップタイムを掲載。`;
+
+// レース内容要約生成
+const generateRaceSummary = () => {
+  const w = raceData.results[0];
+  const second = raceData.results[1];
+  const third = raceData.results[2];
+
+  let summary = `${w.popularity}番人気の${w.number}番${w.name}（${w.jockey}騎手）が`;
+
+  if (second) {
+    summary += `、直線で${second.number}番${second.name}を捕らえて`;
+  }
+
+  summary += `優勝。`;
+
+  if (raceData.timeData?.last3F) {
+    summary += `上がり3ハロン${raceData.timeData.last3F}秒の脚を使い、`;
+  }
+
+  summary += `勝ちタイム${w.time}で快勝した。`;
+
+  if (raceData.raceName.includes('重賞') || raceData.raceName.match(/[ＳＧ][ＩI]/)) {
+    summary += `重賞${raceData.raceName}は、${w.name}が制した。`;
+  }
+
+  if (second && third) {
+    summary += `2着${second.name}は${second.popularity}番人気、3着には${third.popularity}番人気の${third.name}が入った。`;
+  }
+
+  return summary;
+};
+
+---
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>{title}</title>
+  <meta name="description" content={metaDescription}>
+
+  <!-- canonical URL -->
+  <link rel="canonical" href={canonicalUrl}>
+
+  <!-- JSON正本へのリンク -->
+  <link rel="alternate" type="application/json" href={jsonUrl}>
+
+  <!-- 構造化データ: BreadcrumbList -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": breadcrumbs.map((item, index) => ({
+      "@type": "ListItem",
+      "position": index + 1,
+      "name": item.name,
+      "item": item.url ? `${Astro.site}${item.url.slice(1)}` : undefined
+    }))
+  })} />
+
+  <!-- 構造化データ: SportsEvent（簡素版） -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "SportsEvent",
+    "name": raceData.raceName,
+    "sport": "競馬",
+    "startDate": `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${raceData.startTime || '00:00'}:00+09:00`,
+    "location": {
+      "@type": "Place",
+      "name": `${venueName}競馬場`
+    }
+  })} />
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f5f5f5;
+      padding: 1rem;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* パンくずリスト */
+    nav[aria-label="パンくずリスト"] {
+      margin-bottom: 2rem;
+      font-size: 0.875rem;
+    }
+
+    nav[aria-label="パンくずリスト"] ol {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+    }
+
+    nav[aria-label="パンくずリスト"] li::after {
+      content: '›';
+      margin-left: 0.5rem;
+      color: #999;
+    }
+
+    nav[aria-label="パンくずリスト"] li:last-child::after {
+      content: '';
+    }
+
+    nav[aria-label="パンくずリスト"] a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+
+    nav[aria-label="パンくずリスト"] a:hover {
+      text-decoration: underline;
+    }
+
+    /* ヘッダー */
+    h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+      color: #222;
+    }
+
+    .race-meta {
+      color: #666;
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    h2 {
+      font-size: 1.25rem;
+      margin: 2rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #0066cc;
+    }
+
+    /* 定義リスト */
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.5rem 1rem;
+      margin-bottom: 1rem;
+    }
+
+    dt {
+      font-weight: 600;
+      color: #555;
+    }
+
+    dd {
+      color: #333;
+    }
+
+    /* 勝ち馬ハイライト */
+    .winner-highlight {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .winner-highlight p {
+      margin: 0.25rem 0;
+    }
+
+    /* テーブル */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.875rem;
+    }
+
+    caption {
+      text-align: left;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    th, td {
+      padding: 0.5rem;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    td:nth-child(1),
+    td:nth-child(2),
+    td:nth-child(3),
+    td:nth-child(8),
+    td:nth-child(9),
+    td:nth-child(10),
+    td:nth-child(11) {
+      text-align: center;
+    }
+
+    tbody tr:hover {
+      background: #f8f9fa;
+    }
+
+    /* モバイル対応 */
+    @media (max-width: 768px) {
+      body {
+        padding: 0.5rem;
+      }
+
+      main {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 1.25rem;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      dl {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 払戻金 */
+    .payouts-main {
+      background: #f8f9fa;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .payouts-main dl {
+      grid-template-columns: 80px 1fr;
+    }
+
+    /* 折りたたみ */
+    details {
+      margin: 1rem 0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 0.5rem 1rem;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+      padding: 0.5rem 0;
+      user-select: none;
+    }
+
+    summary:hover {
+      color: #0066cc;
+    }
+
+    details[open] summary {
+      margin-bottom: 1rem;
+    }
+
+    .note {
+      font-size: 0.875rem;
+      color: #666;
+      margin-top: 0.5rem;
+    }
+
+    /* フッターナビゲーション */
+    footer {
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid #ddd;
+    }
+
+    footer h3 {
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    footer ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      list-style: none;
+    }
+
+    footer li {
+      padding: 0.25rem 0.5rem;
+      background: #f8f9fa;
+      border-radius: 4px;
+    }
+
+    footer a {
+      color: #0066cc;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <!-- パンくずリスト -->
+    <nav aria-label="パンくずリスト">
+      <ol>
+        {breadcrumbs.map((item, index) => (
+          <li>
+            {item.url ? (
+              <a href={item.url}>{item.name}</a>
+            ) : (
+              <span>{item.name}</span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </nav>
+
+    <article>
+      <header>
+        <h1>{raceData.raceName}</h1>
+        <p class="race-meta">
+          <time datetime={`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`}>
+            {year}年{month}月{day}日
+          </time>
+          <span>{venueName}競馬場</span>
+          <span>第{raceNumber}R</span>
+          {raceData.startTime && <span>{raceData.startTime}発走</span>}
+        </p>
+      </header>
+
+      <!-- 1. レース概要 -->
+      <section>
+        <h2>レース概要</h2>
+        <dl>
+          <dt>レース名</dt>
+          <dd>{raceData.raceName}</dd>
+
+          <dt>距離・コース</dt>
+          <dd>{raceData.surface}{raceData.distance}m（{raceData.track}）</dd>
+
+          <dt>出走頭数</dt>
+          <dd>{raceData.horses}頭</dd>
+        </dl>
+      </section>
+
+      <!-- 2. 着順結果 -->
+      <section>
+        <h2>着順結果</h2>
+
+        <div class="winner-highlight">
+          <p><strong>1着</strong> {winner.number}番 {winner.name}（{winner.jockey}）</p>
+          <p>タイム: {winner.time} / 人気: {winner.popularity}番人気</p>
+        </div>
+
+        <table>
+          <caption>第{raceNumber}R 着順表</caption>
+          <thead>
+            <tr>
+              <th>着順</th>
+              <th>枠</th>
+              <th>馬番</th>
+              <th>馬名</th>
+              <th>騎手</th>
+              <th>調教師</th>
+              <th>タイム</th>
+              <th>着差</th>
+              <th>上3F</th>
+              <th>人気</th>
+            </tr>
+          </thead>
+          <tbody>
+            {raceData.results.map(horse => (
+              <tr>
+                <td>{horse.rank}</td>
+                <td>{horse.bracket}</td>
+                <td>{horse.number}</td>
+                <td><strong>{horse.name}</strong></td>
+                <td>{horse.jockey}</td>
+                <td>{horse.trainer}</td>
+                <td>{horse.time}</td>
+                <td>{horse.margin}</td>
+                <td>{horse.lastFurlong}</td>
+                <td>{horse.popularity}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <!-- 3. 払戻金 -->
+      <section>
+        <h2>払戻金</h2>
+
+        {raceData.payouts && (
+          <div class="payouts-main">
+            <dl>
+              {raceData.payouts.tansho && raceData.payouts.tansho[0] && (
+                <>
+                  <dt>単勝</dt>
+                  <dd>{raceData.payouts.tansho[0].number}番 {raceData.payouts.tansho[0].payout.toLocaleString()}円（{raceData.payouts.tansho[0].popularity}番人気）</dd>
+                </>
+              )}
+
+              {raceData.payouts.umatan && raceData.payouts.umatan[0] && (
+                <>
+                  <dt>馬単</dt>
+                  <dd>{raceData.payouts.umatan[0].combination} {raceData.payouts.umatan[0].payout.toLocaleString()}円（{raceData.payouts.umatan[0].popularity}番人気）</dd>
+                </>
+              )}
+
+              {raceData.payouts.sanrentan && raceData.payouts.sanrentan[0] && (
+                <>
+                  <dt>三連単</dt>
+                  <dd>{raceData.payouts.sanrentan[0].combination} {raceData.payouts.sanrentan[0].payout.toLocaleString()}円（{raceData.payouts.sanrentan[0].popularity}番人気）</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+
+        <details>
+          <summary>全券種の払戻金を見る</summary>
+          <table>
+            <thead>
+              <tr>
+                <th>券種</th>
+                <th>組番</th>
+                <th>払戻金</th>
+                <th>人気</th>
+              </tr>
+            </thead>
+            <tbody>
+              {raceData.payouts?.fukusho?.map(item => (
+                <tr>
+                  <td>複勝</td>
+                  <td>{item.number}番</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+
+              {raceData.payouts?.wakuren?.map(item => (
+                <tr>
+                  <td>枠連</td>
+                  <td>{item.combination}</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+
+              {raceData.payouts?.umaren?.map(item => (
+                <tr>
+                  <td>馬連</td>
+                  <td>{item.combination}</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+
+              {raceData.payouts?.wakutan?.map(item => (
+                <tr>
+                  <td>枠単</td>
+                  <td>{item.combination}</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+
+              {raceData.payouts?.wide?.map(item => (
+                <tr>
+                  <td>ワイド</td>
+                  <td>{item.combination}</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+
+              {raceData.payouts?.sanrenpuku?.map(item => (
+                <tr>
+                  <td>三連複</td>
+                  <td>{item.combination}</td>
+                  <td>{item.payout.toLocaleString()}円</td>
+                  <td>{item.popularity}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      </section>
+
+      <!-- 4. レース内容 -->
+      <section>
+        <h2>レース内容</h2>
+        <p>{generateRaceSummary()}</p>
+      </section>
+
+      <!-- 5. 詳細データ -->
+      <section>
+        <h2>詳細データ</h2>
+
+        {raceData.timeData && (
+          <details>
+            <summary>ラップタイム</summary>
+            <dl>
+              {raceData.timeData.last3F && (
+                <>
+                  <dt>上がり3F</dt>
+                  <dd>{raceData.timeData.last3F}秒</dd>
+                </>
+              )}
+
+              {raceData.timeData.last4F && (
+                <>
+                  <dt>上がり4F</dt>
+                  <dd>{raceData.timeData.last4F}秒</dd>
+                </>
+              )}
+
+              {raceData.timeData.furlongTimes && raceData.timeData.furlongTimes.length > 0 && (
+                <>
+                  <dt>ハロンタイム（200m毎）</dt>
+                  <dd>{raceData.timeData.furlongTimes.join(' - ')}</dd>
+                </>
+              )}
+            </dl>
+          </details>
+        )}
+
+        {raceData.cornerData && raceData.cornerData.length > 0 && (
+          <details>
+            <summary>コーナー通過順</summary>
+            <dl>
+              {raceData.cornerData.map(corner => (
+                <>
+                  <dt>{corner.corner}</dt>
+                  <dd>{corner.order.join(',')}</dd>
+                </>
+              ))}
+            </dl>
+            <p class="note">※ 数字は馬番を示します</p>
+          </details>
+        )}
+      </section>
+
+      <!-- フッター: 関連レース -->
+      <footer>
+        <nav aria-label="関連レース">
+          <h3>同日の他レース</h3>
+          <ul>
+            {allRaces.map(r => (
+              <li>
+                {r.raceNumber === raceNumber ? (
+                  <strong>第{r.raceNumber}R（このページ）</strong>
+                ) : (
+                  <a href={`/nankan/results/${year}/${month}/${day}/${venue}/${r.raceNumber}/`}>
+                    第{r.raceNumber}R
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </footer>
+    </article>
+  </main>
+</body>
+</html>

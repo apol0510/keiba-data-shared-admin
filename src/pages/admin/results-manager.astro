@@ -583,16 +583,41 @@ export const prerender = false;
         </div>
       `;
 
-      // 馬単情報
-      if (raceData.payouts?.umatan) {
-        html += `
-          <div class="info-grid">
-            <div class="info-item">
-              <span class="info-label">馬単:</span>
-              <span class="info-value">${raceData.payouts.umatan.combination} → ${raceData.payouts.umatan.payout.toLocaleString()}円</span>
-            </div>
-          </div>
-        `;
+      // 払戻情報（全券種対応）
+      if (raceData.payouts && Object.keys(raceData.payouts).length > 0) {
+        html += '<div class="payouts-section">';
+        html += '<h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">💰 払戻金</h4>';
+        html += '<div class="info-grid">';
+
+        const ticketNames = {
+          tansho: '単勝',
+          fukusho: '複勝',
+          wakuren: '枠複',
+          umaren: '馬複',
+          wakutan: '枠単',
+          umatan: '馬単',
+          wide: 'ワイド',
+          sanrenpuku: '三連複',
+          sanrentan: '三連単'
+        };
+
+        for (const [key, name] of Object.entries(ticketNames)) {
+          if (raceData.payouts[key] && Array.isArray(raceData.payouts[key])) {
+            const items = raceData.payouts[key];
+            items.forEach((item, idx) => {
+              const numOrCombo = item.number || item.combination;
+              html += `
+                <div class="info-item">
+                  <span class="info-label">${name}${items.length > 1 ? ` (${idx + 1})` : ''}:</span>
+                  <span class="info-value">${numOrCombo} → ${item.payout.toLocaleString()}円 (${item.popularity}人気)</span>
+                </div>
+              `;
+            });
+          }
+        }
+
+        html += '</div>';
+        html += '</div>';
       }
 
       // 的中判定情報

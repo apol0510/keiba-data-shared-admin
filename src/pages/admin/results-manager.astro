@@ -536,7 +536,7 @@ export const prerender = false;
           };
 
           // プレビュー表示
-          displayPreview(raceNum, raceData, archiveResults);
+          displayPreview(raceNum, raceData, archiveResults, date, venue);
 
           // ステータス更新
           updateRaceStatus(raceNum, '解析済み');
@@ -549,7 +549,7 @@ export const prerender = false;
     }
 
     // プレビュー表示
-    function displayPreview(raceNum, raceData, archiveResults) {
+    function displayPreview(raceNum, raceData, archiveResults, date, venue) {
       const previewDiv = document.getElementById(`preview${raceNum}`);
       const previewContent = document.getElementById(`previewContent${raceNum}`);
       const jsonOutput = document.getElementById(`jsonOutput${raceNum}`);
@@ -560,7 +560,7 @@ export const prerender = false;
         <div class="info-grid">
           <div class="info-item">
             <span class="info-label">レース:</span>
-            <span class="info-value">第${raceData.raceNumber}R ${raceData.raceName || ''}</span>
+            <span class="info-value">第${raceData.raceNumber}R ${date} ${venue} ${raceData.raceName || ''}</span>
           </div>
           <div class="info-item">
             <span class="info-label">距離:</span>

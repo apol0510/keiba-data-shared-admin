@@ -134,21 +134,50 @@ keiba-data-shared-admin/
 
 ## 📝 **主な機能** 📝
 
-### **結果管理画面（/admin/results-manager）**
+### **結果管理画面（/admin/results-manager）✅ 完成**
 
-**機能:**
-1. 南関公式サイトの結果を全文コピペ
-2. 自動パース・JSON生成
-3. プレビュー確認
-4. 「🚀 保存してGit Push」ボタンで keiba-data-shared に保存
+**URL:** https://keiba-data-shared-admin.netlify.app/admin/results-manager
+
+**実装済み機能:**
+
+#### **1. 自動データ抽出**
+- ✅ **全着順データ**（15頭対応）
+  - 着順/枠/馬番/馬名/騎手/調教師/タイム/着差/上3F/人気
+- ✅ **払戻金（全券種）**
+  - 単勝/複勝/枠連/馬連/枠単/馬単/ワイド/三連複/三連単
+  - 7頭以下の複勝2着まで対応
+- ✅ **タイムデータ**
+  - 上がり3F/上がり4F
+  - ハロンタイム（全ハロン、13ハロン対応）
+- ✅ **コーナー通過順**
+  - 2周レース対応（１周３角〜２周４角）
+  - 括弧表記対応（併走馬群）
+- ✅ **レース名抽出**
+  - 重賞レース優先（第○回、グレード記号）
+  - 日付情報と区別
+  - グレードレース対応（Ａ１、Ｃ３等）
+
+#### **2. プレビュー表示**
+- ✅ 日付・競馬場・レース名
+- ✅ 全着順テーブル（9列）
+- ✅ タイムデータ（上がり3F/4F/ハロンタイム）
+- ✅ コーナー通過順（全コーナー）
+- ✅ 払戻金（全券種）
+- ✅ JSON出力（results-json/archive-json）
+
+#### **3. GitHub連携**
+- ✅ 自動JSON生成
+- ✅ keiba-data-shared リポジトリに自動コミット・プッシュ
+- ✅ マージ機能（既存データ保持）
+- ✅ 完全上書き機能（forceOverwrite）
 
 **フロー:**
 ```
-ユーザー → results-manager（コピペ）
-  → 自動パース
+ユーザー → results-manager（南関公式サイトから全文コピペ）
+  → 自動パース（15頭/2周レース/重賞対応）
   → JSON生成
-  → プレビュー確認
-  → 「保存」ボタンクリック
+  → プレビュー確認（全情報表示）
+  → 「🚀 保存してGit Push」ボタンクリック
   → save-results.js（Netlify Function）
   → GitHub Contents API
   → keiba-data-shared に自動コミット・プッシュ完了 ✅
@@ -163,6 +192,12 @@ keiba-data-shared/
             └── MM/
                 └── YYYY-MM-DD.json
 ```
+
+**技術的な特徴:**
+- ブラウザコピペ対応（HTML→テキスト変換）
+- 表形式データ抽出（ヘッダー行/データ行分離）
+- セクション分離処理（タイム/コーナー/払戻金）
+- デバッグログ充実（ブラウザコンソールで確認可能）
 
 ---
 
@@ -238,23 +273,34 @@ GITHUB_REPO_OWNER=apol0510
 ### **Phase 1: セットアップ（100%完了 ✅）**
 - [x] プロジェクト作成
 - [x] Astro設定
-- [x] results-manager実装
+- [x] results-manager基本実装
 - [x] Netlify Function実装
 - [x] ドキュメント作成
 
-### **Phase 2: デプロイ（進行中 🚀）**
-- [ ] npm install
-- [ ] ローカルテスト
-- [ ] Git初期化
-- [ ] GitHub リポジトリ作成
-- [ ] Netlify連携
-- [ ] 環境変数設定
-- [ ] 本番デプロイ
+### **Phase 2: results-manager完成（100%完了 ✅）**
+- [x] 全着順データ抽出（15頭対応）
+- [x] 払戻金全券種抽出
+- [x] タイムデータ抽出（上がり3F/4F/ハロンタイム）
+- [x] コーナー通過順抽出（2周レース対応）
+- [x] レース名抽出（重賞優先、日付情報と区別）
+- [x] プレビュー表示（全情報）
+- [x] ブラウザコピペ対応
+- [x] デバッグログ充実
 
-### **Phase 3: 運用（将来）**
-- [ ] 予想データ管理画面追加
+### **Phase 3: デプロイ（100%完了 ✅）**
+- [x] Git初期化
+- [x] GitHub リポジトリ作成
+- [x] Netlify連携
+- [x] 環境変数設定（GITHUB_TOKEN_KEIBA_DATA_SHARED）
+- [x] 本番デプロイ
+- [x] 動作確認
+
+### **Phase 4: 運用開始（次のステップ）**
+- [ ] 実運用テスト（実際のレースデータで保存）
+- [ ] 予想データ管理画面追加（predictions-manager.astro）
 - [ ] データ分析ダッシュボード
-- [ ] API エンドポイント追加
+- [ ] 一括入力機能（複数レース同時入力）
+- [ ] データ修正機能
 
 ---
 
@@ -280,45 +326,74 @@ GITHUB_REPO_OWNER=apol0510
 - [x] Astro設定
 - [x] BaseLayout.astro
 - [x] トップページ（index.astro）
-- [x] results-manager.astro
+- [x] results-manager.astro基本実装
 - [x] save-results.js（Netlify Function）
 - [x] netlify.toml
 - [x] README.md
 - [x] CLAUDE.md
 
-### **Phase 2: Git・GitHub連携（0%）**
-- [ ] Git初期化
-- [ ] 初回コミット
-- [ ] GitHub リポジトリ作成
-- [ ] リモート連携
-- [ ] プッシュ
+### **Phase 2: results-manager完全実装（100%完了 ✅）**
+- [x] 全着順データ抽出（extractResults）
+- [x] 払戻金全券種抽出（extractPayouts）
+- [x] タイムデータ抽出（extractTimeData）
+  - [x] ブラウザコピペ対応
+  - [x] 表形式データ抽出
+  - [x] 上がり3F/4F/ハロンタイム
+- [x] コーナー通過順抽出（extractCornerData）
+  - [x] 2周レース対応
+  - [x] 括弧表記対応
+  - [x] グローバル正規表現
+- [x] レース名抽出（extractRaceInfo）
+  - [x] 重賞レース優先
+  - [x] 日付情報と区別
+  - [x] グレードレース対応
+- [x] プレビュー表示拡張
+  - [x] 全着順テーブル
+  - [x] タイムデータ表示
+  - [x] コーナー通過順表示
+  - [x] 日付・競馬場表示
+- [x] デバッグログ充実
 
-### **Phase 3: Netlifyデプロイ（0%）**
-- [ ] Netlify新規サイト作成
-- [ ] GitHub連携
-- [ ] ビルド設定
-- [ ] 環境変数設定
-- [ ] デプロイ完了
+### **Phase 3: Git・GitHub・Netlifyデプロイ（100%完了 ✅）**
+- [x] Git初期化
+- [x] 初回コミット（累積40+コミット）
+- [x] GitHub リポジトリ作成
+- [x] リモート連携
+- [x] 継続的プッシュ
+- [x] Netlify新規サイト作成
+- [x] GitHub連携
+- [x] ビルド設定
+- [x] 環境変数設定（GITHUB_TOKEN）
+- [x] 本番デプロイ完了
 
 ---
 
-**📅 最終更新日**: 2026-01-24
-**🏁 Project Phase**: Phase 1完了 ✅、Phase 2開始準備
-**🎯 Next Priority**: npm install → Git初期化 → GitHub連携
-**📊 進捗率**: 33%完了（Phase 1: 100%、Phase 2: 0%、Phase 3: 0%）
+**📅 最終更新日**: 2026-01-26
+**🏁 Project Phase**: Phase 1-3 完了 ✅、Phase 4（運用）開始準備
+**🎯 Next Priority**: 実運用テスト → 予想データ管理画面追加
+**📊 進捗率**: 100%完了（Phase 1-3: 完了、Phase 4: 準備中）
 
-**✨ 本日の成果（2026-01-24）**:
-  - keiba-data-shared-admin プロジェクト作成 ✅
-  - Astro設定完了 ✅
-  - results-manager 実装 ✅
-  - GitHub API連携 Function実装 ✅
-  - ドキュメント完備 ✅
+**✨ 最新の成果（2026-01-26）**:
+  - results-manager 完全実装 ✅
+  - 全着順データ抽出（15頭対応）✅
+  - 払戻金全券種抽出 ✅
+  - タイムデータ抽出（ブラウザコピペ対応）✅
+  - コーナー通過順抽出（2周レース対応）✅
+  - レース名抽出（重賞優先）✅
+  - プレビュー表示完全対応 ✅
+  - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - Netlify Functions: 1個実装（save-results.js）
-  - ページ: 2個実装（index.astro, results-manager.astro）
-  - ドキュメント: README.md、CLAUDE.md
-  - 役割分離設計: データリポジトリと管理画面の完全分離
+  - **Netlify Functions**: 1個実装（save-results.js）
+  - **ページ**: 2個実装（index.astro, results-manager.astro）
+  - **抽出機能**: 6種類（レース情報/着順/払戻金/タイム/コーナー/コメンタリー）
+  - **対応レース**: 南関競馬全競馬場（大井/船橋/川崎/浦和）
+  - **対応頭数**: 最大15頭
+  - **対応距離**: 2周レース対応（13ハロン）
+  - **対応券種**: 全9券種（単勝/複勝/枠連/馬連/枠単/馬単/ワイド/三連複/三連単）
+  - **ドキュメント**: README.md、CLAUDE.md
+  - **テストファイル**: 6個（検証済み）
+  - **本番URL**: https://keiba-data-shared-admin.netlify.app
 
 ---
 

@@ -996,22 +996,70 @@ export const prerender = false;
     function extractTimeData(text) {
       const timeData = {};
 
-      const last3FMatch = text.match(/上がり3F[\s\u3000]+([\d.]+)/);
-      if (last3FMatch) {
-        timeData.last3F = parseFloat(last3FMatch[1]);
+      // タイムセクションを抽出（表形式対応）
+      const timeSection = text.match(/タイム[\s\S]*?(?=\n\n|通過順|払戻金|$)/);
+      if (timeSection) {
+        const timeSectionText = timeSection[0];
+        const lines = timeSectionText.split('\n').map(l => l.trim()).filter(l => l);
+
+        // 上がり3F/4F/ハロンタイムのヘッダー行を探す
+        const headerIdx = lines.findIndex(l => l.includes('上がり3F') && l.includes('ハロンタイム'));
+
+        if (headerIdx > -1 && lines[headerIdx + 1]) {
+          // データ行（ヘッダーの次の行）
+          const dataLine = lines[headerIdx + 1];
+          const values = dataLine.split(/[\s\u3000]+/).filter(v => v);
+
+          // ヘッダー列の順番を確認
+          const headers = lines[headerIdx].split(/[\s\u3000]+/).filter(v => v);
+          const last3FIdx = headers.indexOf('上がり3F');
+          const last4FIdx = headers.indexOf('上がり4F');
+          const furlongIdx = headers.indexOf('ハロンタイム');
+
+          // 上がり3F
+          if (last3FIdx > -1 && values[last3FIdx]) {
+            timeData.last3F = parseFloat(values[last3FIdx]);
+          }
+
+          // 上がり4F
+          if (last4FIdx > -1 && values[last4FIdx]) {
+            timeData.last4F = parseFloat(values[last4FIdx]);
+          }
+
+          // ハロンタイム
+          if (furlongIdx > -1 && values[furlongIdx]) {
+            const furlongStr = values[furlongIdx];
+            const furlongs = furlongStr.split(/[,-]/).map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
+            if (furlongs.length > 0) {
+              timeData.furlongTimes = furlongs;
+            }
+          }
+        }
       }
 
-      const last4FMatch = text.match(/上がり4F[\s\u3000]+([\d.]+)/);
-      if (last4FMatch) {
-        timeData.last4F = parseFloat(last4FMatch[1]);
+      // フォールバック：従来形式（単一行）にも対応
+      if (!timeData.last3F) {
+        const last3FMatch = text.match(/上がり3F[\s\u3000]+([\d.]+)/);
+        if (last3FMatch) {
+          timeData.last3F = parseFloat(last3FMatch[1]);
+        }
       }
 
-      const furlongMatch = text.match(/ハロンタイム[\s\u3000]+([\d.,-]+)/);
-      if (furlongMatch) {
-        const furlongStr = furlongMatch[1];
-        const furlongs = furlongStr.split(/[,-]/).map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
-        if (furlongs.length > 0) {
-          timeData.furlongTimes = furlongs;
+      if (!timeData.last4F) {
+        const last4FMatch = text.match(/上がり4F[\s\u3000]+([\d.]+)/);
+        if (last4FMatch) {
+          timeData.last4F = parseFloat(last4FMatch[1]);
+        }
+      }
+
+      if (!timeData.furlongTimes) {
+        const furlongMatch = text.match(/ハロンタイム[\s\u3000]+([\d.,-]+)/);
+        if (furlongMatch) {
+          const furlongStr = furlongMatch[1];
+          const furlongs = furlongStr.split(/[,-]/).map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
+          if (furlongs.length > 0) {
+            timeData.furlongTimes = furlongs;
+          }
         }
       }
 

@@ -566,22 +566,98 @@ export const prerender = false;
             <span class="info-value">${raceData.horses}頭</span>
           </div>
         </div>
-
-        <div class="info-grid">
-          <div class="info-item">
-            <span class="info-label">1着:</span>
-            <span class="info-value">${raceData.results[0]?.number}番 ${raceData.results[0]?.name}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">2着:</span>
-            <span class="info-value">${raceData.results[1]?.number}番 ${raceData.results[1]?.name}</span>
-          </div>
-          <div class="info-item">
-            <span class="info-label">3着:</span>
-            <span class="info-value">${raceData.results[2]?.number}番 ${raceData.results[2]?.name}</span>
-          </div>
-        </div>
       `;
+
+      // 全着順表示
+      if (raceData.results && raceData.results.length > 0) {
+        html += '<div style="margin-top: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">🏇 着順</h4>';
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+        html += '<thead><tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-color);">';
+        html += '<th style="padding: 0.5rem; text-align: center;">着順</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">枠</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">馬番</th>';
+        html += '<th style="padding: 0.5rem; text-align: left;">馬名</th>';
+        html += '<th style="padding: 0.5rem; text-align: left;">騎手</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">タイム</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">着差</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">上3F</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">人気</th>';
+        html += '</tr></thead><tbody>';
+
+        raceData.results.forEach(horse => {
+          html += '<tr style="border-bottom: 1px solid var(--border-color);">';
+          html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.rank}着</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.bracket}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.number}</td>`;
+          html += `<td style="padding: 0.5rem;">${horse.name}</td>`;
+          html += `<td style="padding: 0.5rem;">${horse.jockey}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.time}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.margin}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.lastFurlong}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.popularity}</td>`;
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        html += '</div>';
+      }
+
+      // ハロンタイム・上がり表示
+      if (raceData.timeData) {
+        html += '<div style="margin-top: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">⏱️ タイムデータ</h4>';
+        html += '<div class="info-grid">';
+
+        if (raceData.timeData.last3F) {
+          html += `
+            <div class="info-item">
+              <span class="info-label">上がり3F:</span>
+              <span class="info-value">${raceData.timeData.last3F}秒</span>
+            </div>
+          `;
+        }
+
+        if (raceData.timeData.last4F) {
+          html += `
+            <div class="info-item">
+              <span class="info-label">上がり4F:</span>
+              <span class="info-value">${raceData.timeData.last4F}秒</span>
+            </div>
+          `;
+        }
+
+        if (raceData.timeData.furlongTimes && raceData.timeData.furlongTimes.length > 0) {
+          html += `
+            <div class="info-item" style="grid-column: 1 / -1;">
+              <span class="info-label">ハロンタイム:</span>
+              <span class="info-value">${raceData.timeData.furlongTimes.join(' - ')}秒</span>
+            </div>
+          `;
+        }
+
+        html += '</div>';
+        html += '</div>';
+      }
+
+      // コーナー通過順表示
+      if (raceData.cornerData && raceData.cornerData.length > 0) {
+        html += '<div style="margin-top: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">📍 コーナー通過順</h4>';
+        html += '<div class="info-grid">';
+
+        raceData.cornerData.forEach(corner => {
+          html += `
+            <div class="info-item" style="grid-column: 1 / -1;">
+              <span class="info-label">${corner.corner}:</span>
+              <span class="info-value">${corner.order.join(', ')}</span>
+            </div>
+          `;
+        });
+
+        html += '</div>';
+        html += '</div>';
+      }
 
       // 払戻情報（全券種対応）
       if (raceData.payouts && Object.keys(raceData.payouts).length > 0) {

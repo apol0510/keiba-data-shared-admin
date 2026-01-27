@@ -272,11 +272,40 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       }
     }
 
+    // Netlifyビルドトリガー（keiba-data-shared公開サイト）
+    let buildTriggered = false;
+    const NETLIFY_BUILD_HOOK_URL = process.env.NETLIFY_BUILD_HOOK_URL;
+
+    if (NETLIFY_BUILD_HOOK_URL) {
+      try {
+        console.log('🚀 Netlifyビルドをトリガー中...');
+        const buildResponse = await fetch(NETLIFY_BUILD_HOOK_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+
+        if (buildResponse.ok) {
+          console.log('✅ Netlifyビルドを正常にトリガーしました');
+          buildTriggered = true;
+        } else {
+          console.warn('⚠️ Netlifyビルドのトリガーに失敗しました:', buildResponse.status);
+        }
+      } catch (buildError) {
+        console.error('❌ Netlifyビルドトリガー中にエラー:', buildError);
+        // ビルドトリガーの失敗は全体の成功には影響しない
+      }
+    } else {
+      console.warn('⚠️ NETLIFY_BUILD_HOOK_URLが設定されていません。ビルドは自動トリガーされません。');
+    }
+
     // 成功レスポンス
     return new Response(
       JSON.stringify({
         success: true,
-        message: `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`,
+        message: buildTriggered
+          ? `${fileName} を keiba-data-shared に保存し、公開サイトのビルドを開始しました。2-3分後に https://keiba-data-shared.netlify.app/ に反映されます！`
+          : `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`,
         fileName,
         filePath,
         repoUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`,
@@ -284,7 +313,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         commitSha: result.commit?.sha,
         rawUrl: `https://raw.githubusercontent.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/${GITHUB_BRANCH}/${filePath}`,
         archiveCommitUrl: archiveCommitUrl,
-        archiveSaved: !!archiveCommitUrl
+        archiveSaved: !!archiveCommitUrl,
+        buildTriggered: buildTriggered
       }),
       { status: 200, headers }
     );

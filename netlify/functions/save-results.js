@@ -137,9 +137,10 @@ export default async (req, context) => {
     // レース情報一覧生成
     const racesList = parsedData.races.map(r => `第${r.raceNumber}R ${r.raceName || ''}`).join(', ');
     const totalRaces = parsedData.races.length;
+    const raceNumbers = parsedData.races.map(r => `${r.raceNumber}R`).join('・');
 
     // コミットメッセージ生成
-    const commitMessage = `✨ ${date} ${venue} 結果${fileSha ? '更新' : '追加'}（${totalRaces}レース）
+    const commitMessage = `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}`
 
 【結果データ】
 - 開催日: ${date}
@@ -233,7 +234,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         }
 
         // archiveResults.jsonを保存
-        const archiveCommitMessage = `📊 ${date} ${venue} 的中判定データ更新
+        const archiveCommitMessage = `📊 ${date} ${venue} ${raceNumbers} 的中判定データ更新`
 
 【的中情報】
 - 開催日: ${date}

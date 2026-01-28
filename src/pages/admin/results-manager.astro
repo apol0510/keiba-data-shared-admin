@@ -1165,38 +1165,100 @@ export const prerender = false;
 
       const winner = race.results[0];
       const second = race.results[1];
+      const third = race.results[2];
       const favorite = race.results.find(h => h.popularity === 1);
+
+      // 逃げ馬を特定（最初のコーナーで先頭にいた馬）
+      let pacemaker = null;
+      if (race.cornerData && race.cornerData.length > 0) {
+        const firstCorner = race.cornerData[0];
+        const leadHorseNum = firstCorner.order[0];
+        pacemaker = race.results.find(h => h.number === leadHorseNum);
+      }
 
       let commentary = '';
 
-      if (winner.popularity === 1) {
-        commentary += `1番人気${winner.number}番${winner.name}が`;
-        if (second) {
-          commentary += `直線で${second.number}番${second.name}を捕らえて`;
+      // レース展開（逃げ馬）
+      if (pacemaker) {
+        if (pacemaker.number === winner.number) {
+          // 逃げ切り勝ち
+          commentary += `${pacemaker.number}番${pacemaker.name}（${pacemaker.popularity}番人気）がスタートから先頭を奪い、そのまま押し切る完勝。`;
+        } else {
+          // 逃げ馬が捕まった
+          commentary += `${pacemaker.number}番${pacemaker.name}が逃げる展開から、`;
         }
-        commentary += `優勝。`;
-        if (race.timeData?.last3F) {
-          commentary += `上がり3ハロン${race.timeData.last3F}の脚を使い、`;
-        }
-        commentary += `勝ちタイム${winner.time}で快勝。`;
-      } else {
-        commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が追い込みから`;
-        if (race.timeData?.last3F) {
-          commentary += `、上がり3ハロン${race.timeData.last3F}`;
-        }
-        commentary += ` 勝ちタイム${winner.time}`;
-        if (favorite && favorite.number !== winner.number) {
-          commentary += `、1番人気${favorite.number}番${favorite.name}は${favorite.rank}着`;
-        }
-        commentary += `。波乱の決着となった。`;
       }
 
-      if (race.payouts?.sanrentan) {
-        const payout = race.payouts.sanrentan.payout;
-        if (payout >= 50000) {
-          commentary += `三連単の払い戻しは${payout.toLocaleString()}円の超高配当！`;
-        } else if (payout >= 10000) {
-          commentary += `三連単の払い戻しは${payout.toLocaleString()}円の高配当。`;
+      // 勝ち馬の動き
+      if (pacemaker && pacemaker.number !== winner.number) {
+        if (winner.popularity === 1) {
+          commentary += `1番人気の${winner.number}番${winner.name}が`;
+        } else {
+          commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が`;
+        }
+
+        // コーナー順位から展開を推測
+        let position = '後方';
+        if (race.cornerData && race.cornerData.length > 0) {
+          const lastCorner = race.cornerData[race.cornerData.length - 1];
+          const winnerPos = lastCorner.order.indexOf(winner.number) + 1;
+          if (winnerPos <= 3) {
+            position = '好位';
+          } else if (winnerPos <= 6) {
+            position = '中団';
+          }
+        }
+
+        commentary += `${position}から`;
+        if (race.timeData?.last3F) {
+          commentary += `上がり${race.timeData.last3F}秒の鋭い脚を繰り出し、`;
+        } else {
+          commentary += `直線で鋭く伸びて`;
+        }
+        commentary += `勝ちタイム${winner.time}で差し切った。`;
+      } else if (!pacemaker || pacemaker.number !== winner.number) {
+        // 逃げ馬情報がない場合
+        if (winner.popularity === 1) {
+          commentary += `1番人気の${winner.number}番${winner.name}が`;
+        } else {
+          commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が`;
+        }
+        if (race.timeData?.last3F) {
+          commentary += `上がり${race.timeData.last3F}秒の末脚を発揮し、`;
+        }
+        commentary += `勝ちタイム${winner.time}で優勝。`;
+      }
+
+      // 2着・3着
+      if (second && third) {
+        commentary += `2着に${second.number}番${second.name}、3着に${third.number}番${third.name}が入線。`;
+      } else if (second) {
+        commentary += `2着には${second.number}番${second.name}が続いた。`;
+      }
+
+      // 1番人気の結果（勝ち馬でない場合）
+      if (favorite && favorite.number !== winner.number) {
+        if (favorite.rank <= 3) {
+          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着に敗れた。`;
+        } else {
+          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と大敗。`;
+        }
+      }
+
+      // 払戻金情報
+      if (race.payouts?.umatan && race.payouts.umatan.length > 0) {
+        const umatanPayout = race.payouts.umatan[0].payout;
+        if (umatanPayout >= 10000) {
+          commentary += `馬単は${umatanPayout.toLocaleString()}円の高配当となった。`;
+        }
+      }
+
+      // 250文字を超える場合はトリミング（最後の句点で切る）
+      if (commentary.length > 260) {
+        const trimmed = commentary.substring(0, 250);
+        const lastPeriod = trimmed.lastIndexOf('。');
+        if (lastPeriod > 200) {
+          commentary = trimmed.substring(0, lastPeriod + 1);
         }
       }
 

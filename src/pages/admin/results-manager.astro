@@ -799,6 +799,20 @@ export const prerender = false;
           })
         });
 
+        // Background Function（202 Accepted）の場合
+        if (response.status === 202) {
+          statusDiv.className = 'save-status success';
+          statusDiv.innerHTML = `
+            ✅ 保存リクエストを受け付けました。バックグラウンドでGitHubに保存中...<br>
+            <small style="opacity: 0.8;">完了まで数秒〜1分かかります。公開サイトには2-3分後に反映されます。</small><br>
+            <a href="https://github.com/apol0510/keiba-data-shared/commits/main" target="_blank" style="color: var(--success);">📊 GitHubで確認</a>
+          `;
+          btn.textContent = '✅ 保存受付済み';
+          updateRaceStatus(raceNum, '保存処理中');
+          return;
+        }
+
+        // 通常レスポンスまたはエラー（200, 400, 500等）
         const data = await response.json();
 
         if (response.ok && data.success) {

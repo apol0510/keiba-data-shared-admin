@@ -11,9 +11,8 @@
  * - GITHUB_REPO_OWNER: apol0510
  */
 
-// ローカル開発環境用に.envファイルを読み込む
-import { config } from 'dotenv';
-config();
+// Netlify環境では環境変数は自動的に process.env に設定される
+// ローカル開発時は netlify dev コマンドが .env を自動読み込み
 
 export default async (req, context) => {
   // CORSヘッダー設定

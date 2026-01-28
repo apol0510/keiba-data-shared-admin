@@ -1278,12 +1278,8 @@ export const prerender = false;
         // 2着・3着
         if (second && third && secondPos && thirdPos) {
           commentary += `2着には${secondPos.label}から伸びた${second.number}番${second.name}（${second.popularity}番人気）、`;
-          // 3着が逃げ馬の場合は「逃げていた」と明記
-          if (third.number === pacemaker.number) {
-            commentary += `3着には逃げていた${third.number}番${third.name}（${third.popularity}番人気）が続いた。`;
-          } else {
-            commentary += `3着には${thirdPos.label}から追い込んだ${third.number}番${third.name}（${third.popularity}番人気）が続いた。`;
-          }
+          // 3着（逃げ馬でも展開説明は冒頭で済んでいるので役割を繰り返さない）
+          commentary += `3着には${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
         } else if (second) {
           commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
         }

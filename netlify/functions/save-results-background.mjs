@@ -233,7 +233,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         }
 
         // archiveResults.jsonを保存
-        const archiveCommitMessage = `📊 ${date} ${venue} ${raceNumbers} 的中判定データ更新`
+        const archiveCommitMessage = `📊 ${date} ${venue} ${raceNumbers} 的中判定データ更新
 
 【的中情報】
 - 開催日: ${date}

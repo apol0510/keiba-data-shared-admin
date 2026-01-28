@@ -273,28 +273,22 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     }
 
     // Netlifyビルドトリガー（keiba-data-shared公開サイト）
+    // 非同期で実行（await しない）- 結果を待たずにすぐにレスポンスを返す
     let buildTriggered = false;
     const NETLIFY_BUILD_HOOK_URL = process.env.NETLIFY_BUILD_HOOK_URL;
 
     if (NETLIFY_BUILD_HOOK_URL) {
-      try {
-        console.log('🚀 Netlifyビルドをトリガー中...');
-        const buildResponse = await fetch(NETLIFY_BUILD_HOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({})
-        });
-
-        if (buildResponse.ok) {
-          console.log('✅ Netlifyビルドを正常にトリガーしました');
-          buildTriggered = true;
-        } else {
-          console.warn('⚠️ Netlifyビルドのトリガーに失敗しました:', buildResponse.status);
-        }
-      } catch (buildError) {
-        console.error('❌ Netlifyビルドトリガー中にエラー:', buildError);
-        // ビルドトリガーの失敗は全体の成功には影響しない
-      }
+      // awaitせずに非同期でビルドトリガーを送信
+      fetch(NETLIFY_BUILD_HOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }).then(() => {
+        console.log('✅ Netlifyビルドトリガーを送信しました');
+      }).catch((buildError) => {
+        console.error('❌ Netlifyビルドトリガー送信エラー:', buildError);
+      });
+      buildTriggered = true; // トリガーは送信したのでtrue
     } else {
       console.warn('⚠️ NETLIFY_BUILD_HOOK_URLが設定されていません。ビルドは自動トリガーされません。');
     }

@@ -1176,65 +1176,103 @@ export const prerender = false;
         pacemaker = race.results.find(h => h.number === leadHorseNum);
       }
 
-      // 勝ち馬の位置取りを判定（最終コーナー）
-      let winnerPosition = '後方';
-      if (race.cornerData && race.cornerData.length > 0) {
+      // 各馬の位置取りを判定する関数（最終コーナー基準）
+      const getPosition = (horseNum) => {
+        if (!race.cornerData || race.cornerData.length === 0) return null;
         const lastCorner = race.cornerData[race.cornerData.length - 1];
-        const winnerPos = lastCorner.order.indexOf(winner.number) + 1;
-        if (winnerPos === 1) {
-          winnerPosition = '先頭';
-        } else if (winnerPos <= 3) {
-          winnerPosition = '好位';
-        } else if (winnerPos <= 6) {
-          winnerPosition = '中団';
-        }
-      }
+        const position = lastCorner.order.indexOf(horseNum) + 1;
+        if (position === 1) return { pos: position, label: '先頭' };
+        if (position === 2) return { pos: position, label: '2番手' };
+        if (position === 3) return { pos: position, label: '3番手' };
+        if (position <= 5) return { pos: position, label: `${position}番手` };
+        if (position <= 8) return { pos: position, label: '中団' };
+        return { pos: position, label: '後方' };
+      };
+
+      const winnerPos = getPosition(winner.number);
+      const secondPos = second ? getPosition(second.number) : null;
+      const thirdPos = third ? getPosition(third.number) : null;
 
       let commentary = '';
 
       // パターン1: 逃げ切り勝ち
       if (pacemaker && pacemaker.number === winner.number) {
-        commentary += `${winner.number}番${winner.name}（${winner.popularity}番人気）がスタートから先頭を奪うと、`;
-        if (second) {
-          commentary += `2番手に${second.number}番${second.name}、`;
-          if (third) {
-            commentary += `3番手に${third.number}番${third.name}が続く展開。`;
-          } else {
-            commentary += `が追走する展開。`;
-          }
-        }
-        commentary += `直線でも後続を寄せ付けず、`;
-        if (race.timeData?.last3F) {
-          commentary += `上がり${race.timeData.last3F}秒をマークして`;
-        }
-        commentary += `勝ちタイム${winner.time}で押し切った。`;
-      }
-      // パターン2: 逃げ馬がいて、差し切りパターン
-      else if (pacemaker && pacemaker.number !== winner.number) {
-        commentary += `${pacemaker.number}番${pacemaker.name}（${pacemaker.popularity}番人気）が逃げる展開から、`;
+        // 勝ち馬の逃げ
         if (winner.popularity === 1) {
           commentary += `1番人気の${winner.number}番${winner.name}が`;
         } else {
           commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が`;
         }
-        commentary += `${winnerPosition}から追い込み。`;
+        commentary += `スタートから先頭を奪い、そのままハナを切って逃げる展開。`;
+
+        // 2着馬の追い込み
+        if (second && secondPos) {
+          commentary += `${secondPos.label}から追い込んだ${second.popularity}番人気の${second.number}番${second.name}`;
+          if (second.lastFurlong && parseFloat(second.lastFurlong) < 38.5) {
+            commentary += `が上がり${second.lastFurlong}秒の鋭い脚で迫るも、`;
+          } else {
+            commentary += `が迫るも、`;
+          }
+          // 着差確認
+          if (second.margin === 'クビ' || second.margin === 'ハナ' || second.margin === 'アタマ') {
+            commentary += `${second.margin}差の接戦を制し`;
+          } else {
+            commentary += `振り切り`;
+          }
+        } else {
+          commentary += `後続を振り切り`;
+        }
+
+        // 勝ちタイム
+        if (race.timeData?.last3F) {
+          commentary += `、上がり${race.timeData.last3F}秒で勝ちタイム${winner.time}。`;
+        } else {
+          commentary += `、勝ちタイム${winner.time}。`;
+        }
+
+        // 3着馬
+        if (third && thirdPos) {
+          commentary += `3着には${thirdPos.label}から追い込んだ${third.popularity}番人気の${third.number}番${third.name}が入線。`;
+        }
+      }
+      // パターン2: 逃げ馬がいて、差し切りパターン
+      else if (pacemaker && pacemaker.number !== winner.number) {
+        // 逃げ馬の動き
+        commentary += `${pacemaker.number}番${pacemaker.name}（${pacemaker.popularity}番人気）がハナを切って逃げる展開から、`;
+
+        // 勝ち馬の追い込み
+        if (winner.popularity === 1) {
+          commentary += `1番人気の${winner.number}番${winner.name}が`;
+        } else {
+          commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が`;
+        }
+
+        if (winnerPos) {
+          commentary += `${winnerPos.label}を追走。`;
+        }
+
+        // 末脚
+        commentary += `直線で`;
         if (race.timeData?.last3F) {
           commentary += `上がり${race.timeData.last3F}秒の鋭い脚を繰り出して`;
         } else {
-          commentary += `直線で鋭く伸びて`;
+          commentary += `鋭く伸びて`;
         }
-        commentary += `勝ちタイム${winner.time}で差し切った。`;
-        if (second) {
-          commentary += `2着には${second.number}番${second.name}、`;
-          if (third) {
-            commentary += `3着に${third.number}番${third.name}が入線。`;
-          } else {
-            commentary += `が続いた。`;
-          }
+        commentary += `差し切り、勝ちタイム${winner.time}で優勝。`;
+
+        // 2着・3着
+        if (second && third && secondPos && thirdPos) {
+          commentary += `2着には${secondPos.label}から伸びた${second.popularity}番人気の${second.number}番${second.name}、`;
+          commentary += `3着には${thirdPos.label}から追い込んだ${third.popularity}番人気の${third.number}番${third.name}が続いた。`;
+        } else if (second) {
+          commentary += `2着には${second.number}番${second.name}が続いた。`;
         }
-        // 逃げ馬の結果を追記
+
+        // 逃げ馬の結果
         if (pacemaker.rank <= 5) {
           commentary += `逃げた${pacemaker.number}番${pacemaker.name}は${pacemaker.rank}着だった。`;
+        } else {
+          commentary += `逃げた${pacemaker.number}番${pacemaker.name}は${pacemaker.rank}着と後退した。`;
         }
       }
       // パターン3: 逃げ馬情報なし
@@ -1244,13 +1282,18 @@ export const prerender = false;
         } else {
           commentary += `${winner.popularity}番人気の${winner.number}番${winner.name}が`;
         }
-        commentary += `${winnerPosition}から抜け出し、`;
-        if (race.timeData?.last3F) {
-          commentary += `上がり${race.timeData.last3F}秒の末脚を発揮。`;
+
+        if (winnerPos) {
+          commentary += `${winnerPos.label}から抜け出し、`;
         }
-        commentary += `勝ちタイム${winner.time}で優勝を飾った。`;
+
+        if (race.timeData?.last3F) {
+          commentary += `上がり${race.timeData.last3F}秒の末脚で`;
+        }
+        commentary += `勝ちタイム${winner.time}で優勝。`;
+
         if (second && third) {
-          commentary += `2着に${second.number}番${second.name}、3着に${third.number}番${third.name}が入線。`;
+          commentary += `2着に${second.number}番${second.name}、3着に${third.number}番${third.name}が入線した。`;
         } else if (second) {
           commentary += `2着には${second.number}番${second.name}が続いた。`;
         }
@@ -1261,9 +1304,9 @@ export const prerender = false;
         if (favorite.rank <= 3) {
           commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着に敗れた。`;
         } else if (favorite.rank <= 5) {
-          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と凡走。`;
+          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と凡走した。`;
         } else {
-          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と大敗した。`;
+          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と惨敗した。`;
         }
       }
 

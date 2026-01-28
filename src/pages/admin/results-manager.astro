@@ -497,8 +497,7 @@ export const prerender = false;
         console.log(`[Race ${raceNum}] タイムデータ抽出結果:`, timeData);
         console.log(`[Race ${raceNum}] コーナー通過順抽出結果:`, cornerData);
 
-        const commentary = generateRaceCommentary({results, payouts, timeData, cornerData});
-
+        // raceDataオブジェクトを一旦作成
         const raceData = {
           raceNumber: raceNum,
           raceName: raceInfo.raceName,
@@ -511,10 +510,13 @@ export const prerender = false;
           payouts,
           timeData,
           cornerData,
-          commentary,
           enteredAt: new Date().toISOString(),
           enteredBy: 'staff-ui'
         };
+
+        // commentaryを生成してraceDataに追加
+        const commentary = generateRaceCommentary(raceData, date, venue);
+        raceData.commentary = commentary;
 
         // 結果JSON生成
         const resultsJSON = {
@@ -1160,12 +1162,13 @@ export const prerender = false;
       return corners.length > 0 ? corners : null;
     }
 
-    function generateRaceCommentary(race) {
+    function generateRaceCommentary(race, date, venue) {
       if (!race.results || race.results.length === 0) return '';
 
       const winner = race.results[0];
       const second = race.results[1];
       const third = race.results[2];
+      const fourth = race.results[3];
       const favorite = race.results.find(h => h.popularity === 1);
 
       // 逃げ馬を特定（最初のコーナーで先頭にいた馬）
@@ -1194,6 +1197,14 @@ export const prerender = false;
       const thirdPos = third ? getPosition(third.number) : null;
 
       let commentary = '';
+
+      // 冒頭：日付・競馬場・レース番号・条件（SEO対策）
+      if (date && venue) {
+        const [year, month, day] = date.split('-');
+        const formattedDate = `${year}年${parseInt(month)}月${parseInt(day)}日`;
+        const surfaceLabel = race.surface === 'ダート' ? 'ダ' : '芝';
+        commentary += `${formattedDate}${venue}競馬${race.raceNumber}レース（${race.raceName || 'C3'} ${surfaceLabel}${race.distance}m・${race.horses}頭立）は、`;
+      }
 
       // パターン1: 逃げ切り勝ち
       if (pacemaker && pacemaker.number === winner.number) {
@@ -1301,16 +1312,51 @@ export const prerender = false;
 
       // 1番人気の結果（勝ち馬でない場合）
       if (favorite && favorite.number !== winner.number) {
-        if (favorite.rank <= 3) {
-          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着に敗れた。`;
-        } else if (favorite.rank <= 5) {
-          commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と凡走した。`;
+        if (favorite.rank === 2) {
+          // 1番人気が2着の場合（すでに記述済みでない場合）
+          if (!second || second.number !== favorite.number || !commentary.includes(`${favorite.number}番${favorite.name}`)) {
+            commentary += `2着には1番人気の${favorite.number}番${favorite.name}が`;
+            if (favorite.margin) {
+              commentary += `${favorite.margin}差で続いた。`;
+            } else {
+              commentary += `続いた。`;
+            }
+          }
+        } else if (favorite.rank === 3) {
+          // 1番人気が3着の場合（すでに記述済みでない場合）
+          if (!third || third.number !== favorite.number || !commentary.includes(`${favorite.number}番${favorite.name}`)) {
+            commentary += `3着には1番人気の${favorite.number}番${favorite.name}が`;
+            if (favorite.margin) {
+              commentary += `${favorite.margin}差で入線した。`;
+            } else {
+              commentary += `入線した。`;
+            }
+          }
+        } else if (favorite.rank === 4) {
+          // 1番人気が4着の場合：4着情報として詳細記述
+          commentary += `4着には1番人気の${favorite.number}番${favorite.name}が`;
+          if (favorite.margin) {
+            commentary += `${favorite.margin}差で続き、`;
+          } else {
+            commentary += `続き、`;
+          }
+          commentary += `惜しくも連対を逃した。`;
+        } else if (favorite.rank === 5) {
+          commentary += `1番人気の${favorite.number}番${favorite.name}は5着と凡走した。`;
         } else {
           commentary += `1番人気の${favorite.number}番${favorite.name}は${favorite.rank}着と惨敗した。`;
         }
       }
 
-      // 払戻金情報（高配当の場合）
+      // 三連単配当情報を追加（SEO対策）
+      if (race.payouts?.sanrentan && race.payouts.sanrentan.length > 0) {
+        const sanrentanPayout = race.payouts.sanrentan[0].payout;
+        const sanrentanPop = race.payouts.sanrentan[0].popularity;
+        const sanrentanCombo = race.payouts.sanrentan[0].combination;
+        commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
+      }
+
+      // 高配当の場合は馬単も追加
       if (race.payouts?.umatan && race.payouts.umatan.length > 0) {
         const umatanPayout = race.payouts.umatan[0].payout;
         if (umatanPayout >= 10000) {

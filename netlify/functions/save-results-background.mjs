@@ -139,7 +139,7 @@ export default async (req, context) => {
     const raceNumbers = parsedData.races.map(r => `${r.raceNumber}R`).join('・');
 
     // コミットメッセージ生成
-    const commitMessage = `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}`
+    const commitMessage = `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}
 
 【結果データ】
 - 開催日: ${date}

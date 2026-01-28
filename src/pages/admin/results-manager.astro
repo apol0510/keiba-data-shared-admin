@@ -1234,9 +1234,9 @@ export const prerender = false;
           commentary += `後続を振り切り`;
         }
 
-        // 勝ちタイム
-        if (race.timeData?.last3F) {
-          commentary += `、上がり${race.timeData.last3F}秒で勝ちタイム${winner.time}。`;
+        // 勝ちタイム（勝ち馬個別の上がり3F使用）
+        if (winner.lastFurlong) {
+          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}。`;
         } else {
           commentary += `、勝ちタイム${winner.time}。`;
         }
@@ -1262,10 +1262,10 @@ export const prerender = false;
           commentary += `${winnerPos.label}を追走。`;
         }
 
-        // 末脚
+        // 末脚（勝ち馬個別の上がり3F使用）
         commentary += `直線で`;
-        if (race.timeData?.last3F) {
-          commentary += `上がり${race.timeData.last3F}秒の鋭い脚を繰り出して`;
+        if (winner.lastFurlong) {
+          commentary += `上がり${winner.lastFurlong}秒の鋭い脚を繰り出して`;
         } else {
           commentary += `鋭く伸びて`;
         }
@@ -1274,15 +1274,20 @@ export const prerender = false;
         // 2着・3着
         if (second && third && secondPos && thirdPos) {
           commentary += `2着には${secondPos.label}から伸びた${second.popularity}番人気の${second.number}番${second.name}、`;
-          commentary += `3着には${thirdPos.label}から追い込んだ${third.popularity}番人気の${third.number}番${third.name}が続いた。`;
+          // 3着が逃げ馬の場合は「逃げていた」と明記
+          if (third.number === pacemaker.number) {
+            commentary += `3着には逃げていた${third.popularity}番人気の${third.number}番${third.name}が続いた。`;
+          } else {
+            commentary += `3着には${thirdPos.label}から追い込んだ${third.popularity}番人気の${third.number}番${third.name}が続いた。`;
+          }
         } else if (second) {
           commentary += `2着には${second.number}番${second.name}が続いた。`;
         }
 
-        // 逃げ馬の結果
-        if (pacemaker.rank <= 5) {
+        // 逃げ馬の結果（4着以下のみ記述、3着以内は上記で記述済み）
+        if (pacemaker.rank >= 4 && pacemaker.rank <= 5) {
           commentary += `逃げた${pacemaker.number}番${pacemaker.name}は${pacemaker.rank}着だった。`;
-        } else {
+        } else if (pacemaker.rank > 5) {
           commentary += `逃げた${pacemaker.number}番${pacemaker.name}は${pacemaker.rank}着と後退した。`;
         }
       }
@@ -1298,8 +1303,8 @@ export const prerender = false;
           commentary += `${winnerPos.label}から抜け出し、`;
         }
 
-        if (race.timeData?.last3F) {
-          commentary += `上がり${race.timeData.last3F}秒の末脚で`;
+        if (winner.lastFurlong) {
+          commentary += `上がり${winner.lastFurlong}秒の末脚で`;
         }
         commentary += `勝ちタイム${winner.time}で優勝。`;
 

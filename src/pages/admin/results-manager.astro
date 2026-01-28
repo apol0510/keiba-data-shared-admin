@@ -787,7 +787,7 @@ export const prerender = false;
         : '🚀 keiba-data-shared リポジトリに保存中...';
 
       try {
-        const response = await fetch('/.netlify/functions/save-results', {
+        const response = await fetch('/.netlify/functions/save-results-background', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

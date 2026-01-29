@@ -1302,8 +1302,8 @@ export const prerender = false;
           commentary += `、勝ちタイム${winner.time}で優勝`;
         }
 
-        // 騎手・厩舎情報を追加（過去形）
-        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
+        // 騎手・厩舎情報を追加（過去形、必ず句点で閉じる）
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
 
         // 3着馬（シンプルに）
         if (third) {
@@ -1329,8 +1329,14 @@ export const prerender = false;
         if (winnerConsistency) {
           const avgPos = winnerConsistency.avgPos;
           const isConsistent = winnerConsistency.isConsistent;
+          const earlyPos = winnerPosEarly ? winnerPosEarly.pos : null;
+          const lastPos = winnerPosLast ? winnerPosLast.pos : null;
 
-          if (isConsistent && avgPos <= 2.5) {
+          // 序盤と終盤で位置が変化したか判定
+          if (earlyPos && lastPos && earlyPos >= 4 && lastPos <= 2) {
+            // 序盤4番手以降 → 終盤2番手以内 = 先行
+            commentary += `先行して脚を溜める形。`;
+          } else if (isConsistent && avgPos <= 2.5) {
             // 一貫して2番手以内
             if (Math.round(avgPos) === 2) {
               commentary += `2番手で折り合う形。`;
@@ -1357,27 +1363,38 @@ export const prerender = false;
         }
 
         // 末脚と決着方法（4角位置で判断）
-        commentary += `直線で`;
-        if (winner.lastFurlong) {
-          commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
-        } else {
-          commentary += `鋭く伸びて`;
-        }
-
         // 4角位置で適切な動詞を選択
         if (winnerPosLast && winnerPosLast.pos <= 2) {
-          // 4角1〜2位：抜け出して押し切る
-          commentary += `抜け出して押し切り、勝ちタイム${winner.time}で優勝`;
+          // 4角1〜2位：抜け出して押し切る（「繰り出して」は使わない）
+          commentary += `直線で抜け出して押し切り、勝ちタイム${winner.time}で優勝`;
         } else if (winnerPosLast && winnerPosLast.pos <= 5) {
-          // 4角3〜5位：差し切り（条件付き）
+          // 4角3〜5位：差し切り（「繰り出して」OK）
+          commentary += `直線で`;
+          if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
+            // 上がり39.5秒未満：鋭い脚
+            commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
+          } else if (winner.lastFurlong) {
+            // 上がり39.5秒以上：粘り強く
+            commentary += `しぶとく脚を伸ばし`;
+          } else {
+            commentary += `伸びて`;
+          }
           commentary += `差し切り、勝ちタイム${winner.time}で優勝`;
         } else {
           // 4角6位以下：追い込んで差し切り
+          commentary += `直線で`;
+          if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
+            commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
+          } else if (winner.lastFurlong) {
+            commentary += `しぶとく脚を伸ばし`;
+          } else {
+            commentary += `伸びて`;
+          }
           commentary += `追い込んで差し切り、勝ちタイム${winner.time}で優勝`;
         }
 
-        // 騎手・厩舎情報を追加（過去形）
-        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
+        // 騎手・厩舎情報を追加（過去形、必ず句点で閉じる）
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
 
         // 2着・3着
         if (second && third) {
@@ -1428,8 +1445,8 @@ export const prerender = false;
         }
         commentary += `勝ちタイム${winner.time}で優勝`;
 
-        // 騎手・厩舎情報を追加（過去形）
-        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
+        // 騎手・厩舎情報を追加（過去形、必ず句点で閉じる）
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
 
         if (second && third) {
           commentary += `2着に${second.number}番${second.name}（${second.popularity}番人気）、3着に${third.number}番${third.name}（${third.popularity}番人気）が入線した。`;

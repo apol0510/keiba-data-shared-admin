@@ -1136,13 +1136,29 @@ export const prerender = false;
       const cornerRegex = /([１２]周)?([１２３４])角[\s\t\u3000]+([\d,()]+)/g;
 
       let match;
+      let hasFirstLap = false; // １周目のコーナーが既に存在するか
+
       while ((match = cornerRegex.exec(cornerSectionText)) !== null) {
-        const lapPrefix = match[1] || '';
+        let lapPrefix = match[1] || '';
         const cornerNumber = match[2];
         const orderStr = match[3];
 
         console.log('[DEBUG] コーナーマッチ:', match[0]);
         console.log('[DEBUG] - lapPrefix:', lapPrefix, 'cornerNumber:', cornerNumber, 'orderStr:', orderStr);
+
+        // 周指定がない場合の処理
+        if (!lapPrefix) {
+          // １周目のコーナーが既に存在する場合、２周目と判断
+          if (hasFirstLap) {
+            lapPrefix = '２周';
+            console.log('[DEBUG] - 周指定なし→２周と判断');
+          } else {
+            // １周目も２周目もない場合は周指定なしのまま
+            console.log('[DEBUG] - 周指定なし（短距離レース）');
+          }
+        } else if (lapPrefix === '１周') {
+          hasFirstLap = true;
+        }
 
         // 括弧を除去して馬番を抽出（例: "(4,14)" → "4,14"）
         const cleanedStr = orderStr.replace(/[()]/g, '');

@@ -1361,25 +1361,30 @@ export const prerender = false;
           // 4角1〜2位：抜け出し
           commentary += `直線で抜け出し、勝ちタイム${winner.time}で1着となった`;
         } else if (winnerPosLast && winnerPosLast.pos <= 5) {
-          // 4角3〜5位：差し切り
+          // 4角3〜5位：差し切り（動作は最大2つ）
           commentary += `直線で`;
           if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
-            // 上がり39.5秒未満：鋭い脚
-            commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
+            // 上がり39.5秒未満：上がりをマーク
+            commentary += `上がり${winner.lastFurlong}秒をマークして`;
           } else if (winner.lastFurlong) {
             // 上がり39.5秒以上：粘り強く
             commentary += `しぶとく`;
           }
           commentary += `差し切り、勝ちタイム${winner.time}で1着となった`;
         } else {
-          // 4角6位以下：追い込んで差し切り
+          // 4角6位以下：追い込んで差し切り（動作は最大2つ）
           commentary += `直線で`;
           if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
-            commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
+            // 上がり39.5秒未満：上がりをマーク（「追い込んで」は省略して2連鎖に抑える）
+            commentary += `上がり${winner.lastFurlong}秒をマークして差し切り`;
           } else if (winner.lastFurlong) {
-            commentary += `しぶとく`;
+            // 上がりあるが遅い：追い込んで差し切り
+            commentary += `追い込んで差し切り`;
+          } else {
+            // 上がりデータなし：追い込んで差し切り
+            commentary += `追い込んで差し切り`;
           }
-          commentary += `追い込んで差し切り、勝ちタイム${winner.time}で1着となった`;
+          commentary += `、勝ちタイム${winner.time}で1着となった`;
         }
 
         // 騎手・厩舎情報を追加（簡潔に、必ず句点で閉じる）

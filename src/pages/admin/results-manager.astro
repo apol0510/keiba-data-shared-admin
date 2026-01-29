@@ -1325,19 +1325,29 @@ export const prerender = false;
 
         // 2着・3着
         if (second && third && secondPosLast && thirdPosLast) {
-          // 2着馬の表現：最終コーナーの位置に応じて変更
-          if (secondPosLast.pos === 1) {
-            // 最終コーナーで先頭→2着
-            commentary += `2着には先頭を追走した${second.number}番${second.name}（${second.popularity}番人気）、`;
+          // 2着馬の表現：逃げ馬かどうかで変更
+          if (pacemaker && second.number === pacemaker.number) {
+            // 逃げ馬が2着に粘った場合
+            commentary += `2着には粘り込んだ${second.number}番${second.name}（${second.popularity}番人気）、`;
+          } else if (secondPosLast.pos === 1) {
+            // その他の先行馬が2着
+            commentary += `2着には先行した${second.number}番${second.name}（${second.popularity}番人気）、`;
           } else {
             // その他
             commentary += `2着には${secondPosLast.label}から伸びた${second.number}番${second.name}（${second.popularity}番人気）、`;
           }
-          // 3着
-          commentary += `3着には${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
+
+          // 3着馬の表現：逃げ馬かどうかで変更
+          if (pacemaker && third.number === pacemaker.number) {
+            commentary += `3着には粘り込んだ${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
+          } else {
+            commentary += `3着には${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
+          }
         } else if (second && secondPosLast) {
-          if (secondPosLast.pos === 1) {
-            commentary += `2着には先頭を追走した${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
+          if (pacemaker && second.number === pacemaker.number) {
+            commentary += `2着には粘り込んだ${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
+          } else if (secondPosLast.pos === 1) {
+            commentary += `2着には先行した${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
           } else {
             commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
           }

@@ -1221,6 +1221,32 @@ export const prerender = false;
         return { pos: position, label: '後方' };
       };
 
+      // 全コーナーでの平均位置と一貫性を取得
+      const getPositionConsistency = (horseNum) => {
+        if (!race.cornerData || race.cornerData.length === 0) return null;
+
+        const positions = [];
+        for (const corner of race.cornerData) {
+          const pos = corner.order.indexOf(horseNum) + 1;
+          if (pos > 0) positions.push(pos);
+        }
+
+        if (positions.length === 0) return null;
+
+        const avg = positions.reduce((a, b) => a + b, 0) / positions.length;
+        const maxPos = Math.max(...positions);
+        const minPos = Math.min(...positions);
+        const range = maxPos - minPos;
+
+        return {
+          avgPos: avg,
+          minPos: minPos,
+          maxPos: maxPos,
+          range: range,
+          isConsistent: range <= 1 // 位置のばらつきが1以下なら一貫
+        };
+      };
+
       const winnerPosEarly = getPosition(winner.number, 'early');
       const winnerPosMid = getPosition(winner.number, 'mid');
       const winnerPosLast = getPosition(winner.number, 'last');
@@ -1271,9 +1297,9 @@ export const prerender = false;
 
         // 勝ちタイム（勝ち馬個別の上がり3F使用）
         if (winner.lastFurlong) {
-          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}で1着`;
+          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}`;
         } else {
-          commentary += `、勝ちタイム${winner.time}で1着`;
+          commentary += `、勝ちタイム${winner.time}`;
         }
 
         // 騎手・厩舎情報を追加（過去形）
@@ -1298,15 +1324,31 @@ export const prerender = false;
         }
         commentary += `）が`;
 
-        // 位置取りをシンプルに表現
-        if (winnerPosMid && winnerPosMid.pos >= 2 && winnerPosMid.pos <= 5) {
-          // 2番手〜5番手は「好位で脚を溜める形」
-          commentary += `好位で脚を溜める形。`;
-        } else if (winnerPosMid && winnerPosMid.pos >= 6) {
-          // 中団以降は具体的に
-          commentary += `${winnerPosMid.label}を追走。`;
+        // 全コーナーでの位置取りを分析
+        const winnerConsistency = getPositionConsistency(winner.number);
+        if (winnerConsistency) {
+          const avgPos = winnerConsistency.avgPos;
+          const isConsistent = winnerConsistency.isConsistent;
+
+          if (isConsistent && avgPos <= 2.5) {
+            // 一貫して2番手以内
+            if (Math.round(avgPos) === 2) {
+              commentary += `2番手で脚を溜める形。`;
+            } else {
+              commentary += `逃げ馬の直後で脚を溜める形。`;
+            }
+          } else if (avgPos >= 2 && avgPos <= 5) {
+            // 2番手〜5番手（変動あり）
+            commentary += `好位で脚を溜める形。`;
+          } else if (avgPos > 5 && avgPos <= 8) {
+            // 中団
+            commentary += `中団で脚を溜める形。`;
+          } else {
+            // 後方
+            commentary += `後方を追走。`;
+          }
         } else if (winnerPosLast) {
-          // 中盤データなしの場合は最終コーナー
+          // コーナーデータなしの場合は最終コーナー
           if (winnerPosLast.pos >= 2 && winnerPosLast.pos <= 5) {
             commentary += `好位で脚を溜める形。`;
           } else {
@@ -1321,7 +1363,7 @@ export const prerender = false;
         } else {
           commentary += `鋭く伸びて`;
         }
-        commentary += `差し切り、勝ちタイム${winner.time}で1着`;
+        commentary += `差し切り、勝ちタイム${winner.time}`;
 
         // 騎手・厩舎情報を追加（過去形）
         commentary += `、鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
@@ -1373,7 +1415,7 @@ export const prerender = false;
         if (winner.lastFurlong) {
           commentary += `上がり${winner.lastFurlong}秒の末脚で`;
         }
-        commentary += `勝ちタイム${winner.time}で1着`;
+        commentary += `勝ちタイム${winner.time}`;
 
         // 騎手・厩舎情報を追加（過去形）
         commentary += `、鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;

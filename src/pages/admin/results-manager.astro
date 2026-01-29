@@ -1344,7 +1344,7 @@ export const prerender = false;
             commentary += `中団で脚を溜め`;
           } else {
             // 後方
-            commentary += `後方を追走し`;
+            commentary += `後方で追走待機し`;
           }
         } else if (winnerPosLast) {
           // コーナーデータなしの場合は最終コーナー
@@ -1362,7 +1362,7 @@ export const prerender = false;
           commentary += `直線で抜け出し、勝ちタイム${winner.time}で1着となった`;
         } else if (winnerPosLast && winnerPosLast.pos <= 5) {
           // 4角3〜5位：差し切り（動作は最大2つ）
-          commentary += `直線で`;
+          commentary += `直線では`;
           if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
             // 上がり39.5秒未満：上がりをマーク
             commentary += `上がり${winner.lastFurlong}秒をマークして`;
@@ -1373,7 +1373,7 @@ export const prerender = false;
           commentary += `差し切り、勝ちタイム${winner.time}で1着となった`;
         } else {
           // 4角6位以下：追い込んで差し切り（動作は最大2つ）
-          commentary += `直線で`;
+          commentary += `直線では`;
           if (winner.lastFurlong && parseFloat(winner.lastFurlong) < 39.5) {
             // 上がり39.5秒未満：上がりをマーク（「追い込んで」は省略して2連鎖に抑える）
             commentary += `上がり${winner.lastFurlong}秒をマークして差し切り`;

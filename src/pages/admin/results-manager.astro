@@ -552,6 +552,19 @@ export const prerender = false;
       }
     }
 
+    // 天候に対応する絵文字を返す
+    function getWeatherEmoji(weather) {
+      const weatherEmojis = {
+        '晴': '☀️',
+        '曇': '☁️',
+        '雨': '☔',
+        '雪': '❄️',
+        '小雨': '🌧️',
+        '小雪': '🌨️'
+      };
+      return weatherEmojis[weather] || '';
+    }
+
     // プレビュー表示
     function displayPreview(raceNum, raceData, archiveResults, date, venue) {
       const previewDiv = document.getElementById(`preview${raceNum}`);
@@ -577,7 +590,7 @@ export const prerender = false;
           ${raceData.weather ? `
           <div class="info-item">
             <span class="info-label">天候:</span>
-            <span class="info-value">${raceData.weather}</span>
+            <span class="info-value">${raceData.weather}${getWeatherEmoji(raceData.weather)}</span>
           </div>
           ` : ''}
           ${raceData.trackCondition ? `

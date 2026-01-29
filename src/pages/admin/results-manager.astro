@@ -506,6 +506,8 @@ export const prerender = false;
           track: raceInfo.track,
           horses: raceInfo.horses,
           startTime: raceInfo.startTime,
+          weather: raceInfo.weather,
+          trackCondition: raceInfo.trackCondition,
           results,
           payouts,
           timeData,
@@ -572,6 +574,18 @@ export const prerender = false;
             <span class="info-label">出走頭数:</span>
             <span class="info-value">${raceData.horses}頭</span>
           </div>
+          ${raceData.weather ? `
+          <div class="info-item">
+            <span class="info-label">天候:</span>
+            <span class="info-value">${raceData.weather}</span>
+          </div>
+          ` : ''}
+          ${raceData.trackCondition ? `
+          <div class="info-item">
+            <span class="info-label">馬場状態:</span>
+            <span class="info-value">${raceData.trackCondition}</span>
+          </div>
+          ` : ''}
         </div>
       `;
 
@@ -895,7 +909,18 @@ export const prerender = false;
       const startTimeMatch = text.match(/発走時刻(\d{1,2}):(\d{2})/);
       const startTime = startTimeMatch ? `${startTimeMatch[1]}:${startTimeMatch[2]}` : null;
 
-      return { raceNumber, raceName, distance, surface, track, horses, startTime };
+      // 天候抽出
+      const weatherMatch = text.match(/天候:\s*([^\s　]+)/);
+      const weather = weatherMatch ? weatherMatch[1] : null;
+
+      // 馬場状態抽出（「馬場: ダート 良」→「良」を抽出）
+      const trackConditionMatch = text.match(/馬場:\s*(?:ダート|芝)\s+([^\s　]+)/);
+      const trackCondition = trackConditionMatch ? trackConditionMatch[1] : null;
+
+      console.log('[DEBUG extractRaceInfo] 天候:', weather);
+      console.log('[DEBUG extractRaceInfo] 馬場状態:', trackCondition);
+
+      return { raceNumber, raceName, distance, surface, track, horses, startTime, weather, trackCondition };
     }
 
     function extractResults(text) {

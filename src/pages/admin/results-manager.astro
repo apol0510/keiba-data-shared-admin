@@ -1328,30 +1328,30 @@ export const prerender = false;
           // 序盤と終盤で位置が変化したか判定
           if (earlyPos && lastPos && earlyPos >= 4 && lastPos <= 2) {
             // 序盤4番手以降 → 終盤2番手以内 = 先行
-            commentary += `先行して脚を溜める形。`;
+            commentary += `先行して脚を溜め`;
           } else if (isConsistent && avgPos <= 2.5) {
             // 一貫して2番手以内
             if (Math.round(avgPos) === 2) {
-              commentary += `2番手で折り合う形。`;
+              commentary += `2番手で折り合い`;
             } else {
-              commentary += `逃げ馬の直後で折り合う形。`;
+              commentary += `逃げ馬の直後で折り合い`;
             }
           } else if (avgPos >= 2 && avgPos <= 5) {
             // 2番手〜5番手（変動あり）
-            commentary += `好位で脚を溜める形。`;
+            commentary += `好位で脚を溜め`;
           } else if (avgPos > 5 && avgPos <= 8) {
             // 中団
-            commentary += `中団で脚を溜める形。`;
+            commentary += `中団で脚を溜め`;
           } else {
             // 後方
-            commentary += `後方を追走する形。`;
+            commentary += `後方を追走し`;
           }
         } else if (winnerPosLast) {
           // コーナーデータなしの場合は最終コーナー
           if (winnerPosLast.pos >= 2 && winnerPosLast.pos <= 5) {
-            commentary += `好位で脚を溜める形。`;
+            commentary += `好位で脚を溜め`;
           } else {
-            commentary += `${winnerPosLast.label}を追走する形。`;
+            commentary += `${winnerPosLast.label}を追走し`;
           }
         }
 

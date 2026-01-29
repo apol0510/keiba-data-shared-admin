@@ -717,6 +717,17 @@ export const prerender = false;
         html += '</div>';
       }
 
+      // レースコメント表示
+      if (raceData.commentary) {
+        html += '<div style="margin-top: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem; color: var(--text-primary);">📝 レースコメント（SEO最適化）</h4>';
+        html += '<div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 8px; border-left: 4px solid var(--primary-color);">';
+        html += `<p style="line-height: 1.8; color: var(--text-primary); margin: 0;">${raceData.commentary}</p>`;
+        html += `<p style="margin-top: 0.5rem; font-size: 0.875rem; color: var(--text-secondary);">文字数: ${raceData.commentary.length}文字</p>`;
+        html += '</div>';
+        html += '</div>';
+      }
+
       // 的中判定情報
       if (archiveResults) {
         const year = Object.keys(archiveResults)[0];

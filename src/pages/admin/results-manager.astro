@@ -1365,8 +1365,8 @@ export const prerender = false;
         // 末脚と決着方法（4角位置で判断）
         // 4角位置で適切な動詞を選択
         if (winnerPosLast && winnerPosLast.pos <= 2) {
-          // 4角1〜2位：抜け出そのまましゴール（シンプルに）
-          commentary += `直線で抜け出そのまましゴール。勝ちタイム${winner.time}だった`;
+          // 4角1〜2位：抜け出してゴール（シンプルに）
+          commentary += `直線で抜け出してゴール。勝ちタイム${winner.time}だった`;
         } else if (winnerPosLast && winnerPosLast.pos <= 5) {
           // 4角3〜5位：差し切り（「繰り出して」OK）
           commentary += `直線で`;

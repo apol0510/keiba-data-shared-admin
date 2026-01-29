@@ -1297,13 +1297,13 @@ export const prerender = false;
 
         // 勝ちタイム（勝ち馬個別の上がり3F使用）
         if (winner.lastFurlong) {
-          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}`;
+          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}で優勝`;
         } else {
-          commentary += `、勝ちタイム${winner.time}`;
+          commentary += `、勝ちタイム${winner.time}で優勝`;
         }
 
         // 騎手・厩舎情報を追加（過去形）
-        commentary += `、鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
 
         // 3着馬（シンプルに）
         if (third) {
@@ -1333,9 +1333,9 @@ export const prerender = false;
           if (isConsistent && avgPos <= 2.5) {
             // 一貫して2番手以内
             if (Math.round(avgPos) === 2) {
-              commentary += `2番手で脚を溜める形。`;
+              commentary += `2番手で折り合う形。`;
             } else {
-              commentary += `逃げ馬の直後で脚を溜める形。`;
+              commentary += `逃げ馬の直後で折り合う形。`;
             }
           } else if (avgPos >= 2 && avgPos <= 5) {
             // 2番手〜5番手（変動あり）
@@ -1356,17 +1356,28 @@ export const prerender = false;
           }
         }
 
-        // 末脚（勝ち馬個別の上がり3F使用）
+        // 末脚と決着方法（4角位置で判断）
         commentary += `直線で`;
         if (winner.lastFurlong) {
           commentary += `上がり${winner.lastFurlong}秒の脚を繰り出して`;
         } else {
           commentary += `鋭く伸びて`;
         }
-        commentary += `差し切り、勝ちタイム${winner.time}`;
+
+        // 4角位置で適切な動詞を選択
+        if (winnerPosLast && winnerPosLast.pos <= 2) {
+          // 4角1〜2位：抜け出して押し切る
+          commentary += `抜け出して押し切り、勝ちタイム${winner.time}で優勝`;
+        } else if (winnerPosLast && winnerPosLast.pos <= 5) {
+          // 4角3〜5位：差し切り（条件付き）
+          commentary += `差し切り、勝ちタイム${winner.time}で優勝`;
+        } else {
+          // 4角6位以下：追い込んで差し切り
+          commentary += `追い込んで差し切り、勝ちタイム${winner.time}で優勝`;
+        }
 
         // 騎手・厩舎情報を追加（過去形）
-        commentary += `、鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
 
         // 2着・3着
         if (second && third) {
@@ -1415,10 +1426,10 @@ export const prerender = false;
         if (winner.lastFurlong) {
           commentary += `上がり${winner.lastFurlong}秒の末脚で`;
         }
-        commentary += `勝ちタイム${winner.time}`;
+        commentary += `勝ちタイム${winner.time}で優勝`;
 
         // 騎手・厩舎情報を追加（過去形）
-        commentary += `、鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
+        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった`;
 
         if (second && third) {
           commentary += `2着に${second.number}番${second.name}（${second.popularity}番人気）、3着に${third.number}番${third.name}（${third.popularity}番人気）が入線した。`;

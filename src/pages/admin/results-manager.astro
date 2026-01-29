@@ -1275,40 +1275,33 @@ export const prerender = false;
           commentary += `${winner.popularity}番人気`;
         }
         commentary += `）が`;
-        commentary += `スタートから先頭を奪い、そのままハナを切って逃げる展開。`;
+        commentary += `スタートからハナを切って主導権を握る展開。`;
 
-        // 2着馬の追い込み
+        // 直線での粘り
+        commentary += `直線でも粘り強く脚を使い、勝ちタイム${winner.time}で1着。`;
+
+        // 2着馬
         if (second && secondPosLast) {
-          commentary += `${secondPosLast.label}から追い込んだ${second.number}番${second.name}（${second.popularity}番人気）`;
-          if (second.lastFurlong && parseFloat(second.lastFurlong) < 38.5) {
-            commentary += `が上がり${second.lastFurlong}秒の鋭い脚で迫るも、`;
-          } else {
-            commentary += `が迫るも、`;
-          }
-          // 着差確認
-          if (second.margin === 'クビ' || second.margin === 'ハナ' || second.margin === 'アタマ') {
-            commentary += `${second.margin}差の接戦を制し`;
-          } else {
-            commentary += `振り切り`;
-          }
-        } else {
-          commentary += `後続を振り切り`;
+          commentary += `2着には${secondPosLast.label}から追い込んだ${second.number}番${second.name}（${second.popularity}番人気）、`;
+        } else if (second) {
+          commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）、`;
         }
 
-        // 勝ちタイム（勝ち馬個別の上がり3F使用）
-        if (winner.lastFurlong) {
-          commentary += `、上がり${winner.lastFurlong}秒で勝ちタイム${winner.time}で優勝`;
-        } else {
-          commentary += `、勝ちタイム${winner.time}で優勝`;
-        }
-
-        // 騎手・厩舎情報を追加（簡潔に、必ず句点で閉じる）
-        commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビ。`;
-
-        // 3着馬（シンプルに）
+        // 3着馬
         if (third) {
           commentary += `3着には${third.number}番${third.name}（${third.popularity}番人気）が入線した。`;
         }
+
+        // 三連単配当情報を追加（SEO対策）
+        if (race.payouts?.sanrentan && race.payouts.sanrentan.length > 0) {
+          const sanrentanPayout = race.payouts.sanrentan[0].payout;
+          const sanrentanPop = race.payouts.sanrentan[0].popularity;
+          const sanrentanCombo = race.payouts.sanrentan[0].combination;
+          commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着。`;
+        }
+
+        // 騎手・厩舎情報を追加（簡潔に、必ず句点で閉じる）
+        commentary += `鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
       }
       // パターン2: 逃げ馬がいて、差し切りパターン
       else if (pacemaker && pacemaker.number !== winner.number) {
@@ -1420,6 +1413,14 @@ export const prerender = false;
             commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
           }
         }
+
+        // 三連単配当情報を追加（SEO対策）
+        if (race.payouts?.sanrentan && race.payouts.sanrentan.length > 0) {
+          const sanrentanPayout = race.payouts.sanrentan[0].payout;
+          const sanrentanPop = race.payouts.sanrentan[0].popularity;
+          const sanrentanCombo = race.payouts.sanrentan[0].combination;
+          commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着。`;
+        }
       }
       // パターン3: 逃げ馬情報なし
       else {
@@ -1439,7 +1440,7 @@ export const prerender = false;
         if (winner.lastFurlong) {
           commentary += `上がり${winner.lastFurlong}秒の末脚で`;
         }
-        commentary += `勝ちタイム${winner.time}で優勝`;
+        commentary += `勝ちタイム${winner.time}で1着`;
 
         // 騎手・厩舎情報を追加（簡潔に、必ず句点で閉じる）
         commentary += `。鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビ。`;
@@ -1449,52 +1450,14 @@ export const prerender = false;
         } else if (second) {
           commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）が続いた。`;
         }
-      }
 
-      // 1番人気の結果（勝ち馬でない場合、騎手・厩舎含む）
-      if (favorite && favorite.number !== winner.number) {
-        if (favorite.rank === 2) {
-          // 1番人気が2着の場合（すでに記述済みでない場合）
-          if (!second || second.number !== favorite.number || !commentary.includes(`${favorite.number}番${favorite.name}`)) {
-            commentary += `2着には${favorite.number}番${favorite.name}（1番人気・${favorite.jockey}騎手・${favorite.trainer}厩舎）が`;
-            if (favorite.margin) {
-              commentary += `${favorite.margin}差で続いた。`;
-            } else {
-              commentary += `続いた。`;
-            }
-          }
-        } else if (favorite.rank === 3) {
-          // 1番人気が3着の場合（すでに記述済みでない場合）
-          if (!third || third.number !== favorite.number || !commentary.includes(`${favorite.number}番${favorite.name}`)) {
-            commentary += `3着には${favorite.number}番${favorite.name}（1番人気・${favorite.jockey}騎手・${favorite.trainer}厩舎）が`;
-            if (favorite.margin) {
-              commentary += `${favorite.margin}差で入線した。`;
-            } else {
-              commentary += `入線した。`;
-            }
-          }
-        } else if (favorite.rank === 4) {
-          // 1番人気が4着の場合：4着情報として詳細記述
-          commentary += `4着には${favorite.number}番${favorite.name}（1番人気・${favorite.jockey}騎手・${favorite.trainer}厩舎）が`;
-          if (favorite.margin) {
-            commentary += `${favorite.margin}差で続き、`;
-          } else {
-            commentary += `続き、`;
-          }
-          commentary += `惜しくも連対を逃した。`;
-        } else if (favorite.rank === 5) {
-          commentary += `${favorite.number}番${favorite.name}（1番人気・${favorite.jockey}騎手・${favorite.trainer}厩舎）は5着と凡走した。`;
-        } else {
-          commentary += `${favorite.number}番${favorite.name}（1番人気・${favorite.jockey}騎手・${favorite.trainer}厩舎）は${favorite.rank}着と惨敗した。`;
+        // 三連単配当情報を追加（SEO対策）
+        if (race.payouts?.sanrentan && race.payouts.sanrentan.length > 0) {
+          const sanrentanPayout = race.payouts.sanrentan[0].payout;
+          const sanrentanPop = race.payouts.sanrentan[0].popularity;
+          const sanrentanCombo = race.payouts.sanrentan[0].combination;
+          commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着。`;
         }
-      }
-
-      // 三連単配当情報を追加（SEO対策）
-      if (race.payouts?.sanrentan && race.payouts.sanrentan.length > 0) {
-        const sanrentanPayout = race.payouts.sanrentan[0].payout;
-        const sanrentanPop = race.payouts.sanrentan[0].popularity;
-        const sanrentanCombo = race.payouts.sanrentan[0].combination;
-        commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
       }
 
       // 高配当の場合は馬単も追加

@@ -470,7 +470,20 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const seirei = seireiIndex >= 0 && tds[seireiIndex] ? tds[seireiIndex].textContent.trim() : "";
         const kisyu = kisyuIndex >= 0 && tds[kisyuIndex] ? tds[kisyuIndex].textContent.trim() : "";
         const kinryo = kinryoIndex >= 0 && tds[kinryoIndex] ? tds[kinryoIndex].textContent.trim() : "";
-        const kyusya = kyusyaIndex >= 0 && tds[kyusyaIndex] ? tds[kyusyaIndex].textContent.trim() : "";
+
+        // 厩舎：(大)月岡 形式に整形
+        let kyusya = "";
+        if (kyusyaIndex >= 0 && tds[kyusyaIndex]) {
+          const kyusyaTd = tds[kyusyaIndex];
+          const syozokuSpan = kyusyaTd.querySelector(".syozoku");
+          if (syozokuSpan) {
+            const syozoku = syozokuSpan.textContent.trim();
+            const trainerName = kyusyaTd.textContent.replace(syozoku, "").trim();
+            kyusya = `(${syozoku})${trainerName}`;
+          } else {
+            kyusya = kyusyaTd.textContent.trim();
+          }
+        }
 
         // 予想者列から印を抽出（インデックスベース）
         const marks = {};

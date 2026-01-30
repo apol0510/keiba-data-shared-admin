@@ -1,0 +1,995 @@
+---
+/**
+ * 競馬予想データ管理画面
+ * 核（Core）: 複数サイトで共通利用する基盤データ
+ * 拡張（Extension）: サイトごとにカスタマイズ可能な領域
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+---
+
+<BaseLayout title="競馬予想データ管理画面">
+  <div class="container">
+    <h1>🏇 競馬予想データ管理画面</h1>
+    <p class="subtitle">
+      複数サイトで自動調整可能な予想変換システム（核）
+    </p>
+
+    <!-- ブロック1: レース情報 -->
+    <section class="section">
+      <h2>📋 [1] レース情報</h2>
+      <div class="race-info-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="raceDate">日付（YYYY-MM-DD）</label>
+            <input type="date" id="raceDate" required />
+          </div>
+          <div class="form-group">
+            <label for="track">競馬場</label>
+            <select id="track" required>
+              <option value="">選択してください</option>
+              <option value="大井競馬">大井競馬</option>
+              <option value="船橋競馬">船橋競馬</option>
+              <option value="川崎競馬">川崎競馬</option>
+              <option value="浦和競馬">浦和競馬</option>
+              <option value="中山競馬">中山競馬</option>
+              <option value="東京競馬">東京競馬</option>
+              <option value="阪神競馬">阪神競馬</option>
+              <option value="京都競馬">京都競馬</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="raceNumber">レース番号</label>
+            <input
+              type="text"
+              id="raceNumber"
+              placeholder="11R"
+              required
+            />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="raceName">レース名</label>
+            <input
+              type="text"
+              id="raceName"
+              placeholder="東京記念"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="distance">距離</label>
+            <input
+              type="text"
+              id="distance"
+              placeholder="ダ2,400m"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="horseCount">頭数</label>
+            <input type="number" id="horseCount" min="1" max="18" required />
+          </div>
+          <div class="form-group">
+            <label for="startTime">発走時刻</label>
+            <input type="time" id="startTime" required />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ブロック2: HTML入力 -->
+    <section class="section">
+      <h2>📥 [2] 競馬ブックHTML貼り付け</h2>
+      <p class="description">
+        競馬ブックの出馬表HTMLを貼り付けてください（<code>&lt;table&gt;...&lt;/table&gt;</code>を含む全体）
+      </p>
+      <textarea
+        id="htmlInput"
+        rows="10"
+        placeholder="<table class='default syutuba'>...省略...</table>"
+      ></textarea>
+      <button id="extractBtn" class="btn-primary">🔍 自動抽出実行</button>
+    </section>
+
+    <!-- ブロック3: 抽出結果 -->
+    <section class="section" id="extractionResultSection" style="display: none;">
+      <h2>✅ [3] 抽出結果</h2>
+      <div id="extractionStatus"></div>
+      <div class="table-wrapper">
+        <table id="extractionTable" class="data-table">
+          <thead>
+            <tr>
+              <th>馬番</th>
+              <th>馬名</th>
+              <th>umacd</th>
+              <th id="predictorHeaders"></th>
+              <th>オッズ</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="extractionTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ブロック4: 印の確定 -->
+    <section class="section" id="marksConfirmSection" style="display: none;">
+      <h2>✨ [4] 印の確定（自動提案＋手動確定）</h2>
+      <div id="marksProposal" class="proposal"></div>
+      <div class="marks-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mainHorse">本命◎</label>
+            <select id="mainHorse" required></select>
+          </div>
+          <div class="form-group">
+            <label for="subHorse">対抗○</label>
+            <select id="subHorse" required></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="hole1Horse">単穴▲（1頭目）</label>
+            <select id="hole1Horse"></select>
+          </div>
+          <div class="form-group">
+            <label for="hole2Horse">単穴▲（2頭目）</label>
+            <select id="hole2Horse"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full-width">
+            <label for="connectHorses">連下△（複数選択可）</label>
+            <select id="connectHorses" multiple size="5"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group full-width">
+            <label for="reserveHorses">押さえ×（複数選択可）</label>
+            <select id="reserveHorses" multiple size="5"></select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ブロック5: サイトプロファイル選択＋拡張パネル -->
+    <section class="section" id="extensionSection" style="display: none;">
+      <h2>🎨 [5] 拡張パネル（サイト別）</h2>
+      <div class="form-group">
+        <label for="siteProfile">サイトプロファイル</label>
+        <select id="siteProfile">
+          <option value="nankan-analytics">南関アナリティクス（フル装備）</option>
+          <option value="central-keiba">中央競馬（シンプル）</option>
+          <option value="minimal">ミニマル（印のみ）</option>
+        </select>
+      </div>
+      <div id="extensionPanel" class="extension-panel"></div>
+    </section>
+
+    <!-- ブロック6: 出力プレビュー -->
+    <section class="section" id="previewSection" style="display: none;">
+      <h2>👁️ [6] 出力プレビュー</h2>
+      <div class="tabs" id="previewTabs"></div>
+      <div id="previewContent" class="preview-content"></div>
+    </section>
+
+    <!-- ブロック7: 保存 -->
+    <section class="section" id="saveSection" style="display: none;">
+      <h2>💾 [7] 保存（GitHub API / Push）</h2>
+      <div id="saveStatus"></div>
+      <button id="saveBtn" class="btn-success">🚀 保存してGit Push</button>
+    </section>
+  </div>
+
+  <style>
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 2rem;
+    }
+
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .section h2 {
+      font-size: 1.25rem;
+      margin-bottom: 1rem;
+      color: #333;
+    }
+
+    .description {
+      color: #666;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .form-group.full-width {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+    }
+
+    input,
+    select,
+    textarea {
+      padding: 0.5rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: monospace;
+      resize: vertical;
+    }
+
+    select[multiple] {
+      padding: 0.5rem;
+    }
+
+    .btn-primary,
+    .btn-success {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+
+    .data-table th,
+    .data-table td {
+      border: 1px solid #ddd;
+      padding: 0.5rem;
+      text-align: left;
+    }
+
+    .data-table th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+
+    .data-table tbody tr:hover {
+      background: #f9fafb;
+    }
+
+    .proposal {
+      background: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .extension-panel {
+      margin-top: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      border-bottom: 2px solid #e5e7eb;
+    }
+
+    .tab {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border: none;
+      background: none;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+    }
+
+    .tab.active {
+      border-bottom-color: #3b82f6;
+      color: #3b82f6;
+      font-weight: 600;
+    }
+
+    .preview-content {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    .preview-content pre {
+      margin: 0;
+      font-family: monospace;
+      font-size: 0.875rem;
+    }
+
+    code {
+      background: #f3f4f6;
+      padding: 0.125rem 0.25rem;
+      border-radius: 2px;
+      font-family: monospace;
+    }
+
+    #extractionStatus,
+    #saveStatus {
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .status-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-warning {
+      background: #fef3c7;
+      color: #92400e;
+    }
+  </style>
+
+  <script>
+    // グローバル変数
+    let extractionResult = null;
+    let coreData = null;
+    let extensionsData = {};
+
+    // 型定義（TypeScriptから移植）
+    const SITE_PROFILES = {
+      "nankan-analytics": {
+        id: "nankan-analytics",
+        name: "南関アナリティクス",
+        extensionFields: {
+          horses: [
+            { key: "score", label: "累積スコア", type: "number", unit: "pt", min: 0, max: 100 },
+            { key: "stability", label: "安定性", type: "number", unit: "%", min: 0, max: 100 },
+            { key: "abilityRank", label: "能力上位性", type: "number", unit: "%", min: 0, max: 100 },
+            { key: "paceAdvantage", label: "展開利", type: "number", unit: "%", min: 0, max: 100 },
+          ],
+          strategies: [
+            { key: "safe_bets", label: "少点数的中型: 買い目", type: "string" },
+            { key: "safe_hitRate", label: "少点数的中型: 的中率", type: "number", unit: "%" },
+            { key: "balance_bets", label: "バランス型: 買い目", type: "string" },
+            { key: "balance_hitRate", label: "バランス型: 的中率", type: "number", unit: "%" },
+            { key: "aggressive_bets", label: "高配当追求型: 買い目", type: "string" },
+            { key: "aggressive_hitRate", label: "高配当追求型: 的中率", type: "number", unit: "%" },
+          ],
+        },
+      },
+      "central-keiba": {
+        id: "central-keiba",
+        name: "中央競馬",
+        extensionFields: {
+          horses: [
+            { key: "score", label: "総合スコア", type: "number", unit: "pt", min: 0, max: 100 },
+          ],
+          strategies: [],
+        },
+      },
+      "minimal": {
+        id: "minimal",
+        name: "ミニマル",
+        extensionFields: {
+          horses: [],
+          strategies: [],
+        },
+      },
+    };
+
+    // ブロック2: HTML抽出
+    document.getElementById("extractBtn").addEventListener("click", async () => {
+      const html = document.getElementById("htmlInput").value;
+
+      if (!html.trim()) {
+        alert("HTMLを貼り付けてください");
+        return;
+      }
+
+      try {
+        // 抽出処理（extractor.tsの機能を使用）
+        const result = await extractPredictions(html);
+
+        if (!result.success) {
+          showExtract ionStatus(false, result.errors.join("\n"));
+          return;
+        }
+
+        extractionResult = result;
+        showExtractionResult(result);
+        showExtractionStatus(true, `✅ ${result.horses.length}頭のデータを抽出しました`);
+
+        // ブロック3, 4を表示
+        document.getElementById("extractionResultSection").style.display = "block";
+        document.getElementById("marksConfirmSection").style.display = "block";
+
+        // 印の自動提案を表示
+        showMarksProposal(result.suggestedMarks);
+        populateMarksSelects(result.horses, result.suggestedMarks);
+
+      } catch (error) {
+        showExtractionStatus(false, `エラー: ${error.message}`);
+      }
+    });
+
+    // 抽出ステータス表示
+    function showExtractionStatus(success, message) {
+      const status = document.getElementById("extractionStatus");
+      status.className = success ? "status-success" : "status-error";
+      status.textContent = message;
+    }
+
+    // 抽出結果をテーブル表示
+    function showExtractionResult(result) {
+      const tbody = document.getElementById("extractionTableBody");
+      tbody.innerHTML = "";
+
+      const headers = document.getElementById("predictorHeaders");
+      headers.innerHTML = result.predictors.map(p => `<th>${p}</th>`).join("");
+
+      result.horses.forEach((horse) => {
+        const row = tbody.insertRow();
+        row.insertCell().textContent = horse.number;
+        row.insertCell().textContent = horse.name;
+        row.insertCell().textContent = horse.umacd || "-";
+
+        result.predictors.forEach(predictor => {
+          row.insertCell().textContent = horse.marks[predictor] || "-";
+        });
+
+        row.insertCell().textContent = horse.odds ? horse.odds.toFixed(1) : "-";
+        row.insertCell().innerHTML = `<button class="btn-small">修正</button>`;
+      });
+    }
+
+    // 印の自動提案を表示
+    function showMarksProposal(suggested) {
+      const proposal = document.getElementById("marksProposal");
+      proposal.innerHTML = `
+        <strong>🤖 AI自動提案:</strong><br>
+        本命◎ → ${suggested.main.slice(0, 3).join(", ")}番<br>
+        対抗○ → ${suggested.sub.slice(0, 3).join(", ")}番<br>
+        単穴▲ → ${suggested.hole.slice(0, 5).join(", ")}番
+      `;
+    }
+
+    // 印選択プルダウンを生成
+    function populateMarksSelects(horses, suggested) {
+      const selects = ["mainHorse", "subHorse", "hole1Horse", "hole2Horse", "connectHorses", "reserveHorses"];
+
+      selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        select.innerHTML = horses.map(h =>
+          `<option value="${h.number}">${h.number}番 ${h.name}</option>`
+        ).join("");
+      });
+
+      // デフォルト値を設定
+      if (suggested.main[0]) document.getElementById("mainHorse").value = suggested.main[0];
+      if (suggested.main[1]) document.getElementById("subHorse").value = suggested.main[1];
+      if (suggested.main[2]) document.getElementById("hole1Horse").value = suggested.main[2];
+      if (suggested.sub[0]) document.getElementById("hole2Horse").value = suggested.sub[0];
+    }
+
+    // HTML抽出関数（extractor.tsの機能を移植）
+    async function extractPredictions(html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      const table = doc.querySelector("table.default.syutuba");
+      if (!table) {
+        return { success: false, errors: ["出馬表テーブルが見つかりません"], horses: [], predictors: [] };
+      }
+
+      const headerRow = table.querySelector("thead tr");
+      if (!headerRow) {
+        return { success: false, errors: ["ヘッダー行が見つかりません"], horses: [], predictors: [] };
+      }
+
+      // 予想者列を検出
+      const predictors = [];
+      headerRow.querySelectorAll("th").forEach(th => {
+        const text = th.textContent.trim();
+        if (text.includes("My") || text === "CPU" || (text.length <= 3 && text.length > 0)) {
+          predictors.push(text);
+        }
+      });
+
+      // 馬データを抽出
+      const horses = [];
+      table.querySelectorAll("tbody tr").forEach(row => {
+        const tds = Array.from(row.querySelectorAll("td"));
+
+        const umabanTd = tds.find(td => td.classList.contains("umaban"));
+        const bameiTd = tds.find(td => td.classList.contains("bamei"));
+        const markTds = tds.filter(td => td.classList.contains("tmyoso"));
+        const oddsTd = tds.find(td => td.classList.contains("odds5"));
+
+        if (!umabanTd || !bameiTd) return;
+
+        const number = parseInt(umabanTd.textContent.trim(), 10);
+        const link = bameiTd.querySelector("a");
+        const name = link ? link.textContent.trim() : "";
+        const href = link ? link.getAttribute("href") : "";
+        const umacdMatch = href.match(/\/uma\/(\d+)/);
+        const umacd = umacdMatch ? umacdMatch[1] : undefined;
+
+        const marks = {};
+        markTds.forEach((td, index) => {
+          if (index < predictors.length) {
+            const mark = td.querySelector("svg") ? "▲" : td.textContent.trim();
+            marks[predictors[index]] = mark || "-";
+          }
+        });
+
+        let odds = undefined;
+        if (oddsTd) {
+          const oddsText = oddsTd.textContent.trim();
+          odds = oddsText === "☆" ? 999.9 : parseFloat(oddsText);
+        }
+
+        horses.push({ number, name, umacd, marks, odds });
+      });
+
+      // 印の集計（自動提案）
+      const scores = {};
+      const markScores = { "◎": 5, "○": 4, "▲": 3, "△": 2, "穴": 2, "注": 1 };
+
+      horses.forEach(horse => {
+        let score = 0;
+        Object.values(horse.marks).forEach(mark => {
+          score += markScores[mark] || 0;
+        });
+        scores[horse.number] = score;
+      });
+
+      const sorted = Object.entries(scores)
+        .sort(([, a], [, b]) => b - a)
+        .map(([num]) => parseInt(num, 10));
+
+      const suggestedMarks = {
+        main: sorted.slice(0, 3),
+        sub: sorted.slice(3, 6),
+        hole: sorted.slice(6, 10),
+      };
+
+      return {
+        success: true,
+        horses,
+        predictors,
+        errors: [],
+        suggestedMarks,
+      };
+    }
+
+    // ブロック4: 印確定後、拡張パネルを表示
+    document.getElementById("mainHorse").addEventListener("change", showExtensionPanel);
+    document.getElementById("subHorse").addEventListener("change", showExtensionPanel);
+
+    function showExtensionPanel() {
+      const mainHorse = document.getElementById("mainHorse").value;
+      const subHorse = document.getElementById("subHorse").value;
+
+      if (mainHorse && subHorse) {
+        document.getElementById("extensionSection").style.display = "block";
+        document.getElementById("previewSection").style.display = "block";
+        document.getElementById("saveSection").style.display = "block";
+
+        renderExtensionPanel();
+        updatePreview();
+      }
+    }
+
+    // ブロック5: 拡張パネルをレンダリング
+    document.getElementById("siteProfile").addEventListener("change", () => {
+      renderExtensionPanel();
+      updatePreview();
+    });
+
+    function renderExtensionPanel() {
+      const profileId = document.getElementById("siteProfile").value;
+      const profile = SITE_PROFILES[profileId];
+      const panel = document.getElementById("extensionPanel");
+
+      if (!profile) return;
+
+      let html = "";
+
+      // 馬ごとの拡張フィールド
+      if (profile.extensionFields.horses && profile.extensionFields.horses.length > 0) {
+        const mainHorse = parseInt(document.getElementById("mainHorse").value);
+        const subHorse = parseInt(document.getElementById("subHorse").value);
+
+        [mainHorse, subHorse].forEach((horseNum, idx) => {
+          if (!horseNum) return;
+
+          const horse = extractionResult.horses.find(h => h.number === horseNum);
+          const label = idx === 0 ? "本命◎" : "対抗○";
+
+          html += `<div class="extension-horse">`;
+          html += `<h3>${label} ${horseNum}番 ${horse?.name}</h3>`;
+
+          profile.extensionFields.horses.forEach(field => {
+            html += `
+              <div class="form-group">
+                <label for="ext_${horseNum}_${field.key}">${field.label}</label>
+                <input
+                  type="${field.type === 'number' ? 'number' : 'text'}"
+                  id="ext_${horseNum}_${field.key}"
+                  ${field.unit ? `placeholder="${field.unit}"` : ""}
+                  ${field.min !== undefined ? `min="${field.min}"` : ""}
+                  ${field.max !== undefined ? `max="${field.max}"` : ""}
+                  onchange="updateExtensionsData()"
+                />
+              </div>
+            `;
+          });
+
+          html += `</div>`;
+        });
+      }
+
+      // 買い目戦略の拡張フィールド
+      if (profile.extensionFields.strategies && profile.extensionFields.strategies.length > 0) {
+        html += `<div class="extension-strategies">`;
+        html += `<h3>買い目戦略</h3>`;
+
+        profile.extensionFields.strategies.forEach(field => {
+          html += `
+            <div class="form-group">
+              <label for="ext_strategy_${field.key}">${field.label}</label>
+              ${field.type === 'string' ?
+                `<textarea id="ext_strategy_${field.key}" rows="2" onchange="updateExtensionsData()"></textarea>` :
+                `<input type="number" id="ext_strategy_${field.key}" ${field.unit ? `placeholder="${field.unit}"` : ""} onchange="updateExtensionsData()" />`
+              }
+            </div>
+          `;
+        });
+
+        html += `</div>`;
+      }
+
+      if (!html) {
+        html = `<p class="description">このプロファイルには拡張フィールドがありません（印のみ）</p>`;
+      }
+
+      panel.innerHTML = html;
+    }
+
+    // 拡張データを更新
+    window.updateExtensionsData = function() {
+      const profileId = document.getElementById("siteProfile").value;
+      const profile = SITE_PROFILES[profileId];
+
+      extensionsData = {
+        horses: {},
+        strategies: {},
+      };
+
+      // 馬ごとの拡張フィールド
+      const mainHorse = parseInt(document.getElementById("mainHorse").value);
+      const subHorse = parseInt(document.getElementById("subHorse").value);
+
+      [mainHorse, subHorse].forEach(horseNum => {
+        if (!horseNum || !profile.extensionFields.horses) return;
+
+        extensionsData.horses[horseNum] = {};
+
+        profile.extensionFields.horses.forEach(field => {
+          const input = document.getElementById(`ext_${horseNum}_${field.key}`);
+          if (input) {
+            extensionsData.horses[horseNum][field.key] = field.type === 'number' ?
+              parseFloat(input.value) || 0 : input.value;
+          }
+        });
+      });
+
+      // 買い目戦略
+      if (profile.extensionFields.strategies) {
+        profile.extensionFields.strategies.forEach(field => {
+          const input = document.getElementById(`ext_strategy_${field.key}`);
+          if (input) {
+            const value = field.type === 'number' ? parseFloat(input.value) || 0 : input.value;
+            extensionsData.strategies[field.key] = value;
+          }
+        });
+      }
+
+      updatePreview();
+    };
+
+    // ブロック6: プレビュー更新
+    function updatePreview() {
+      const coreData = generateCoreData();
+      const profileId = document.getElementById("siteProfile").value;
+
+      const tabs = document.getElementById("previewTabs");
+      tabs.innerHTML = `
+        <button class="tab active" data-tab="core">核データ（Core）</button>
+        <button class="tab" data-tab="export">出力JSON（${profileId}）</button>
+      `;
+
+      tabs.querySelectorAll(".tab").forEach(tab => {
+        tab.addEventListener("click", (e) => {
+          tabs.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+          e.target.classList.add("active");
+
+          const tabName = e.target.dataset.tab;
+          if (tabName === "core") {
+            showPreviewCore(coreData);
+          } else {
+            showPreviewExport(coreData, extensionsData, profileId);
+          }
+        });
+      });
+
+      showPreviewCore(coreData);
+    }
+
+    function showPreviewCore(coreData) {
+      const content = document.getElementById("previewContent");
+      content.innerHTML = `<pre>${JSON.stringify(coreData, null, 2)}</pre>`;
+    }
+
+    function showPreviewExport(coreData, extensions, profileId) {
+      const exported = exportToNankanV1(coreData, extensions);
+      const content = document.getElementById("previewContent");
+      content.innerHTML = `<pre>${JSON.stringify(exported, null, 2)}</pre>`;
+    }
+
+    // 核データを生成
+    function generateCoreData() {
+      const raceInfo = {
+        raceDate: document.getElementById("raceDate").value,
+        track: document.getElementById("track").value,
+        raceNumber: document.getElementById("raceNumber").value,
+        raceName: document.getElementById("raceName").value,
+        distance: document.getElementById("distance").value,
+        horseCount: parseInt(document.getElementById("horseCount").value),
+        startTime: document.getElementById("startTime").value,
+      };
+
+      const finalMarks = {
+        main: parseInt(document.getElementById("mainHorse").value),
+        sub: parseInt(document.getElementById("subHorse").value),
+        hole1: parseInt(document.getElementById("hole1Horse").value) || undefined,
+        hole2: parseInt(document.getElementById("hole2Horse").value) || undefined,
+        connect: Array.from(document.getElementById("connectHorses").selectedOptions).map(o => parseInt(o.value)),
+        reserve: Array.from(document.getElementById("reserveHorses").selectedOptions).map(o => parseInt(o.value)),
+      };
+
+      const now = new Date().toISOString();
+
+      return {
+        version: "1.0.0",
+        createdAt: now,
+        lastUpdated: now,
+        raceInfo,
+        rawHtml: document.getElementById("htmlInput").value,
+        horses: extractionResult.horses,
+        finalMarks,
+        predictors: extractionResult.predictors,
+      };
+    }
+
+    // nankan-v1スキーマへのエクスポート（簡易版）
+    function exportToNankanV1(core, extensions) {
+      const { raceInfo, finalMarks, horses } = core;
+
+      const getHorse = (num) => horses.find(h => h.number === num);
+
+      const formatHorse = (num, mark, type) => {
+        if (!num) return null;
+        const horse = getHorse(num);
+        if (!horse) return null;
+
+        const ext = extensions.horses?.[num] || {};
+
+        return {
+          number: num,
+          name: horse.name,
+          mark,
+          type,
+          factors: [
+            { icon: "★", text: "総合評価:★★★" },
+            { icon: "★", text: `累積スコア: ${ext.score || 0}pt` },
+          ],
+          importance: (mark === "◎" || mark === "○") ? [
+            { label: "安定性", value: (ext.stability || 0) / 100 },
+            { label: "能力上位性", value: (ext.abilityRank || 0) / 100 },
+            { label: "展開利", value: (ext.paceAdvantage || 0) / 100 },
+          ] : [],
+        };
+      };
+
+      return {
+        raceDate: raceInfo.raceDate,
+        lastUpdated: core.lastUpdated,
+        track: raceInfo.track,
+        totalRaces: 1,
+        races: [{
+          raceNumber: raceInfo.raceNumber,
+          raceName: raceInfo.raceName,
+          tier: "standard",
+          isMainRace: false,
+          displayOrder: parseInt(raceInfo.raceNumber.replace("R", ""), 10),
+          raceInfo: {
+            title: `${raceInfo.track}${raceInfo.raceNumber} ${raceInfo.raceName}`,
+            date: raceInfo.raceDate,
+            track: raceInfo.track,
+            raceNumber: raceInfo.raceNumber,
+            raceName: raceInfo.raceName,
+            distance: raceInfo.distance,
+            horseCount: raceInfo.horseCount,
+            startTime: raceInfo.startTime,
+          },
+          horses: {
+            main: formatHorse(finalMarks.main, "◎", "本命"),
+            sub: formatHorse(finalMarks.sub, "○", "対抗"),
+            hole1: formatHorse(finalMarks.hole1, "▲", "単穴"),
+            hole2: formatHorse(finalMarks.hole2, "▲", "単穴"),
+            connect: finalMarks.connect.map(num => formatHorse(num, "△", "連下")).filter(h => h),
+            reserve: finalMarks.reserve.map(num => formatHorse(num, "×", "押さえ")).filter(h => h),
+          },
+          strategies: {
+            safe: {
+              title: "🎯 少点数的中型モデル",
+              bets: extensions.strategies?.safe_bets ? [{ type: "馬単", numbers: extensions.strategies.safe_bets, odds: "3-8倍" }] : [],
+              hitRate: extensions.strategies?.safe_hitRate?.toString() || "0",
+              confidence: extensions.strategies?.safe_hitRate || 0,
+              risk: "低リスク",
+            },
+            balance: {
+              title: "⚖️ バランス型モデル",
+              bets: extensions.strategies?.balance_bets ? [{ type: "馬単", numbers: extensions.strategies.balance_bets, odds: "6-12倍" }] : [],
+              hitRate: extensions.strategies?.balance_hitRate?.toString() || "0",
+              confidence: extensions.strategies?.balance_hitRate || 0,
+              risk: "中リスク",
+            },
+            aggressive: {
+              title: "🚀 高配当追求型モデル",
+              bets: extensions.strategies?.aggressive_bets ? [{ type: "馬単", numbers: extensions.strategies.aggressive_bets, odds: "10-30倍" }] : [],
+              hitRate: extensions.strategies?.aggressive_hitRate?.toString() || "0",
+              confidence: extensions.strategies?.aggressive_hitRate || 0,
+              risk: "高リスク",
+            },
+          },
+        }],
+      };
+    }
+
+    // ブロック7: 保存
+    document.getElementById("saveBtn").addEventListener("click", async () => {
+      const coreData = generateCoreData();
+      const profileId = document.getElementById("siteProfile").value;
+      const exported = exportToNankanV1(coreData, extensionsData);
+
+      try {
+        const response = await fetch("/.netlify/functions/save-predictions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            raceDate: coreData.raceInfo.raceDate,
+            track: coreData.raceInfo.track,
+            raceNumber: coreData.raceInfo.raceNumber,
+            data: exported,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          showSaveStatus(true, `✅ 保存成功！\nファイル: ${result.path}\nコミット: ${result.sha.substring(0, 7)}`);
+        } else {
+          showSaveStatus(false, `❌ 保存失敗: ${result.error}`);
+        }
+      } catch (error) {
+        showSaveStatus(false, `❌ エラー: ${error.message}`);
+      }
+    });
+
+    function showSaveStatus(success, message) {
+      const status = document.getElementById("saveStatus");
+      status.className = success ? "status-success" : "status-error";
+      status.textContent = message;
+    }
+
+    // 初期化: 今日の日付をセット
+    document.addEventListener("DOMContentLoaded", () => {
+      const today = new Date().toISOString().split("T")[0];
+      document.getElementById("raceDate").value = today;
+    });
+  </script>
+
+  <style>
+    .extension-horse,
+    .extension-strategies {
+      background: #f9fafb;
+      padding: 1rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .extension-horse h3,
+    .extension-strategies h3 {
+      font-size: 1rem;
+      margin-bottom: 0.75rem;
+      color: #1f2937;
+    }
+
+    .btn-small {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.875rem;
+      background: #e5e7eb;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    .btn-small:hover {
+      background: #d1d5db;
+    }
+  </style>
+</BaseLayout>

@@ -72,7 +72,7 @@ cd /Users/apolon/Projects/keiba-data-shared-admin
 |---------|------|------|
 | フロントエンド | Astro 5.16+ + Sass | SSR mode（server） |
 | ホスティング | Netlify | Functions含む |
-| バックエンド | Netlify Functions (Node.js 20) | 1個実装（save-results.js） |
+| バックエンド | Netlify Functions (Node.js 20) | 2個実装（save-results.mjs, save-predictions.mjs） |
 | 外部API | GitHub Contents API | keiba-data-sharedへの保存 |
 
 ### **役割分担**
@@ -92,8 +92,8 @@ cd /Users/apolon/Projects/keiba-data-shared-admin
 - 役割が明確で長期運用しやすい
 
 ### **2. GitHub API経由でのデータ保存**
-- 管理画面から results-manager 使用
-- 自動パース・JSON生成
+- **results-manager**: 結果データの自動パース・JSON生成
+- **predictions-manager**: 予想データの自動抽出・変換（核機能）
 - GitHub API で keiba-data-shared に自動コミット・プッシュ
 
 ### **3. 全プロジェクト共有**
@@ -226,6 +226,113 @@ keiba-data-shared/
 - 表形式データ抽出（ヘッダー行/データ行分離）
 - セクション分離処理（タイム/コーナー/払戻金）
 - デバッグログ充実（ブラウザコンソールで確認可能）
+
+---
+
+### **予想管理画面（/admin/predictions-manager）✅ 完成**
+
+**URL:** https://keiba-data-shared-admin.netlify.app/admin/predictions-manager
+
+**コンセプト:** **複数サイトで自動調整可能な予想変換システム（核）**
+
+**実装済み機能:**
+
+#### **1. 核（Core）- 複数サイト共通**
+- ✅ **HTML自動抽出**
+  - 競馬ブック出馬表HTMLから予想印・馬名・馬番・オッズを自動抽出
+  - SVG形式の印（三角）にも対応
+  - 予想者列を自動検出（CPU・牟田雅・西村敬・広瀬健・本紙）
+- ✅ **印の自動提案＋手動確定**
+  - 予想印を集計して本命・対抗・単穴を自動提案
+  - 最終的には人が確定（ワンクリックでOK）
+- ✅ **強力なバリデーション**
+  - 馬番・馬名の整合性チェック
+  - 印の重複チェック（本命◎は1頭のみ等）
+  - 必須項目の抜け検知
+  - raw HTMLの保存（再現性のため絶対必要）
+- ✅ **核データ生成**
+  - レース情報・馬データ・確定印を正規化
+  - バージョン管理（version: "1.0.0"）
+
+#### **2. 拡張（Extension）- サイト別カスタマイズ**
+- ✅ **サイトプロファイル**
+  - nankan-analytics（フル装備）
+  - central-keiba（シンプル）
+  - minimal（印のみ）
+- ✅ **拡張パネル**
+  - 累積スコア・特徴量重要度（安定性・能力上位性・展開利）
+  - 買い目戦略（少点数的中型・バランス型・高配当追求型）
+  - サイトごとに表示フィールドが変わる
+- ✅ **Exporter**
+  - nankan-v1スキーマへの自動変換
+  - 複数ターゲット対応（将来拡張可能）
+
+#### **3. プレビュー＆保存**
+- ✅ **リアルタイムプレビュー**
+  - 核データ（Core）
+  - 出力JSON（サイト別スキーマ）
+- ✅ **GitHub連携**
+  - 自動JSON生成
+  - keiba-data-shared リポジトリに自動コミット・プッシュ
+  - マージ機能（同日の複数レースを1ファイルにまとめる）
+
+**フロー:**
+```
+ユーザー → predictions-manager（競馬ブックHTMLを貼り付け）
+  → 自動抽出（予想印・馬名・馬番・オッズ）
+  → 印の自動提案＋手動確定
+  → サイトプロファイル選択（nankan-analytics/central-keiba/minimal）
+  → 拡張フィールド入力（累積スコア・買い目戦略等）
+  → プレビュー確認（核データ & 出力JSON）
+  → 「🚀 保存してGit Push」ボタンクリック
+  → save-predictions.mjs（Netlify Function）
+  → GitHub Contents API
+  → keiba-data-shared に自動コミット・プッシュ完了 ✅
+```
+
+**保存先:**
+```
+keiba-data-shared/
+└── nankan/
+    └── predictions/
+        └── YYYY/
+            └── MM/
+                └── YYYY-MM-DD.json
+```
+
+**設計思想:**
+- **核＋差し替えアーキテクチャ**
+  - 核（Extract/Normalize/Validate/Export）は全サイト共通
+  - 拡張（特徴量重要度・買い目戦略）はサイトごとに差し替え可能
+  - 1画面完結（nankan-analyticsの3ステップ変換を1ステップに統合）
+- **壊れにくい設計**
+  - 馬識別キー（umacd or 馬番+馬名）
+  - raw HTMLの保存（再現性のため）
+  - エラー分類（ParseError/MissingField/DuplicateMark/OutOfRange...）
+- **長期運用可能**
+  - サイトプロファイル設定で容易に拡張
+  - 複数リポジトリへの出力対応
+  - バージョン管理
+
+**ファイル構成:**
+```
+src/
+├── pages/
+│   └── admin/
+│       └── predictions-manager.astro  // メイン画面（7ブロック構成）
+├── lib/
+│   ├── predictions/
+│   │   ├── extractor.ts               // HTML抽出（核）
+│   │   ├── normalizer.ts              // 正規化（核）
+│   │   ├── validator.ts               // バリデーション（核）
+│   │   ├── exporter.ts                // Exporter（差し替え）
+│   │   └── site-profiles.ts           // サイトプロファイル設定
+│   └── types/
+│       └── predictions.ts             // 型定義
+netlify/
+└── functions/
+    └── save-predictions.mjs           // GitHub API保存
+```
 
 ---
 
@@ -405,12 +512,26 @@ GITHUB_REPO_OWNER=apol0510
 
 ---
 
-**📅 最終更新日**: 2026-01-28
-**🏁 Project Phase**: Phase 1-3 完了 ✅、Phase 4（運用）開始準備
-**🎯 Next Priority**: 実運用テスト → 予想データ管理画面追加
-**📊 進捗率**: 100%完了（Phase 1-3: 完了、Phase 4: 準備中）
+**📅 最終更新日**: 2026-01-30
+**🏁 Project Phase**: Phase 1-4 完了 ✅（結果管理＋予想管理の核）
+**🎯 Next Priority**: 実運用テスト → 他サイトへの展開
+**📊 進捗率**: 100%完了（Phase 1-4: 完了）
 
-**✨ 最新の成果（2026-01-28）**:
+**✨ 最新の成果（2026-01-30）**:
+  - **predictions-manager（予想管理システム）完成** ✨ 核機能
+    - 複数サイトで自動調整可能な予想変換システム（核）✅
+    - HTML自動抽出（競馬ブック）✅
+    - 印の自動提案＋手動確定 ✅
+    - サイトプロファイル（nankan-analytics/central-keiba/minimal）✅
+    - 拡張パネル（累積スコア・買い目戦略）✅
+    - Exporter（nankan-v1スキーマ）✅
+    - GitHub連携（自動保存・マージ機能）✅
+    - 核＋差し替えアーキテクチャ ✅
+    - 1画面完結（3ステップ→1ステップに統合）✅
+  - 型定義・サイトプロファイル・抽出ロジック・正規化・バリデーション・Exporter実装 ✅
+  - save-predictions.mjs（Netlify Function）実装 ✅
+
+**過去の成果（2026-01-28）**:
   - **レースコメント自動生成機能（SEO最適化）** ✨ 新機能
     - コーナー通過順から逃げ馬を自動特定 ✅
     - 勝ち馬・1番人気・逃げ馬の3頭を必ず含める ✅
@@ -427,15 +548,17 @@ GITHUB_REPO_OWNER=apol0510
   - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - **Netlify Functions**: 1個実装（save-results.js）
-  - **ページ**: 2個実装（index.astro, results-manager.astro）
-  - **抽出機能**: 6種類（レース情報/着順/払戻金/タイム/コーナー/コメンタリー）
-  - **対応レース**: 南関競馬全競馬場（大井/船橋/川崎/浦和）
-  - **対応頭数**: 最大15頭
+  - **Netlify Functions**: 2個実装（save-results.mjs, save-predictions.mjs）
+  - **ページ**: 3個実装（index.astro, results-manager.astro, predictions-manager.astro）
+  - **核ライブラリ**: 6個実装（extractor/normalizer/validator/exporter/site-profiles/types）
+  - **結果管理**: 6種類抽出機能（レース情報/着順/払戻金/タイム/コーナー/コメンタリー）
+  - **予想管理**: 核＋差し替えアーキテクチャ（複数サイト対応）
+  - **対応レース**: 南関競馬全競馬場（大井/船橋/川崎/浦和）+ 中央競馬
+  - **対応頭数**: 最大18頭
   - **対応距離**: 2周レース対応（13ハロン）
   - **対応券種**: 全9券種（単勝/複勝/枠連/馬連/枠単/馬単/ワイド/三連複/三連単）
+  - **サイトプロファイル**: 3種類（nankan-analytics/central-keiba/minimal）
   - **ドキュメント**: README.md、CLAUDE.md
-  - **テストファイル**: 6個（検証済み）
   - **本番URL**: https://keiba-data-shared-admin.netlify.app
 
 ---

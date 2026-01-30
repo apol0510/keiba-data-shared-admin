@@ -854,6 +854,34 @@ export const prerender = false;
           if (number <= 3) {
             console.log(`[DEBUG] 馬番${number}の印:`, Object.entries(marks).map(([k, v]) => `${k}=${v}`).join(', '));
           }
+
+          // 性齢・騎手・斤量・厩舎もth位置から特定
+          const fieldMap = {
+            '性齢': 'seirei',
+            '騎手': 'kisyu',
+            '斤量': 'kinryo',
+            '厩舎': 'kyusya',
+            '調教師': 'kyusya', // 別名
+          };
+
+          ths.forEach((th, idx) => {
+            const text = th.textContent?.trim() || '';
+            Object.entries(fieldMap).forEach(([keyword, fieldName]) => {
+              if (text.includes(keyword)) {
+                if (idx < tds.length) {
+                  const value = tds[idx].textContent?.trim() || '';
+                  if (fieldName === 'seirei') seirei = value;
+                  else if (fieldName === 'kisyu') kisyu = value;
+                  else if (fieldName === 'kinryo') kinryo = value;
+                  else if (fieldName === 'kyusya') kyusya = value;
+                }
+              }
+            });
+          });
+
+          if (number === 1) {
+            console.log(`[DEBUG] 性齢=${seirei}, 騎手=${kisyu}, 斤量=${kinryo}, 厩舎=${kyusya}`);
+          }
         }
       } else {
         // tmyosoクラスが見つかった場合（従来の処理）
@@ -864,27 +892,27 @@ export const prerender = false;
             console.log(`  ${anonymizedPredictors[index]} = ${mark}`);
           }
         });
-      }
 
-      // 性齢・騎手・斤量・厩舎抽出
-      const seireiTd = tds.find(td => td.classList.contains('seirei'));
-      if (seireiTd) {
-        seirei = seireiTd.textContent?.trim() || '';
-      }
+        // 性齢・騎手・斤量・厩舎抽出（クラスベース）
+        const seireiTd = tds.find(td => td.classList.contains('seirei'));
+        if (seireiTd) {
+          seirei = seireiTd.textContent?.trim() || '';
+        }
 
-      const kisyuTd = tds.find(td => td.classList.contains('kisyu'));
-      if (kisyuTd) {
-        kisyu = kisyuTd.textContent?.trim() || '';
-      }
+        const kisyuTd = tds.find(td => td.classList.contains('kisyu'));
+        if (kisyuTd) {
+          kisyu = kisyuTd.textContent?.trim() || '';
+        }
 
-      const kinryoTd = tds.find(td => td.classList.contains('kinryo'));
-      if (kinryoTd) {
-        kinryo = kinryoTd.textContent?.trim() || '';
-      }
+        const kinryoTd = tds.find(td => td.classList.contains('kinryo'));
+        if (kinryoTd) {
+          kinryo = kinryoTd.textContent?.trim() || '';
+        }
 
-      const kyusyaTd = tds.find(td => td.classList.contains('kyusya'));
-      if (kyusyaTd) {
-        kyusya = kyusyaTd.textContent?.trim() || '';
+        const kyusyaTd = tds.find(td => td.classList.contains('kyusya'));
+        if (kyusyaTd) {
+          kyusya = kyusyaTd.textContent?.trim() || '';
+        }
       }
 
       if (number === 0 || !name) {

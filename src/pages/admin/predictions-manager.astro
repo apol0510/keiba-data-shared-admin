@@ -841,17 +841,19 @@ export const prerender = false;
             console.log('[DEBUG] 印のthインデックス:', markIndices);
           }
 
-          // そのインデックスに対応するtdから印を抽出
+          // そのインデックスに対応するtdから印を抽出（全ての馬で実行）
           markIndices.forEach((thIdx, predictorIdx) => {
             if (thIdx < tds.length && predictorIdx < anonymizedPredictors.length) {
               const td = tds[thIdx];
               const mark = extractMarkFromElement(td);
               marks[anonymizedPredictors[predictorIdx]] = mark;
-              if (number === 1) {
-                console.log(`  ${anonymizedPredictors[predictorIdx]} (th[${thIdx}]) = ${mark}`);
-              }
             }
           });
+
+          // 印の抽出結果をログ出力（全ての馬）
+          if (number <= 3) {
+            console.log(`[DEBUG] 馬番${number}の印:`, Object.entries(marks).map(([k, v]) => `${k}=${v}`).join(', '));
+          }
         }
       } else {
         // tmyosoクラスが見つかった場合（従来の処理）

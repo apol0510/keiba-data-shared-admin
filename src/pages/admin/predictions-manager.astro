@@ -413,7 +413,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <p><strong>レース名:</strong> ${info.raceName}</p>
         <p><strong>レース種別:</strong> ${info.raceType}</p>
         <p><strong>距離:</strong> ${info.distance} ${info.surface}</p>
-        <p><strong>天候・馬場:</strong> ${info.weather}</p>
       `;
     }
 
@@ -707,7 +706,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           raceType: raceInfo.raceType,
           distance: raceInfo.distance,
           surface: raceInfo.surface,
-          weather: raceInfo.weather,
         },
         horses: scored.horses.map(h => ({
           number: h.number,
@@ -765,7 +763,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           raceType: raceInfo.raceType,
           distance: raceInfo.distance,
           surface: raceInfo.surface,
-          weather: raceInfo.weather,
         },
         horses: scored.horses.map(h => ({
           number: h.number,

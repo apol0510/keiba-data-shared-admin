@@ -1060,20 +1060,32 @@ export const prerender = false;
         }
 
         // 距離抽出（複数パターン対応）
-        let distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
+        // パターン1: 「1200m (ダート・右外)」形式（距離が先）
+        let distanceMatch = text.match(/(\d{3,4})m[\s\u3000]*\(/);
         if (distanceMatch) {
-          distance = `${distanceMatch[1]}${distanceMatch[2]}`;
+          distance = distanceMatch[1];
         } else {
-          // カンマなしのパターンも試す
-          distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{3,4})m/);
+          // パターン2: 「ダ1,200m」形式（カンマあり）
+          distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
           if (distanceMatch) {
-            distance = distanceMatch[1];
+            distance = `${distanceMatch[1]}${distanceMatch[2]}`;
+          } else {
+            // パターン3: 「ダ1200m」形式（カンマなし）
+            distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{3,4})m/);
+            if (distanceMatch) {
+              distance = distanceMatch[1];
+            }
           }
         }
 
         console.log('[extractRaceInfo] 距離抽出結果:', distance);
 
-        surface = text.includes('ダ') ? 'ダート' : '芝';
+        // 馬場種別（ダート/芝）
+        if (text.includes('ダート') || text.includes('ダ')) {
+          surface = 'ダート';
+        } else if (text.includes('芝')) {
+          surface = '芝';
+        }
       } else {
         console.error('[extractRaceInfo] div.racename が見つかりません');
       }

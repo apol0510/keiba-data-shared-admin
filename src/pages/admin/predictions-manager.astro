@@ -49,10 +49,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <thead>
             <tr>
               <th>馬番</th>
+              <th id="mark4Header">印4</th>
               <th id="mark3Header">印3</th>
               <th id="mark2Header">印2</th>
               <th id="mark1Header">印1</th>
-              <th id="markHonsiHeader">印本</th>
               <th>馬名</th>
               <th>性齢</th>
               <th>騎手</th>
@@ -424,18 +424,28 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         return { success: false, errors: ["ヘッダー行が見つかりません"], horses: [], predictors: [] };
       }
 
-      // 予想者列を検出
+      // ヘッダー列のインデックスを検出
       const predictors = [];
       const predictorHeaders = [];
+      let seireiIndex = -1;
+      let kisyuIndex = -1;
+      let kinryoIndex = -1;
+      let kyusyaIndex = -1;
 
       headerRow.querySelectorAll("th").forEach((th, index) => {
         const text = th.textContent.trim();
 
-        // tmyosoクラスを持つth、または「印」を含むthを予想者列とする
-        if (th.classList.contains("tmyoso") || text.includes("印")) {
+        // 予想者列を検出（My印は除外）
+        if ((th.classList.contains("tmyoso") || text.includes("印")) && !text.includes("My")) {
           predictors.push(text);
           predictorHeaders.push(index);
         }
+
+        // その他のフィールドのインデックスを検出
+        if (text.includes("性") && text.includes("齢")) seireiIndex = index;
+        if (text.includes("騎手")) kisyuIndex = index;
+        if (text.includes("斤") && text.includes("量")) kinryoIndex = index;
+        if (text.includes("厩舎")) kyusyaIndex = index;
       });
 
       // 馬データを抽出
@@ -445,10 +455,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
         const umabanTd = tds.find(td => td.classList.contains("umaban"));
         const bameiTd = tds.find(td => td.classList.contains("bamei"));
-        const seireiTd = tds.find(td => td.classList.contains("seirei"));
-        const kisyuTd = tds.find(td => td.classList.contains("kisyu"));
-        const kinryoTd = tds.find(td => td.classList.contains("kinryo"));
-        const kyusyaTd = tds.find(td => td.classList.contains("kyusya"));
         const oddsTd = tds.find(td => td.classList.contains("odds5"));
 
         if (!umabanTd || !bameiTd) return;
@@ -460,10 +466,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const umacdMatch = href.match(/\/uma\/(\d+)/);
         const umacd = umacdMatch ? umacdMatch[1] : undefined;
 
-        const seirei = seireiTd ? seireiTd.textContent.trim() : "";
-        const kisyu = kisyuTd ? kisyuTd.textContent.trim() : "";
-        const kinryo = kinryoTd ? kinryoTd.textContent.trim() : "";
-        const kyusya = kyusyaTd ? kyusyaTd.textContent.trim() : "";
+        // インデックスベースでフィールドを取得
+        const seirei = seireiIndex >= 0 && tds[seireiIndex] ? tds[seireiIndex].textContent.trim() : "";
+        const kisyu = kisyuIndex >= 0 && tds[kisyuIndex] ? tds[kisyuIndex].textContent.trim() : "";
+        const kinryo = kinryoIndex >= 0 && tds[kinryoIndex] ? tds[kinryoIndex].textContent.trim() : "";
+        const kyusya = kyusyaIndex >= 0 && tds[kyusyaIndex] ? tds[kyusyaIndex].textContent.trim() : "";
 
         // 予想者列から印を抽出（インデックスベース）
         const marks = {};
@@ -567,21 +574,22 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const tbody = document.getElementById("extractionTableBody");
       tbody.innerHTML = "";
 
-      // ヘッダーに予想者名を表示
+      // ヘッダーに予想者名を表示（My印除外後）
+      // 印4（大木尚）= predictors[0]
+      // 印3（善林浩）= predictors[1]
+      // 印2（髙橋佑）= predictors[2]
+      // 印1（本紙）= predictors[3]
       if (scored.predictors.length >= 1) {
-        document.getElementById("mark1Header").textContent = `印1 (${scored.predictors[0]})`;
+        document.getElementById("mark4Header").textContent = `印4 (${scored.predictors[0]})`;
       }
       if (scored.predictors.length >= 2) {
-        document.getElementById("mark2Header").textContent = `印2 (${scored.predictors[1]})`;
+        document.getElementById("mark3Header").textContent = `印3 (${scored.predictors[1]})`;
       }
       if (scored.predictors.length >= 3) {
-        document.getElementById("mark3Header").textContent = `印3 (${scored.predictors[2]})`;
+        document.getElementById("mark2Header").textContent = `印2 (${scored.predictors[2]})`;
       }
-
-      // 「本紙」の予想者を探す
-      const honsiPredictor = scored.predictors.find(p => p === "本紙" || p.includes("本紙"));
-      if (honsiPredictor) {
-        document.getElementById("markHonsiHeader").textContent = `印本 (${honsiPredictor})`;
+      if (scored.predictors.length >= 4) {
+        document.getElementById("mark1Header").textContent = `印1 (${scored.predictors[3]})`;
       }
 
       scored.horses.forEach((horse) => {
@@ -590,21 +598,21 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         // 馬番
         row.insertCell().textContent = horse.number;
 
-        // 印3（3番目の予想者）
-        const mark3 = scored.predictors[2] ? horse.marks[scored.predictors[2]] || "-" : "-";
+        // 印4（大木尚 = 1番目の予想者）
+        const mark4 = scored.predictors[0] ? horse.marks[scored.predictors[0]] || "-" : "-";
+        row.insertCell().textContent = mark4;
+
+        // 印3（善林浩 = 2番目の予想者）
+        const mark3 = scored.predictors[1] ? horse.marks[scored.predictors[1]] || "-" : "-";
         row.insertCell().textContent = mark3;
 
-        // 印2（2番目の予想者）
-        const mark2 = scored.predictors[1] ? horse.marks[scored.predictors[1]] || "-" : "-";
+        // 印2（髙橋佑 = 3番目の予想者）
+        const mark2 = scored.predictors[2] ? horse.marks[scored.predictors[2]] || "-" : "-";
         row.insertCell().textContent = mark2;
 
-        // 印1（1番目の予想者）
-        const mark1 = scored.predictors[0] ? horse.marks[scored.predictors[0]] || "-" : "-";
+        // 印1（本紙 = 4番目の予想者）
+        const mark1 = scored.predictors[3] ? horse.marks[scored.predictors[3]] || "-" : "-";
         row.insertCell().textContent = mark1;
-
-        // 印本（本紙）
-        const markHonsi = honsiPredictor ? horse.marks[honsiPredictor] || "-" : "-";
-        row.insertCell().textContent = markHonsi;
 
         // 馬名
         row.insertCell().textContent = horse.name;

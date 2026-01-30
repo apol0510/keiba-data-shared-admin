@@ -75,20 +75,23 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       <div id="assignmentResult" class="assignment-result"></div>
     </section>
 
-    <!-- プレビュー -->
+    <!-- プレビュー & 保存 -->
     <section class="section" id="previewSection" style="display: none;">
-      <h2>👁️ 出力プレビュー</h2>
-      <div id="previewContent" class="preview-content"></div>
-    </section>
-
-    <!-- 保存 -->
-    <section class="section" id="saveSection" style="display: none;">
-      <h2>💾 保存（GitHub API / Push）</h2>
-      <p class="description">
-        各予想サイトで読み込んで調整してください
-      </p>
-      <div id="saveStatus"></div>
-      <button id="saveBtn" class="btn-success">🚀 保存してGit Push</button>
+      <h2>👁️ 出力プレビュー & 💾 保存</h2>
+      <div class="preview-save-container">
+        <div class="preview-column">
+          <h3>JSON出力</h3>
+          <div id="previewContent" class="preview-content"></div>
+        </div>
+        <div class="save-column">
+          <h3>GitHub保存</h3>
+          <p class="description">
+            各予想サイトで読み込んで調整してください
+          </p>
+          <div id="saveStatus"></div>
+          <button id="saveBtn" class="btn-success">🚀 保存してGit Push</button>
+        </div>
+      </div>
     </section>
   </div>
 
@@ -378,12 +381,38 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       border-bottom-color: #9ca3af;
     }
 
+    .preview-save-container {
+      display: grid;
+      grid-template-columns: 1fr 350px;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    @media (max-width: 1024px) {
+      .preview-save-container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .preview-column h3,
+    .save-column h3 {
+      font-size: 1rem;
+      margin: 0 0 0.75rem 0;
+      color: #374151;
+      background: none;
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: unset;
+      background-clip: unset;
+    }
+
     .preview-content {
       background: #f8fafc;
       color: #1e293b;
       padding: 1rem;
       border-radius: 4px;
       overflow-x: auto;
+      overflow-y: auto;
+      max-height: 600px;
       border: 1px solid #e2e8f0;
     }
 
@@ -392,6 +421,16 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       font-family: monospace;
       font-size: 0.875rem;
       color: #1e293b;
+    }
+
+    .save-column {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .save-column .description {
+      font-size: 0.875rem;
+      margin-bottom: 1rem;
     }
 
     #extractionStatus,
@@ -454,7 +493,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         document.getElementById("raceInfoSection").style.display = "block";
         document.getElementById("extractionResultSection").style.display = "block";
         document.getElementById("previewSection").style.display = "block";
-        document.getElementById("saveSection").style.display = "block";
 
         // プレビュー表示
         showPreview(raceInfo, scoredData);

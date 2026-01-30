@@ -295,35 +295,87 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .assignment-result {
-      background: #ecfdf5;
-      padding: 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .assignment-card {
+      background: white;
+      border: 2px solid #e5e7eb;
       border-radius: 8px;
-      border-left: 4px solid #10b981;
+      padding: 1rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
     }
 
-    .assignment-result h4 {
-      margin: 2.5rem 0 0.5rem 0;
-      padding-top: 1.5rem;
-      border-top: 2px solid #a7f3d0;
-      color: #065f46;
-      font-size: 1rem;
+    .assignment-card:hover {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
 
-    .assignment-result h4:first-of-type {
-      margin-top: 0.5rem;
-      padding-top: 0;
-      border-top: none;
+    .assignment-card-header {
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 2px solid #e5e7eb;
+      color: #1f2937;
     }
 
-    .assignment-result ul {
+    .assignment-card-body {
       list-style: none;
       padding: 0;
       margin: 0;
     }
 
-    .assignment-result li {
-      padding: 0.25rem 0;
-      color: #047857;
+    .assignment-card-body li {
+      padding: 0.5rem;
+      margin: 0.25rem 0;
+      background: #f9fafb;
+      border-radius: 4px;
+      color: #374151;
+      font-size: 0.9rem;
+    }
+
+    .assignment-card-body li:hover {
+      background: #f3f4f6;
+    }
+
+    .assignment-card.main .assignment-card-header {
+      color: #dc2626;
+      border-bottom-color: #dc2626;
+    }
+
+    .assignment-card.sub .assignment-card-header {
+      color: #ea580c;
+      border-bottom-color: #ea580c;
+    }
+
+    .assignment-card.hole .assignment-card-header {
+      color: #d97706;
+      border-bottom-color: #d97706;
+    }
+
+    .assignment-card.connect-top .assignment-card-header {
+      color: #059669;
+      border-bottom-color: #059669;
+    }
+
+    .assignment-card.connect .assignment-card-header {
+      color: #0891b2;
+      border-bottom-color: #0891b2;
+    }
+
+    .assignment-card.reserve .assignment-card-header {
+      color: #6366f1;
+      border-bottom-color: #6366f1;
+    }
+
+    .assignment-card.none .assignment-card-header {
+      color: #9ca3af;
+      border-bottom-color: #9ca3af;
     }
 
     .preview-content {
@@ -705,7 +757,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       return colors[assignment] || "#000000";
     }
 
-    // 振り分け結果表示
+    // 振り分け結果表示（カード形式）
     function showAssignmentResult(scored) {
       const display = document.getElementById("assignmentResult");
       const a = scored.assignments;
@@ -713,27 +765,30 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const formatHorse = (horse) =>
         horse ? `${horse.number}番 ${horse.name} (${horse.totalScore}点)` : "なし";
 
+      const createCard = (className, title, horses) => {
+        const horsesList = Array.isArray(horses)
+          ? horses.map(h => `<li>${formatHorse(h)}</li>`).join("")
+          : `<li>${formatHorse(horses)}</li>`;
+
+        const isEmpty = (Array.isArray(horses) && horses.length === 0) || (!Array.isArray(horses) && !horses);
+        const content = isEmpty ? "<li>なし</li>" : horsesList;
+
+        return `
+          <div class="assignment-card ${className}">
+            <div class="assignment-card-header">${title}</div>
+            <ul class="assignment-card-body">${content}</ul>
+          </div>
+        `;
+      };
+
       display.innerHTML = `
-        <h4>◎ 本命</h4>
-        <ul><li>${formatHorse(a.main)}</li></ul>
-
-        <h4>○ 対抗</h4>
-        <ul><li>${formatHorse(a.sub)}</li></ul>
-
-        <h4>▲ 単穴</h4>
-        <ul><li>${formatHorse(a.hole)}</li></ul>
-
-        <h4>△ 連下最上位</h4>
-        <ul><li>${formatHorse(a.connectTop)}</li></ul>
-
-        <h4>△ 連下 (1~5頭)</h4>
-        <ul>${a.connect.map(h => `<li>${formatHorse(h)}</li>`).join("")}</ul>
-
-        <h4>× 補欠 (1点以上)</h4>
-        <ul>${a.reserve.length > 0 ? a.reserve.map(h => `<li>${formatHorse(h)}</li>`).join("") : "<li>なし</li>"}</ul>
-
-        <h4>無 (0点)</h4>
-        <ul>${a.none.length > 0 ? a.none.map(h => `<li>${formatHorse(h)}</li>`).join("") : "<li>なし</li>"}</ul>
+        ${createCard('main', '◎ 本命', a.main)}
+        ${createCard('sub', '○ 対抗', a.sub)}
+        ${createCard('hole', '▲ 単穴', a.hole)}
+        ${createCard('connect-top', '△ 連下最上位', a.connectTop)}
+        ${createCard('connect', '△ 連下 (1~5頭)', a.connect)}
+        ${createCard('reserve', '× 補欠 (1点以上)', a.reserve)}
+        ${createCard('none', '無 (0点)', a.none)}
       `;
     }
 

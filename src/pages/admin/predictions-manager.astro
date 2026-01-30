@@ -531,22 +531,46 @@ export const prerender = false;
 
       html += '</div>';
 
-      // 全馬一覧（点数順）
-      html += '<div style="margin-top: 1rem;">';
-      html += '<h4 style="margin-bottom: 0.5rem;">🏇 全馬一覧（点数順）</h4>';
-      html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+      // 全馬一覧（馬番順・詳細表示）
+      html += '<div style="margin-top: 1rem; overflow-x: auto;">';
+      html += '<h4 style="margin-bottom: 0.5rem;">🏇 全馬一覧（抽出結果）</h4>';
+      html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; white-space: nowrap;">';
       html += '<thead><tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-color);">';
       html += '<th style="padding: 0.5rem; text-align: center;">馬番</th>';
+
+      // 予想者列（印4、印3、印2、印1）
+      data.predictors.forEach(predictor => {
+        html += `<th style="padding: 0.5rem; text-align: center;">${predictor}</th>`;
+      });
+
       html += '<th style="padding: 0.5rem; text-align: left;">馬名</th>';
+      html += '<th style="padding: 0.5rem; text-align: center;">性齢</th>';
+      html += '<th style="padding: 0.5rem; text-align: left;">騎手</th>';
+      html += '<th style="padding: 0.5rem; text-align: center;">斤量</th>';
+      html += '<th style="padding: 0.5rem; text-align: left;">厩舎</th>';
       html += '<th style="padding: 0.5rem; text-align: center;">点数</th>';
       html += '<th style="padding: 0.5rem; text-align: left;">振り分け</th>';
       html += '</tr></thead><tbody>';
 
-      data.horses.forEach(horse => {
+      // 馬番順にソート
+      const horsesByNumber = [...data.horses].sort((a, b) => a.number - b.number);
+
+      horsesByNumber.forEach(horse => {
         html += '<tr style="border-bottom: 1px solid var(--border-color);">';
         html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.number}</td>`;
+
+        // 各予想者の印
+        data.predictors.forEach(predictor => {
+          const mark = horse.marks[predictor] || '-';
+          html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${mark}</td>`;
+        });
+
         html += `<td style="padding: 0.5rem;">${horse.name}</td>`;
-        html += `<td style="padding: 0.5rem; text-align: center;">${horse.totalScore}点</td>`;
+        html += `<td style="padding: 0.5rem; text-align: center;">${horse.seirei || '-'}</td>`;
+        html += `<td style="padding: 0.5rem;">${horse.kisyu || '-'}</td>`;
+        html += `<td style="padding: 0.5rem; text-align: center;">${horse.kinryo || '-'}</td>`;
+        html += `<td style="padding: 0.5rem;">${horse.kyusya || '-'}</td>`;
+        html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.totalScore}点</td>`;
         html += `<td style="padding: 0.5rem;">${horse.assignment}</td>`;
         html += '</tr>';
       });

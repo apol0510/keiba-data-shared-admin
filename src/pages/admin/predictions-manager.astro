@@ -1,7 +1,7 @@
 ---
 /**
  * 競馬予想データ管理画面
- * ステップ1: 競馬ブック形式を貼り付け抽出
+ * ステップ1: 予想HTMLを貼り付け抽出
  * ステップ2: スコアリングして自動振り分け
  * 保存: GitHub API / Push
  *
@@ -13,13 +13,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 <BaseLayout title="競馬予想データ管理画面">
   <div class="container">
     <h1>🏇 競馬予想データ管理画面</h1>
-    <p class="subtitle">競馬ブックHTMLを貼り付けて自動抽出・スコアリング</p>
+    <p class="subtitle">予想HTMLを貼り付けて自動抽出・スコアリング</p>
 
     <!-- ステップ1: HTML貼り付け -->
     <section class="section">
-      <h2>📥 ステップ1: 競馬ブックHTML貼り付け</h2>
+      <h2>📥 ステップ1: 予想HTML貼り付け</h2>
       <p class="description">
-        競馬ブックの出馬表HTMLを貼り付けてください
+        出馬表HTMLを貼り付けてください
       </p>
       <textarea
         id="htmlInput"

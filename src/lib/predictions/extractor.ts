@@ -1,6 +1,6 @@
 /**
  * HTML抽出ロジック
- * 競馬ブックのHTMLから予想印・馬名・馬番・オッズを抽出
+ * 予想HTMLから予想印・馬名・馬番を抽出
  */
 
 import type { HorseData, ExtractionResult, MarkType } from "../types/predictions";

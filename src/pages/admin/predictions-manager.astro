@@ -453,7 +453,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const result = await extractPredictions(html);
 
         if (!result.success) {
-          showExtract ionStatus(false, result.errors.join("\n"));
+          showExtractionStatus(false, result.errors.join("\n"));
           return;
         }
 

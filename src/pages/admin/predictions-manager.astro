@@ -388,11 +388,23 @@ export const prerender = false;
       width: 100%;
     }
 
-    /* ソート切り替えボタンのアクティブ状態 */
-    .btn.active {
-      background: var(--primary-end);
+    /* ソート切り替えボタン専用のアクティブ状態 */
+    .sort-toggle-btn.active {
+      background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
       color: white;
-      font-weight: 600;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+      border: 2px solid var(--primary-end);
+    }
+
+    .sort-toggle-btn:not(.active) {
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+
+    .sort-toggle-btn:not(.active):hover {
+      opacity: 0.9;
     }
 
     @media (max-width: 768px) {
@@ -546,8 +558,8 @@ export const prerender = false;
       html += '<div style="margin-bottom: 1rem;">';
       html += '<h4 style="margin-bottom: 0.5rem;">🏇 抽出結果</h4>';
       html += '<div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">';
-      html += `<button onclick="toggleSort(${raceNum}, 'score')" id="sortByScore${raceNum}" class="btn btn-secondary" style="flex: 1;">📊 点数順</button>`;
-      html += `<button onclick="toggleSort(${raceNum}, 'number')" id="sortByNumber${raceNum}" class="btn btn-secondary" style="flex: 1;">🔢 馬番順</button>`;
+      html += `<button onclick="toggleSort(${raceNum}, 'score')" id="sortByScore${raceNum}" class="btn btn-secondary sort-toggle-btn" style="flex: 1;">📊 点数順</button>`;
+      html += `<button onclick="toggleSort(${raceNum}, 'number')" id="sortByNumber${raceNum}" class="btn btn-secondary sort-toggle-btn" style="flex: 1;">🔢 馬番順</button>`;
       html += '</div>';
       html += `<div id="horseTable${raceNum}" style="overflow-x: auto;"></div>`;
       html += '</div>';

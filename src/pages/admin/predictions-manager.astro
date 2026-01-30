@@ -423,10 +423,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
       // 予想者列を検出
       const predictors = [];
-      headerRow.querySelectorAll("th").forEach(th => {
+      const predictorHeaders = [];
+
+      headerRow.querySelectorAll("th").forEach((th, index) => {
         const text = th.textContent.trim();
-        if (text.includes("My") || text === "CPU" || (text.length <= 3 && text.length > 0)) {
+
+        // tmyosoクラスを持つth、または「印」を含むthを予想者列とする
+        if (th.classList.contains("tmyoso") || text.includes("印")) {
           predictors.push(text);
+          predictorHeaders.push(index);
         }
       });
 
@@ -437,7 +442,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
         const umabanTd = tds.find(td => td.classList.contains("umaban"));
         const bameiTd = tds.find(td => td.classList.contains("bamei"));
-        const markTds = tds.filter(td => td.classList.contains("tmyoso"));
         const oddsTd = tds.find(td => td.classList.contains("odds5"));
 
         if (!umabanTd || !bameiTd) return;
@@ -449,11 +453,13 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const umacdMatch = href.match(/\/uma\/(\d+)/);
         const umacd = umacdMatch ? umacdMatch[1] : undefined;
 
+        // 予想者列から印を抽出（インデックスベース）
         const marks = {};
-        markTds.forEach((td, index) => {
-          if (index < predictors.length) {
+        predictorHeaders.forEach((headerIndex, i) => {
+          if (tds[headerIndex]) {
+            const td = tds[headerIndex];
             const mark = td.querySelector("svg") ? "svg" : td.textContent.trim();
-            marks[predictors[index]] = mark || "-";
+            marks[predictors[i]] = mark || "-";
           }
         });
 

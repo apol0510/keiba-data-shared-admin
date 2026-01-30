@@ -143,7 +143,7 @@ export default async (req, context) => {
 
       // 同じレース番号の既存データを削除
       mergedData.races = mergedData.races.filter(
-        race => race.raceNumber !== raceNumber
+        race => race.raceInfo?.raceNumber !== raceNumber
       );
 
       // 新しいレースデータを追加
@@ -153,8 +153,10 @@ export default async (req, context) => {
 
       // レース番号順にソート
       mergedData.races.sort((a, b) => {
-        const numA = parseInt(a.raceNumber.replace('R', ''), 10);
-        const numB = parseInt(b.raceNumber.replace('R', ''), 10);
+        const raceNumA = a.raceInfo?.raceNumber || '';
+        const raceNumB = b.raceInfo?.raceNumber || '';
+        const numA = parseInt(raceNumA.replace('R', ''), 10) || 0;
+        const numB = parseInt(raceNumB.replace('R', ''), 10) || 0;
         return numA - numB;
       });
 

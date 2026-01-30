@@ -940,11 +940,24 @@ export const prerender = false;
             Object.entries(fieldMap).forEach(([keyword, fieldName]) => {
               if (text.includes(keyword)) {
                 if (idx < tds.length) {
-                  const value = tds[idx].textContent?.trim() || '';
-                  if (fieldName === 'seirei') seirei = value;
-                  else if (fieldName === 'kisyu') kisyu = value;
-                  else if (fieldName === 'kinryo') kinryo = value;
-                  else if (fieldName === 'kyusya') kyusya = value;
+                  const td = tds[idx];
+
+                  if (fieldName === 'kyusya') {
+                    // 厩舎の場合、<span class="syozoku">を括弧で囲む
+                    const syozokuSpan = td.querySelector('.syozoku');
+                    if (syozokuSpan) {
+                      const syozoku = syozokuSpan.textContent?.trim() || '';
+                      const trainerName = td.textContent?.trim().replace(syozoku, '') || '';
+                      kyusya = `(${syozoku})${trainerName}`;
+                    } else {
+                      kyusya = td.textContent?.trim() || '';
+                    }
+                  } else {
+                    const value = td.textContent?.trim() || '';
+                    if (fieldName === 'seirei') seirei = value;
+                    else if (fieldName === 'kisyu') kisyu = value;
+                    else if (fieldName === 'kinryo') kinryo = value;
+                  }
                 }
               }
             });
@@ -982,7 +995,14 @@ export const prerender = false;
 
         const kyusyaTd = tds.find(td => td.classList.contains('kyusya'));
         if (kyusyaTd) {
-          kyusya = kyusyaTd.textContent?.trim() || '';
+          const syozokuSpan = kyusyaTd.querySelector('.syozoku');
+          if (syozokuSpan) {
+            const syozoku = syozokuSpan.textContent?.trim() || '';
+            const trainerName = kyusyaTd.textContent?.trim().replace(syozoku, '') || '';
+            kyusya = `(${syozoku})${trainerName}`;
+          } else {
+            kyusya = kyusyaTd.textContent?.trim() || '';
+          }
         }
       }
 
@@ -1018,6 +1038,8 @@ export const prerender = false;
         const text = racenameDiv.textContent || '';
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 
+        console.log('[extractRaceInfo] racenameDiv テキスト:', text);
+
         const dateMatch = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
         if (dateMatch) {
           date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
@@ -1037,12 +1059,23 @@ export const prerender = false;
           }
         }
 
-        const distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
+        // 距離抽出（複数パターン対応）
+        let distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
         if (distanceMatch) {
           distance = `${distanceMatch[1]}${distanceMatch[2]}`;
+        } else {
+          // カンマなしのパターンも試す
+          distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{3,4})m/);
+          if (distanceMatch) {
+            distance = distanceMatch[1];
+          }
         }
 
+        console.log('[extractRaceInfo] 距離抽出結果:', distance);
+
         surface = text.includes('ダ') ? 'ダート' : '芝';
+      } else {
+        console.error('[extractRaceInfo] div.racename が見つかりません');
       }
 
       return { date, raceName, raceType, distance, surface };

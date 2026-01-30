@@ -666,8 +666,9 @@ export const prerender = false;
         const detectedPredictors = detectPredictors(headerRow);
         console.log('[extractPredictions] 検出した予想者:', detectedPredictors);
 
-        // 著作権対応: 予想者名を「印0」「印1」「印2」「印3」に匿名化
-        const predictors = detectedPredictors.map((_, index) => `印${index}`);
+        // 著作権対応: 予想者名を逆順で「印4」「印3」「印2」「印1」に匿名化
+        // 例: ['大木', '善林', '高橋', '本紙'] → ['印4', '印3', '印2', '印1']
+        const predictors = detectedPredictors.map((_, index) => `印${detectedPredictors.length - index}`);
         console.log('[extractPredictions] 匿名化後:', predictors);
 
         const rows = table.querySelectorAll('tbody tr');
@@ -713,10 +714,14 @@ export const prerender = false;
           return;
         }
 
+        // My印を除外（著作権対応）
+        if (text.includes('My')) {
+          return;
+        }
+
         // 予想印列を検出
         if (
-          text.includes('My') ||      // My印
-          text.includes('印') ||       // ○○印
+          text.includes('印') ||       // ○○印（My印除く）
           text === 'CPU' ||           // CPU
           text === '本紙' ||          // 本紙
           (text.length >= 2 && text.length <= 3 && /^[ぁ-んァ-ヶー一-龠]+$/.test(text)) // 2-3文字の日本語（予想者名）

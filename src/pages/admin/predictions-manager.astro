@@ -187,11 +187,28 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       max-width: 1200px;
       margin: 0 auto;
       padding: 2rem;
+      background: #ffffff;
+      color: #000000;
+      min-height: 100vh;
+    }
+
+    .container p,
+    .container div,
+    .container span,
+    .container td,
+    .container th,
+    .container li {
+      color: inherit;
     }
 
     h1 {
       font-size: 2rem;
       margin-bottom: 0.5rem;
+      background: none;
+      color: #000000;
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: unset;
+      background-clip: unset;
     }
 
     .subtitle {
@@ -210,11 +227,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     .section h2 {
       font-size: 1.25rem;
       margin-bottom: 1rem;
-      color: #333;
+      color: #333333;
+      background: none;
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: unset;
+      background-clip: unset;
     }
 
     .description {
-      color: #666;
+      color: #666666;
       margin-bottom: 1rem;
       font-size: 0.9rem;
     }
@@ -239,15 +260,18 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       font-weight: 600;
       margin-bottom: 0.25rem;
       font-size: 0.9rem;
+      color: #000000;
     }
 
     input,
     select,
     textarea {
       padding: 0.5rem;
-      border: 1px solid #ddd;
+      border: 1px solid #dddddd;
       border-radius: 4px;
       font-size: 1rem;
+      background: #ffffff;
+      color: #000000;
     }
 
     textarea {
@@ -300,18 +324,26 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .data-table th,
     .data-table td {
-      border: 1px solid #ddd;
+      border: 1px solid #dddddd;
       padding: 0.5rem;
       text-align: left;
+      background: #ffffff;
+      color: #000000;
     }
 
     .data-table th {
       background: #f3f4f6;
       font-weight: 600;
+      color: #000000;
     }
 
     .data-table tbody tr:hover {
       background: #f9fafb;
+    }
+
+    .data-table tbody tr:hover td {
+      background: #f9fafb;
+      color: #000000;
     }
 
     .proposal {
@@ -977,6 +1009,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       font-size: 1rem;
       margin-bottom: 0.75rem;
       color: #1f2937;
+      background: none;
+      -webkit-background-clip: unset;
+      -webkit-text-fill-color: unset;
+      background-clip: unset;
     }
 
     .btn-small {

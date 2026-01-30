@@ -49,12 +49,15 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <thead>
             <tr>
               <th>馬番</th>
+              <th id="mark3Header">印3</th>
+              <th id="mark2Header">印2</th>
+              <th id="mark1Header">印1</th>
+              <th id="markHonsiHeader">印本</th>
               <th>馬名</th>
-              <th>umacd</th>
-              <th id="predictorHeaders"></th>
-              <th>オッズ</th>
-              <th>合計点</th>
-              <th>振り分け</th>
+              <th>性齢</th>
+              <th>騎手</th>
+              <th>斤量</th>
+              <th>厩舎</th>
             </tr>
           </thead>
           <tbody id="extractionTableBody"></tbody>
@@ -442,6 +445,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
         const umabanTd = tds.find(td => td.classList.contains("umaban"));
         const bameiTd = tds.find(td => td.classList.contains("bamei"));
+        const seireiTd = tds.find(td => td.classList.contains("seirei"));
+        const kisyuTd = tds.find(td => td.classList.contains("kisyu"));
+        const kinryoTd = tds.find(td => td.classList.contains("kinryo"));
+        const kyusyaTd = tds.find(td => td.classList.contains("kyusya"));
         const oddsTd = tds.find(td => td.classList.contains("odds5"));
 
         if (!umabanTd || !bameiTd) return;
@@ -453,12 +460,17 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         const umacdMatch = href.match(/\/uma\/(\d+)/);
         const umacd = umacdMatch ? umacdMatch[1] : undefined;
 
+        const seirei = seireiTd ? seireiTd.textContent.trim() : "";
+        const kisyu = kisyuTd ? kisyuTd.textContent.trim() : "";
+        const kinryo = kinryoTd ? kinryoTd.textContent.trim() : "";
+        const kyusya = kyusyaTd ? kyusyaTd.textContent.trim() : "";
+
         // 予想者列から印を抽出（インデックスベース）
         const marks = {};
         predictorHeaders.forEach((headerIndex, i) => {
           if (tds[headerIndex]) {
             const td = tds[headerIndex];
-            const mark = td.querySelector("svg") ? "svg" : td.textContent.trim();
+            const mark = td.querySelector("svg") ? "▲" : td.textContent.trim();
             marks[predictors[i]] = mark || "-";
           }
         });
@@ -469,7 +481,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           odds = oddsText === "☆" ? 999.9 : parseFloat(oddsText);
         }
 
-        horses.push({ number, name, umacd, marks, odds });
+        horses.push({ number, name, umacd, marks, odds, seirei, kisyu, kinryo, kyusya });
       });
 
       return {
@@ -486,7 +498,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         "◎": 5,
         "○": 4,
         "▲": 3,
-        "svg": 2,
         "△": 2,
         "穴": 1,
         "注": 1,
@@ -556,32 +567,59 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const tbody = document.getElementById("extractionTableBody");
       tbody.innerHTML = "";
 
-      const headers = document.getElementById("predictorHeaders");
-      headers.innerHTML = scored.predictors.map(p => `<th>${p}</th>`).join("");
+      // ヘッダーに予想者名を表示
+      if (scored.predictors.length >= 1) {
+        document.getElementById("mark1Header").textContent = `印1 (${scored.predictors[0]})`;
+      }
+      if (scored.predictors.length >= 2) {
+        document.getElementById("mark2Header").textContent = `印2 (${scored.predictors[1]})`;
+      }
+      if (scored.predictors.length >= 3) {
+        document.getElementById("mark3Header").textContent = `印3 (${scored.predictors[2]})`;
+      }
+
+      // 「本紙」の予想者を探す
+      const honsiPredictor = scored.predictors.find(p => p === "本紙" || p.includes("本紙"));
+      if (honsiPredictor) {
+        document.getElementById("markHonsiHeader").textContent = `印本 (${honsiPredictor})`;
+      }
 
       scored.horses.forEach((horse) => {
         const row = tbody.insertRow();
+
+        // 馬番
         row.insertCell().textContent = horse.number;
+
+        // 印3（3番目の予想者）
+        const mark3 = scored.predictors[2] ? horse.marks[scored.predictors[2]] || "-" : "-";
+        row.insertCell().textContent = mark3;
+
+        // 印2（2番目の予想者）
+        const mark2 = scored.predictors[1] ? horse.marks[scored.predictors[1]] || "-" : "-";
+        row.insertCell().textContent = mark2;
+
+        // 印1（1番目の予想者）
+        const mark1 = scored.predictors[0] ? horse.marks[scored.predictors[0]] || "-" : "-";
+        row.insertCell().textContent = mark1;
+
+        // 印本（本紙）
+        const markHonsi = honsiPredictor ? horse.marks[honsiPredictor] || "-" : "-";
+        row.insertCell().textContent = markHonsi;
+
+        // 馬名
         row.insertCell().textContent = horse.name;
-        row.insertCell().textContent = horse.umacd || "-";
 
-        scored.predictors.forEach(predictor => {
-          const cell = row.insertCell();
-          const mark = horse.marks[predictor];
-          cell.textContent = mark === "svg" ? "▲" : mark;
-        });
+        // 性齢
+        row.insertCell().textContent = horse.seirei || "-";
 
-        row.insertCell().textContent = horse.odds ? horse.odds.toFixed(1) : "-";
+        // 騎手
+        row.insertCell().textContent = horse.kisyu || "-";
 
-        const scoreCell = row.insertCell();
-        scoreCell.textContent = horse.totalScore + "点";
-        scoreCell.style.fontWeight = "bold";
-        scoreCell.style.color = horse.totalScore >= 10 ? "#dc2626" : "#059669";
+        // 斤量
+        row.insertCell().textContent = horse.kinryo || "-";
 
-        const assignCell = row.insertCell();
-        assignCell.textContent = horse.assignment;
-        assignCell.style.fontWeight = "bold";
-        assignCell.style.color = getAssignmentColor(horse.assignment);
+        // 厩舎
+        row.insertCell().textContent = horse.kyusya || "-";
       });
     }
 
@@ -652,6 +690,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           umacd: h.umacd,
           marks: h.marks,
           odds: h.odds,
+          seirei: h.seirei,
+          kisyu: h.kisyu,
+          kinryo: h.kinryo,
+          kyusya: h.kyusya,
           totalScore: h.totalScore,
           assignment: h.assignment,
         })),
@@ -707,6 +749,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           umacd: h.umacd,
           marks: h.marks,
           odds: h.odds,
+          seirei: h.seirei,
+          kisyu: h.kisyu,
+          kinryo: h.kinryo,
+          kyusya: h.kyusya,
           totalScore: h.totalScore,
           assignment: h.assignment,
         })),

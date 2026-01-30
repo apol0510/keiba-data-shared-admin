@@ -4,6 +4,8 @@
  * ステップ1: 競馬ブック形式を貼り付け抽出
  * ステップ2: スコアリングして自動振り分け
  * 保存: GitHub API / Push
+ *
+ * 著作権対応: 記者名を印番号化（印3/印2/印1/印0）
  */
 import BaseLayout from "../../layouts/BaseLayout.astro";
 ---
@@ -49,10 +51,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           <thead>
             <tr>
               <th>馬番</th>
-              <th id="mark4Header">印4</th>
-              <th id="mark3Header">印3</th>
-              <th id="mark2Header">印2</th>
-              <th id="mark1Header">印1</th>
+              <th id="mark4Header">印3</th>
+              <th id="mark3Header">印2</th>
+              <th id="mark2Header">印1</th>
+              <th id="mark1Header">印0</th>
               <th>馬名</th>
               <th>性齢</th>
               <th>騎手</th>
@@ -441,9 +443,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       headerRow.querySelectorAll("th").forEach((th, index) => {
         const text = th.textContent.trim();
 
-        // 予想者列を検出（My印は除外）
+        // 予想者列を検出（My印は除外、著作権対応で印番号化）
         if ((th.classList.contains("tmyoso") || text.includes("印")) && !text.includes("My")) {
-          predictors.push(text);
+          const markNumber = 3 - predictors.length; // 印3, 印2, 印1, 印0
+          predictors.push(`印${markNumber}`);
           predictorHeaders.push(index);
         }
 
@@ -588,22 +591,22 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       const tbody = document.getElementById("extractionTableBody");
       tbody.innerHTML = "";
 
-      // ヘッダーに予想者名を表示（My印除外後）
-      // 印4（大木尚）= predictors[0]
-      // 印3（善林浩）= predictors[1]
-      // 印2（髙橋佑）= predictors[2]
-      // 印1（本紙）= predictors[3]
+      // 印番号のみ表示（著作権対応で記者名削除）
+      // predictors[0] = "印3"
+      // predictors[1] = "印2"
+      // predictors[2] = "印1"
+      // predictors[3] = "印0"
       if (scored.predictors.length >= 1) {
-        document.getElementById("mark4Header").textContent = `印4 (${scored.predictors[0]})`;
+        document.getElementById("mark4Header").textContent = scored.predictors[0];
       }
       if (scored.predictors.length >= 2) {
-        document.getElementById("mark3Header").textContent = `印3 (${scored.predictors[1]})`;
+        document.getElementById("mark3Header").textContent = scored.predictors[1];
       }
       if (scored.predictors.length >= 3) {
-        document.getElementById("mark2Header").textContent = `印2 (${scored.predictors[2]})`;
+        document.getElementById("mark2Header").textContent = scored.predictors[2];
       }
       if (scored.predictors.length >= 4) {
-        document.getElementById("mark1Header").textContent = `印1 (${scored.predictors[3]})`;
+        document.getElementById("mark1Header").textContent = scored.predictors[3];
       }
 
       scored.horses.forEach((horse) => {
@@ -612,19 +615,19 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         // 馬番
         row.insertCell().textContent = horse.number;
 
-        // 印4（大木尚 = 1番目の予想者）
+        // 印3（predictors[0]）
         const mark4 = scored.predictors[0] ? horse.marks[scored.predictors[0]] || "-" : "-";
         row.insertCell().textContent = mark4;
 
-        // 印3（善林浩 = 2番目の予想者）
+        // 印2（predictors[1]）
         const mark3 = scored.predictors[1] ? horse.marks[scored.predictors[1]] || "-" : "-";
         row.insertCell().textContent = mark3;
 
-        // 印2（髙橋佑 = 3番目の予想者）
+        // 印1（predictors[2]）
         const mark2 = scored.predictors[2] ? horse.marks[scored.predictors[2]] || "-" : "-";
         row.insertCell().textContent = mark2;
 
-        // 印1（本紙 = 4番目の予想者）
+        // 印0（predictors[3]）
         const mark1 = scored.predictors[3] ? horse.marks[scored.predictors[3]] || "-" : "-";
         row.insertCell().textContent = mark1;
 

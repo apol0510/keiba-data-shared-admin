@@ -15,6 +15,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     <h1>🏇 競馬予想データ管理画面</h1>
     <p class="subtitle">予想HTMLを貼り付けて自動抽出・スコアリング</p>
 
+    <!-- 保存済みレース数表示 -->
+    <div id="savedRacesCounter" class="saved-counter" style="display: none;">
+      <span id="savedRacesText">本日の保存済みレース数: <strong>0</strong>レース</span>
+    </div>
+
     <!-- ステップ1: HTML貼り付け -->
     <section class="section">
       <h2>📥 ステップ1: 予想HTML貼り付け</h2>
@@ -90,6 +95,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           </p>
           <div id="saveStatus"></div>
           <button id="saveBtn" class="btn-success">🚀 保存してGit Push</button>
+          <button id="nextRaceBtn" class="btn-next" style="display: none;">➕ 次のレースを入力</button>
         </div>
       </div>
     </section>
@@ -176,13 +182,16 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     }
 
     .btn-primary,
-    .btn-success {
+    .btn-success,
+    .btn-next {
       padding: 0.75rem 1.5rem;
       border: none;
       border-radius: 4px;
       font-size: 1rem;
       cursor: pointer;
       margin-top: 1rem;
+      display: block;
+      width: 100%;
     }
 
     .btn-primary {
@@ -201,6 +210,30 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .btn-success:hover {
       background: #059669;
+    }
+
+    .btn-next {
+      background: #f59e0b;
+      color: white;
+      font-weight: 600;
+    }
+
+    .btn-next:hover {
+      background: #d97706;
+    }
+
+    .saved-counter {
+      background: #dbeafe;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    .saved-counter strong {
+      color: #1e40af;
+      font-size: 1.5rem;
     }
 
     .race-info-display {
@@ -457,6 +490,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     let raceInfo = null;
     let currentSortOrder = 'score'; // 'score' or 'number'
     let scoredData = null;
+    let savedRacesCount = 0; // 本日保存済みレース数
 
     // 抽出ボタン
     document.getElementById("extractBtn").addEventListener("click", async () => {
@@ -977,6 +1011,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
         if (response.ok) {
           showSaveStatus(true, `✅ 保存成功！\nファイル: ${result.path}\nコミット: ${result.sha.substring(0, 7)}\nURL: ${result.url}`);
+
+          // 保存成功時の処理
+          savedRacesCount++;
+          updateSavedRacesCounter();
+          document.getElementById("nextRaceBtn").style.display = "block";
+          document.getElementById("saveBtn").style.display = "none";
         } else {
           showSaveStatus(false, `❌ 保存失敗: ${result.error}\n詳細: ${result.details || ""}`);
         }
@@ -990,5 +1030,40 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       status.className = success ? "status-success" : "status-error";
       status.textContent = message;
     }
+
+    // 保存済みレース数を更新
+    function updateSavedRacesCounter() {
+      const counter = document.getElementById("savedRacesCounter");
+      const text = document.getElementById("savedRacesText");
+      text.innerHTML = `本日の保存済みレース数: <strong>${savedRacesCount}</strong>レース`;
+      counter.style.display = "block";
+    }
+
+    // 次のレースを入力ボタン
+    document.getElementById("nextRaceBtn").addEventListener("click", () => {
+      // フォームをリセット
+      document.getElementById("htmlInput").value = "";
+      extractionResult = null;
+      raceInfo = null;
+      scoredData = null;
+
+      // セクションを非表示
+      document.getElementById("raceInfoSection").style.display = "none";
+      document.getElementById("extractionResultSection").style.display = "none";
+      document.getElementById("previewSection").style.display = "none";
+
+      // ボタンを切り替え
+      document.getElementById("nextRaceBtn").style.display = "none";
+      document.getElementById("saveBtn").style.display = "block";
+
+      // ステータスをクリア
+      document.getElementById("saveStatus").textContent = "";
+
+      // HTMLテキストエリアにフォーカス
+      document.getElementById("htmlInput").focus();
+
+      // ページトップにスクロール
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   </script>
 </BaseLayout>

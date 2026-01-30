@@ -664,6 +664,8 @@ export const prerender = false;
         }
 
         const predictors = detectPredictors(headerRow);
+        console.log('[extractPredictions] 検出した予想者:', predictors);
+
         const rows = table.querySelectorAll('tbody tr');
         const horses = [];
 
@@ -673,6 +675,8 @@ export const prerender = false;
             horses.push(horse);
           }
         });
+
+        console.log(`[extractPredictions] 抽出した馬数: ${horses.length}`);
 
         return {
           success: true,
@@ -690,12 +694,28 @@ export const prerender = false;
       const headers = [];
       const ths = headerRow.querySelectorAll('th');
 
+      // 予想印以外の列を除外
+      const excludeList = [
+        '枠番', '馬番', '馬名', '選択', '性齢', '減量', '騎手', '斤量',
+        '厩舎', '短評', '増減', '単勝', '人気', '着順', '馬体重',
+        'オッズ', 'タイム', '着差', 'ペース', '上3F', '調教師', '馬主'
+      ];
+
       ths.forEach((th) => {
         const text = th.textContent?.trim() || '';
+
+        // 除外リストに含まれる場合はスキップ
+        if (excludeList.includes(text)) {
+          return;
+        }
+
+        // 予想印列を検出
         if (
-          text.includes('My') ||
-          text === 'CPU' ||
-          text.length <= 3
+          text.includes('My') ||      // My印
+          text.includes('印') ||       // ○○印
+          text === 'CPU' ||           // CPU
+          text === '本紙' ||          // 本紙
+          (text.length >= 2 && text.length <= 3 && /^[ぁ-んァ-ヶー一-龠]+$/.test(text)) // 2-3文字の日本語（予想者名）
         ) {
           headers.push(text);
         }
@@ -739,11 +759,20 @@ export const prerender = false;
       let kinryo = '';
       let kyusya = '';
 
+      // 馬番（umaban class または2列目）
       const umabanTd = tds.find(td => td.classList.contains('umaban'));
       if (umabanTd) {
         number = parseInt(umabanTd.textContent?.trim() || '0', 10);
+      } else if (tds.length >= 2) {
+        // フォールバック: 2列目を馬番として扱う
+        const secondCol = tds[1].textContent?.trim() || '';
+        const parsed = parseInt(secondCol, 10);
+        if (!isNaN(parsed)) {
+          number = parsed;
+        }
       }
 
+      // 馬名（bamei class内のリンク）
       const bameiTd = tds.find(td => td.classList.contains('bamei'));
       if (bameiTd) {
         const link = bameiTd.querySelector('a');
@@ -757,14 +786,19 @@ export const prerender = false;
         }
       }
 
+      // 予想印を抽出（tmyoso class）
       const markTds = tds.filter(td => td.classList.contains('tmyoso'));
+      console.log(`[extractHorseFromRow] 馬番${number}: markTds=${markTds.length}, predictors=${predictors.length}`);
+
       markTds.forEach((td, index) => {
         if (index < predictors.length) {
-          marks[predictors[index]] = extractMarkFromElement(td);
+          const mark = extractMarkFromElement(td);
+          marks[predictors[index]] = mark;
+          console.log(`  ${predictors[index]} = ${mark}`);
         }
       });
 
-      // 性齢・騎手・斤量・厩舎抽出（簡易版）
+      // 性齢・騎手・斤量・厩舎抽出
       const seireiTd = tds.find(td => td.classList.contains('seirei'));
       if (seireiTd) {
         seirei = seireiTd.textContent?.trim() || '';
@@ -786,6 +820,7 @@ export const prerender = false;
       }
 
       if (number === 0 || !name) {
+        console.log(`[extractHorseFromRow] スキップ: number=${number}, name=${name}`);
         return null;
       }
 

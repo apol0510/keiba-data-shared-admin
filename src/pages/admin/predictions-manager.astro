@@ -663,14 +663,18 @@ export const prerender = false;
           return { success: false, horses: [], predictors: [], errors };
         }
 
-        const predictors = detectPredictors(headerRow);
-        console.log('[extractPredictions] 検出した予想者:', predictors);
+        const detectedPredictors = detectPredictors(headerRow);
+        console.log('[extractPredictions] 検出した予想者:', detectedPredictors);
+
+        // 著作権対応: 予想者名を「印0」「印1」「印2」「印3」に匿名化
+        const predictors = detectedPredictors.map((_, index) => `印${index}`);
+        console.log('[extractPredictions] 匿名化後:', predictors);
 
         const rows = table.querySelectorAll('tbody tr');
         const horses = [];
 
         rows.forEach(row => {
-          const horse = extractHorseFromRow(row, predictors);
+          const horse = extractHorseFromRow(row, detectedPredictors, predictors);
           if (horse) {
             horses.push(horse);
           }
@@ -747,7 +751,7 @@ export const prerender = false;
       return markMap[text] || text;
     }
 
-    function extractHorseFromRow(row, predictors) {
+    function extractHorseFromRow(row, detectedPredictors, anonymizedPredictors) {
       const tds = Array.from(row.querySelectorAll('td'));
 
       let number = 0;
@@ -788,13 +792,14 @@ export const prerender = false;
 
       // 予想印を抽出（tmyoso class）
       const markTds = tds.filter(td => td.classList.contains('tmyoso'));
-      console.log(`[extractHorseFromRow] 馬番${number}: markTds=${markTds.length}, predictors=${predictors.length}`);
+      console.log(`[extractHorseFromRow] 馬番${number}: markTds=${markTds.length}, predictors=${anonymizedPredictors.length}`);
 
       markTds.forEach((td, index) => {
-        if (index < predictors.length) {
+        if (index < anonymizedPredictors.length) {
           const mark = extractMarkFromElement(td);
-          marks[predictors[index]] = mark;
-          console.log(`  ${predictors[index]} = ${mark}`);
+          // 匿名化された名前（印0、印1など）をキーとして保存
+          marks[anonymizedPredictors[index]] = mark;
+          console.log(`  ${anonymizedPredictors[index]} = ${mark}`);
         }
       });
 

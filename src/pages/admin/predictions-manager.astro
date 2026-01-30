@@ -46,6 +46,11 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <p>◎=5点 / ○=4点 / ▲=3点 / svg画=2点 / △=1点 / 無=0点</p>
       </div>
 
+      <div class="sort-controls">
+        <button id="sortByScoreBtn" class="sort-btn active">点数順</button>
+        <button id="sortByNumberBtn" class="sort-btn">馬番順</button>
+      </div>
+
       <div class="table-wrapper">
         <table id="extractionTable" class="data-table">
           <thead>
@@ -226,6 +231,35 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       color: #92400e;
     }
 
+    .sort-controls {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .sort-btn {
+      padding: 0.5rem 1rem;
+      border: 2px solid #d1d5db;
+      border-radius: 4px;
+      background: white;
+      color: #6b7280;
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sort-btn:hover {
+      border-color: #3b82f6;
+      color: #3b82f6;
+    }
+
+    .sort-btn.active {
+      border-color: #3b82f6;
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+
     .table-wrapper {
       overflow-x: auto;
     }
@@ -330,6 +364,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
     // グローバル変数
     let extractionResult = null;
     let raceInfo = null;
+    let currentSortOrder = 'score'; // 'score' or 'number'
+    let scoredData = null;
 
     // 抽出ボタン
     document.getElementById("extractBtn").addEventListener("click", async () => {
@@ -356,10 +392,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         extractionResult = result;
 
         // スコアリングと振り分け
-        const scored = scoreAndAssign(result);
+        scoredData = scoreAndAssign(result);
 
-        showExtractionResult(scored);
-        showAssignmentResult(scored);
+        showExtractionResult(scoredData);
+        showAssignmentResult(scoredData);
         showExtractionStatus(true, `✅ ${result.horses.length}頭のデータを抽出しました`);
 
         // セクション表示
@@ -369,7 +405,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         document.getElementById("saveSection").style.display = "block";
 
         // プレビュー表示
-        showPreview(raceInfo, scored);
+        showPreview(raceInfo, scoredData);
 
       } catch (error) {
         showExtractionStatus(false, `エラー: ${error.message}`);
@@ -612,7 +648,12 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         document.getElementById("mark1Header").textContent = scored.predictors[3];
       }
 
-      scored.horses.forEach((horse) => {
+      // ソート順に応じて表示
+      const displayHorses = currentSortOrder === 'score'
+        ? scored.horses
+        : [...scored.horses].sort((a, b) => a.number - b.number);
+
+      displayHorses.forEach((horse) => {
         const row = tbody.insertRow();
 
         // 馬番
@@ -745,6 +786,27 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       status.className = success ? "status-success" : "status-error";
       status.textContent = message;
     }
+
+    // ソート切り替えボタン
+    document.getElementById("sortByScoreBtn").addEventListener("click", () => {
+      if (currentSortOrder === 'score') return;
+      currentSortOrder = 'score';
+      document.getElementById("sortByScoreBtn").classList.add("active");
+      document.getElementById("sortByNumberBtn").classList.remove("active");
+      if (scoredData) {
+        showExtractionResult(scoredData);
+      }
+    });
+
+    document.getElementById("sortByNumberBtn").addEventListener("click", () => {
+      if (currentSortOrder === 'number') return;
+      currentSortOrder = 'number';
+      document.getElementById("sortByNumberBtn").classList.add("active");
+      document.getElementById("sortByScoreBtn").classList.remove("active");
+      if (scoredData) {
+        showExtractionResult(scoredData);
+      }
+    });
 
     // 保存ボタン
     document.getElementById("saveBtn").addEventListener("click", async () => {

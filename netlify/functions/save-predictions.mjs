@@ -38,11 +38,22 @@ export default async (req, context) => {
     const body = await req.json();
     const { raceDate, track, raceNumber, data, forceOverwrite } = body;
 
+    console.log('[save-predictions] リクエスト受信:', {
+      raceDate,
+      track,
+      raceNumber,
+      hasData: !!data,
+      dataSize: data ? JSON.stringify(data).length : 0,
+      forceOverwrite
+    });
+
     // バリデーション
     if (!raceDate || !track || !raceNumber || !data) {
+      console.error('[save-predictions] 必須フィールド不足:', { raceDate, track, raceNumber, hasData: !!data });
       return new Response(
         JSON.stringify({
-          error: 'Missing required fields: raceDate, track, raceNumber, data'
+          error: 'Missing required fields: raceDate, track, raceNumber, data',
+          received: { raceDate, track, raceNumber, hasData: !!data }
         }),
         { status: 400, headers }
       );
@@ -54,11 +65,20 @@ export default async (req, context) => {
     const GITHUB_REPO_NAME = 'keiba-data-shared';
     const GITHUB_BRANCH = 'main';
 
+    console.log('[save-predictions] 環境変数チェック:', {
+      hasToken: !!GITHUB_TOKEN,
+      tokenLength: GITHUB_TOKEN ? GITHUB_TOKEN.length : 0,
+      owner: GITHUB_REPO_OWNER,
+      repo: GITHUB_REPO_NAME
+    });
+
     if (!GITHUB_TOKEN) {
+      console.error('[save-predictions] GitHubトークンが設定されていません');
       return new Response(
         JSON.stringify({
           error: 'GITHUB_TOKEN_KEIBA_DATA_SHARED or GITHUB_TOKEN not configured',
-          hint: 'Netlify環境変数を設定してください'
+          hint: 'Netlify環境変数を設定してください',
+          availableEnvVars: Object.keys(process.env).filter(k => k.includes('GITHUB'))
         }),
         { status: 500, headers }
       );
@@ -172,10 +192,18 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
     if (!putFileResponse.ok) {
       const errorText = await putFileResponse.text();
+      console.error('[save-predictions] GitHub API エラー (put file):', {
+        status: putFileResponse.status,
+        statusText: putFileResponse.statusText,
+        body: errorText
+      });
       return new Response(
         JSON.stringify({
           error: 'GitHub API error (put file)',
-          details: errorText
+          status: putFileResponse.status,
+          statusText: putFileResponse.statusText,
+          details: errorText,
+          path: filePath
         }),
         { status: putFileResponse.status, headers }
       );
@@ -198,12 +226,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
   } catch (error) {
     console.error('[save-predictions] エラー:', error);
+    console.error('[save-predictions] スタック:', error.stack);
 
     return new Response(
       JSON.stringify({
         error: 'Internal Server Error',
         message: error.message,
-        stack: error.stack
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        timestamp: new Date().toISOString()
       }),
       { status: 500, headers }
     );

@@ -461,7 +461,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
         const umabanTd = tds.find(td => td.classList.contains("umaban"));
         const bameiTd = tds.find(td => td.classList.contains("bamei"));
-        const oddsTd = tds.find(td => td.classList.contains("odds5"));
 
         if (!umabanTd || !bameiTd) return;
 
@@ -502,13 +501,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           }
         });
 
-        let odds = undefined;
-        if (oddsTd) {
-          const oddsText = oddsTd.textContent.trim();
-          odds = oddsText === "☆" ? 999.9 : parseFloat(oddsText);
-        }
-
-        horses.push({ number, name, umacd, marks, odds, seirei, kisyu, kinryo, kyusya });
+        horses.push({ number, name, umacd, marks, seirei, kisyu, kinryo, kyusya });
       });
 
       return {
@@ -718,7 +711,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           name: h.name,
           umacd: h.umacd,
           marks: h.marks,
-          odds: h.odds,
           seirei: h.seirei,
           kisyu: h.kisyu,
           kinryo: h.kinryo,
@@ -777,7 +769,6 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           name: h.name,
           umacd: h.umacd,
           marks: h.marks,
-          odds: h.odds,
           seirei: h.seirei,
           kisyu: h.kisyu,
           kinryo: h.kinryo,

@@ -95,6 +95,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           </p>
           <div id="saveStatus"></div>
           <button id="saveBtn" class="btn-success">🚀 保存してGit Push</button>
+          <button id="overwriteSaveBtn" class="btn-warning">🔥 完全上書き保存</button>
           <button id="nextRaceBtn" class="btn-next" style="display: none;">➕ 次のレースを入力</button>
         </div>
       </div>
@@ -183,6 +184,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .btn-primary,
     .btn-success,
+    .btn-warning,
     .btn-next {
       padding: 0.75rem 1.5rem;
       border: none;
@@ -210,6 +212,16 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
     .btn-success:hover {
       background: #059669;
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: white;
+      font-weight: 600;
+    }
+
+    .btn-warning:hover {
+      background: linear-gradient(135deg, #d97706, #b45309);
     }
 
     .btn-next {
@@ -1017,6 +1029,104 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
           updateSavedRacesCounter();
           document.getElementById("nextRaceBtn").style.display = "block";
           document.getElementById("saveBtn").style.display = "none";
+          document.getElementById("overwriteSaveBtn").style.display = "none";
+        } else {
+          showSaveStatus(false, `❌ 保存失敗: ${result.error}\n詳細: ${result.details || ""}`);
+        }
+      } catch (error) {
+        showSaveStatus(false, `❌ エラー: ${error.message}`);
+      }
+    });
+
+    // 完全上書き保存ボタン
+    document.getElementById("overwriteSaveBtn").addEventListener("click", async () => {
+      if (!raceInfo || !extractionResult) {
+        showSaveStatus(false, "❌ データが抽出されていません");
+        return;
+      }
+
+      // 確認ダイアログ
+      if (!confirm("この日付の既存データを完全に上書きします。よろしいですか？")) {
+        return;
+      }
+
+      const scored = scoreAndAssign(extractionResult);
+
+      const data = {
+        version: "1.0.0",
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        raceInfo: {
+          date: raceInfo.date,
+          track: raceInfo.track,
+          raceNumber: raceInfo.raceNumber,
+          raceName: raceInfo.raceName,
+          raceType: raceInfo.raceType,
+          distance: raceInfo.distance,
+          surface: raceInfo.surface,
+        },
+        horses: scored.horses.map(h => ({
+          number: h.number,
+          name: h.name,
+          umacd: h.umacd,
+          marks: h.marks,
+          seirei: h.seirei,
+          kisyu: h.kisyu,
+          kinryo: h.kinryo,
+          kyusya: h.kyusya,
+          totalScore: h.totalScore,
+          assignment: h.assignment,
+        })),
+        predictors: scored.predictors,
+        assignments: {
+          main: scored.assignments.main?.number,
+          sub: scored.assignments.sub?.number,
+          hole: scored.assignments.hole?.number,
+          connectTop: scored.assignments.connectTop?.number,
+          connect: scored.assignments.connect.map(h => h.number),
+          reserve: scored.assignments.reserve.map(h => h.number),
+          none: scored.assignments.none.map(h => h.number),
+        },
+      };
+
+      try {
+        showSaveStatus(true, "🔥 完全上書き保存中...");
+
+        // 日付をYYYY-MM-DD形式に変換
+        const dateMatch = raceInfo.date.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        const raceDate = dateMatch
+          ? `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+          : new Date().toISOString().split('T')[0];
+
+        const response = await fetch("/.netlify/functions/save-predictions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            raceDate: raceDate,
+            track: raceInfo.track,
+            raceNumber: raceInfo.raceNumber,
+            data: {
+              raceDate: raceDate,
+              lastUpdated: data.lastUpdated,
+              track: raceInfo.track,
+              totalRaces: 1,
+              races: [data],
+            },
+            forceOverwrite: true, // 完全上書きモード
+          }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          showSaveStatus(true, `✅ 完全上書き保存成功！\nファイル: ${result.path}\nコミット: ${result.sha.substring(0, 7)}\nURL: ${result.url}`);
+
+          // 保存成功時の処理
+          savedRacesCount++;
+          updateSavedRacesCounter();
+          document.getElementById("nextRaceBtn").style.display = "block";
+          document.getElementById("saveBtn").style.display = "none";
+          document.getElementById("overwriteSaveBtn").style.display = "none";
         } else {
           showSaveStatus(false, `❌ 保存失敗: ${result.error}\n詳細: ${result.details || ""}`);
         }
@@ -1055,6 +1165,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       // ボタンを切り替え
       document.getElementById("nextRaceBtn").style.display = "none";
       document.getElementById("saveBtn").style.display = "block";
+      document.getElementById("overwriteSaveBtn").style.display = "block";
 
       // ステータスをクリア
       document.getElementById("saveStatus").textContent = "";

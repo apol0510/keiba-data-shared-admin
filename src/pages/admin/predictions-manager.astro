@@ -271,6 +271,10 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
       font-size: 1rem;
     }
 
+    .assignment-result h4.section-divider {
+      margin-top: 2.5rem;
+    }
+
     .assignment-result ul {
       list-style: none;
       padding: 0;
@@ -688,7 +692,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         <h4>× 補欠 (1点以上)</h4>
         <ul>${a.reserve.length > 0 ? a.reserve.map(h => `<li>${formatHorse(h)}</li>`).join("") : "<li>なし</li>"}</ul>
 
-        <h4>無 (0点)</h4>
+        <h4 class="section-divider">無 (0点)</h4>
         <ul>${a.none.length > 0 ? a.none.map(h => `<li>${formatHorse(h)}</li>`).join("") : "<li>なし</li>"}</ul>
       `;
     }

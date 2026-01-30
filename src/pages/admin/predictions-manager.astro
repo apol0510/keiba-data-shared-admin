@@ -795,18 +795,74 @@ export const prerender = false;
         }
       }
 
+      // デバッグ: 全tdのクラスとコンテンツを表示（最初の馬のみ）
+      if (number === 1) {
+        console.log('[DEBUG] 1番馬の全tdの詳細:');
+        tds.forEach((td, idx) => {
+          const classes = Array.from(td.classList).join(', ') || '(クラスなし)';
+          const text = td.textContent?.trim().substring(0, 30) || '';
+          const html = td.innerHTML.substring(0, 100);
+          console.log(`  td[${idx}]: classes="${classes}"`);
+          console.log(`          text="${text}"`);
+          console.log(`          html="${html}"`);
+        });
+      }
+
       // 予想印を抽出（tmyoso class）
       const markTds = tds.filter(td => td.classList.contains('tmyoso'));
       console.log(`[extractHorseFromRow] 馬番${number}: markTds=${markTds.length}, predictors=${anonymizedPredictors.length}`);
 
-      markTds.forEach((td, index) => {
-        if (index < anonymizedPredictors.length) {
-          const mark = extractMarkFromElement(td);
-          // 匿名化された名前（印0、印1など）をキーとして保存
-          marks[anonymizedPredictors[index]] = mark;
-          console.log(`  ${anonymizedPredictors[index]} = ${mark}`);
+      // tmyosoクラスが見つからない場合の対策
+      if (markTds.length === 0) {
+        if (number === 1) {
+          console.error('[ERROR] tmyosoクラスが見つかりません！');
+          console.error('[ERROR] 代替案: ヘッダーとtdの位置で印を特定します');
         }
-      });
+
+        // 代替案: ヘッダーのth位置から印のtdを特定
+        // ヘッダー行のthを取得
+        const headerRow = row.closest('table')?.querySelector('thead tr');
+        if (headerRow) {
+          const ths = Array.from(headerRow.querySelectorAll('th'));
+          const markIndices = [];
+
+          // 予想者名に該当するthのインデックスを記録
+          ths.forEach((th, idx) => {
+            const text = th.textContent?.trim() || '';
+            // detectedPredictorsに含まれる予想者名を探す
+            detectedPredictors.forEach(predictor => {
+              if (text.includes(predictor)) {
+                markIndices.push(idx);
+              }
+            });
+          });
+
+          if (number === 1) {
+            console.log('[DEBUG] 印のthインデックス:', markIndices);
+          }
+
+          // そのインデックスに対応するtdから印を抽出
+          markIndices.forEach((thIdx, predictorIdx) => {
+            if (thIdx < tds.length && predictorIdx < anonymizedPredictors.length) {
+              const td = tds[thIdx];
+              const mark = extractMarkFromElement(td);
+              marks[anonymizedPredictors[predictorIdx]] = mark;
+              if (number === 1) {
+                console.log(`  ${anonymizedPredictors[predictorIdx]} (th[${thIdx}]) = ${mark}`);
+              }
+            }
+          });
+        }
+      } else {
+        // tmyosoクラスが見つかった場合（従来の処理）
+        markTds.forEach((td, index) => {
+          if (index < anonymizedPredictors.length) {
+            const mark = extractMarkFromElement(td);
+            marks[anonymizedPredictors[index]] = mark;
+            console.log(`  ${anonymizedPredictors[index]} = ${mark}`);
+          }
+        });
+      }
 
       // 性齢・騎手・斤量・厩舎抽出
       const seireiTd = tds.find(td => td.classList.contains('seirei'));

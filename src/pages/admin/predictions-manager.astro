@@ -388,6 +388,13 @@ export const prerender = false;
       width: 100%;
     }
 
+    /* ソート切り替えボタンのアクティブ状態 */
+    .btn.active {
+      background: var(--primary-end);
+      color: white;
+      font-weight: 600;
+    }
+
     @media (max-width: 768px) {
       .common-info-grid {
         grid-template-columns: 1fr;
@@ -501,44 +508,94 @@ export const prerender = false;
         </div>
       `;
 
-      // 振り分け結果
-      html += '<div style="margin-bottom: 1rem;">';
-      html += '<h4 style="margin-bottom: 0.5rem;">🎯 振り分け結果</h4>';
+      // 振り分け結果（カード形式・7種類全表示）
+      html += '<div style="margin-bottom: 1.5rem;">';
+      html += '<h4 style="margin-bottom: 0.75rem;">🎯 自動振り分け結果</h4>';
+      html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">';
 
-      if (data.assignments.main) {
-        const mainHorse = data.horses.find(h => h.number === data.assignments.main);
-        html += `<p><strong>◎ 本命:</strong> ${data.assignments.main}番 ${mainHorse?.name} (${mainHorse?.totalScore}点)</p>`;
-      }
+      const formatHorse = (horse) => horse ? `${horse.number}番 ${horse.name} (${horse.totalScore}点)` : "なし";
 
-      if (data.assignments.sub) {
-        const subHorse = data.horses.find(h => h.number === data.assignments.sub);
-        html += `<p><strong>○ 対抗:</strong> ${data.assignments.sub}番 ${subHorse?.name} (${subHorse?.totalScore}点)</p>`;
-      }
+      const createCard = (bgColor, borderColor, title, horses) => {
+        const horsesList = Array.isArray(horses)
+          ? horses.map(h => `<li style="margin: 0.25rem 0;">${formatHorse(h)}</li>`).join("")
+          : `<li style="margin: 0.25rem 0;">${formatHorse(horses)}</li>`;
 
-      if (data.assignments.hole) {
-        const holeHorse = data.horses.find(h => h.number === data.assignments.hole);
-        html += `<p><strong>▲ 単穴:</strong> ${data.assignments.hole}番 ${holeHorse?.name} (${holeHorse?.totalScore}点)</p>`;
-      }
+        const isEmpty = (Array.isArray(horses) && horses.length === 0) || (!Array.isArray(horses) && !horses);
+        const content = isEmpty ? "<li>なし</li>" : horsesList;
 
-      if (data.assignments.connectTop) {
-        const connectTopHorse = data.horses.find(h => h.number === data.assignments.connectTop);
-        html += `<p><strong>△ 連下最上位:</strong> ${data.assignments.connectTop}番 ${connectTopHorse?.name} (${connectTopHorse?.totalScore}点)</p>`;
-      }
+        return `
+          <div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; border-radius: 4px; padding: 0.75rem;">
+            <div style="font-weight: 600; margin-bottom: 0.5rem; color: ${borderColor};">${title}</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.875rem;">${content}</ul>
+          </div>
+        `;
+      };
 
-      if (data.assignments.connect && data.assignments.connect.length > 0) {
-        html += `<p><strong>連下:</strong> ${data.assignments.connect.join(', ')}番</p>`;
-      }
+      html += createCard('rgba(239, 68, 68, 0.1)', '#ef4444', '◎ 本命', data.horses.find(h => h.number === data.assignments.main));
+      html += createCard('rgba(59, 130, 246, 0.1)', '#3b82f6', '○ 対抗', data.horses.find(h => h.number === data.assignments.sub));
+      html += createCard('rgba(245, 158, 11, 0.1)', '#f59e0b', '▲ 単穴', data.horses.find(h => h.number === data.assignments.hole));
+      html += createCard('rgba(16, 185, 129, 0.1)', '#10b981', '△ 連下最上位', data.horses.find(h => h.number === data.assignments.connectTop));
+      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~5頭)', data.assignments.connect.map(num => data.horses.find(h => h.number === num)));
+      html += createCard('rgba(100, 116, 139, 0.1)', '#64748b', '× 補欠 (1点以上)', data.assignments.reserve.map(num => data.horses.find(h => h.number === num)));
+      html += createCard('rgba(156, 163, 175, 0.1)', '#9ca3af', '無 (0点)', data.assignments.none.map(num => data.horses.find(h => h.number === num)));
 
       html += '</div>';
+      html += '</div>';
 
-      // 全馬一覧（馬番順・詳細表示）
-      html += '<div style="margin-top: 1rem; overflow-x: auto;">';
-      html += '<h4 style="margin-bottom: 0.5rem;">🏇 全馬一覧（抽出結果）</h4>';
-      html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; white-space: nowrap;">';
+      // ソート切り替えボタン
+      html += '<div style="margin-bottom: 1rem;">';
+      html += '<h4 style="margin-bottom: 0.5rem;">🏇 抽出結果</h4>';
+      html += '<div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">';
+      html += `<button onclick="toggleSort(${raceNum}, 'score')" id="sortByScore${raceNum}" class="btn btn-secondary" style="flex: 1;">📊 点数順</button>`;
+      html += `<button onclick="toggleSort(${raceNum}, 'number')" id="sortByNumber${raceNum}" class="btn btn-secondary" style="flex: 1;">🔢 馬番順</button>`;
+      html += '</div>';
+      html += `<div id="horseTable${raceNum}" style="overflow-x: auto;"></div>`;
+      html += '</div>';
+
+      previewContent.innerHTML = html;
+
+      // 初期表示（馬番順）
+      renderHorseTable(raceNum, data, 'number');
+
+      const jsonData = {
+        raceDate: date,
+        lastUpdated: data.lastUpdated,
+        track: venue,
+        totalRaces: 1,
+        races: [data],
+      };
+
+      jsonOutput.value = JSON.stringify(jsonData, null, 2);
+      previewDiv.style.display = 'block';
+    }
+
+    // 馬テーブル描画
+    function renderHorseTable(raceNum, data, sortOrder) {
+      const tableDiv = document.getElementById(`horseTable${raceNum}`);
+
+      // ソートボタンのアクティブ状態を更新
+      const scoreBtn = document.getElementById(`sortByScore${raceNum}`);
+      const numberBtn = document.getElementById(`sortByNumber${raceNum}`);
+
+      if (sortOrder === 'score') {
+        scoreBtn.classList.add('active');
+        numberBtn.classList.remove('active');
+      } else {
+        scoreBtn.classList.remove('active');
+        numberBtn.classList.add('active');
+      }
+
+      // 馬をソート
+      const horses = sortOrder === 'score'
+        ? [...data.horses].sort((a, b) => b.totalScore - a.totalScore)
+        : [...data.horses].sort((a, b) => a.number - b.number);
+
+      // テーブル生成
+      let html = '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem; white-space: nowrap;">';
       html += '<thead><tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-color);">';
       html += '<th style="padding: 0.5rem; text-align: center;">馬番</th>';
 
-      // 予想者列（印4、印3、印2、印1）
+      // 予想者列
       data.predictors.forEach(predictor => {
         html += `<th style="padding: 0.5rem; text-align: center;">${predictor}</th>`;
       });
@@ -552,10 +609,7 @@ export const prerender = false;
       html += '<th style="padding: 0.5rem; text-align: left;">振り分け</th>';
       html += '</tr></thead><tbody>';
 
-      // 馬番順にソート
-      const horsesByNumber = [...data.horses].sort((a, b) => a.number - b.number);
-
-      horsesByNumber.forEach(horse => {
+      horses.forEach(horse => {
         html += '<tr style="border-bottom: 1px solid var(--border-color);">';
         html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.number}</td>`;
 
@@ -576,21 +630,14 @@ export const prerender = false;
       });
 
       html += '</tbody></table>';
-      html += '</div>';
-
-      previewContent.innerHTML = html;
-
-      const jsonData = {
-        raceDate: date,
-        lastUpdated: data.lastUpdated,
-        track: venue,
-        totalRaces: 1,
-        races: [data],
-      };
-
-      jsonOutput.value = JSON.stringify(jsonData, null, 2);
-      previewDiv.style.display = 'block';
+      tableDiv.innerHTML = html;
     }
+
+    // ソート切り替え（グローバル関数）
+    window.toggleSort = function(raceNum, sortOrder) {
+      if (!raceResults[raceNum]) return;
+      renderHorseTable(raceNum, raceResults[raceNum].data, sortOrder);
+    };
 
     // レースステータス更新
     function updateRaceStatus(raceNum, status) {

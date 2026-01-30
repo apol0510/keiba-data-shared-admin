@@ -41,7 +41,7 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
 
       <h3>スコアリング結果</h3>
       <div class="scoring-legend">
-        <p>◎=5点 / ○=4点 / ▲=3点 / svg画・△=2点 / 無=0点</p>
+        <p>◎=5点 / ○=4点 / ▲=3点 / svg画=2点 / △=1点 / 無=0点</p>
       </div>
 
       <div class="table-wrapper">
@@ -477,7 +477,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         predictorHeaders.forEach((headerIndex, i) => {
           if (tds[headerIndex]) {
             const td = tds[headerIndex];
-            const mark = td.querySelector("svg") ? "▲" : td.textContent.trim();
+            // svg画は"svg"として保存（スコアリングで2点として扱う）
+            const mark = td.querySelector("svg") ? "svg" : td.textContent.trim();
             marks[predictors[i]] = mark || "-";
           }
         });
@@ -505,7 +506,8 @@ import BaseLayout from "../../layouts/BaseLayout.astro";
         "◎": 5,
         "○": 4,
         "▲": 3,
-        "△": 2,
+        "svg": 2,  // svg画は2点
+        "△": 1,
         "穴": 1,
         "注": 1,
         "-": 0,

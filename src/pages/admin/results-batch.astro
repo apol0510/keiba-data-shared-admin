@@ -22,7 +22,8 @@ export const prerender = false;
     <div class="container">
       <h1 class="page-title">⚡ 南関競馬 結果管理（12レース一括）</h1>
       <p class="page-description">
-        <strong>12レース分の結果HTMLを一度に貼り付けて一括処理できます</strong><br>
+        <strong>12レース分の結果を一度に貼り付けて一括処理できます</strong><br>
+        南関公式サイトの結果ページをコピー＆貼り付けするだけ！<br>
         ※ 個別入力が必要な場合は <a href="/admin/results-manager" style="color: var(--primary-end); text-decoration: underline;">結果管理（個別入力）</a> をご利用ください
       </p>
 
@@ -53,33 +54,35 @@ export const prerender = false;
 
       <!-- 一括入力エリア -->
       <div class="card input-card">
-        <h2>📋 12レース分の結果HTML貼り付け</h2>
+        <h2>📋 12レース分の結果テキスト貼り付け</h2>
         <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">
-          南関公式サイトから<strong>第1R〜第12R</strong>までの結果HTMLを全てコピーして、下のテキストエリアに貼り付けてください。<br>
-          自動的にレースごとに分割・解析します。
+          南関公式サイトの結果ページで<strong>第1R〜第12R</strong>までの表示内容を全て選択してコピーし、下のテキストエリアに貼り付けてください。<br>
+          自動的にレースごとに分割・解析します。（HTMLタグは不要です）
         </p>
 
         <textarea
           id="batchInput"
           class="batch-textarea"
           rows="20"
-          placeholder="12レース分の結果HTMLを貼り付けてください
+          placeholder="12レース分の結果テキストを貼り付けてください
+
+※ 南関公式サイトの結果ページで、第1R〜第12Rまでの
+  表示されている内容を全て選択してコピー＆貼り付けしてください。
 
 例:
-<div class='racename'>
-  2026年2月2日 川崎競馬 第1R
-  ...
-</div>
-<table>着順データ...</table>
-<div>払戻金データ...</div>
-
-<div class='racename'>
-  2026年2月2日 川崎競馬 第2R
-  ...
-</div>
+1R2026年1月26日 大井競馬 第1日
+ダ1,800m（外）（15頭）発走時刻17:15
+白富士賞 Ｂ２(三)Ｂ３(一) 選抜特別
 ...
+着    枠    馬番    馬名...
+1    3    5    ブルマリン...
+...
+払戻金
+単勝    複勝...
 
-... (第12Rまで)"
+2R2026年1月26日 大井競馬 第1日
+...
+(第12Rまで)"
         ></textarea>
 
         <div class="action-buttons" style="margin-top: var(--spacing-lg);">
@@ -138,8 +141,14 @@ export const prerender = false;
         <h2>📖 使用方法</h2>
         <ol>
           <li><strong>開催日・競馬場</strong>を上部で選択</li>
-          <li>南関公式サイトから<strong>第1R〜第12R全ての結果HTML</strong>をコピー</li>
-          <li>上のテキストエリアに貼り付け</li>
+          <li>南関公式サイトの結果ページを開く</li>
+          <li><strong>第1R〜第12R全ての表示内容</strong>をブラウザで選択してコピー
+            <ul style="margin-top: 0.5rem; font-size: 0.9rem;">
+              <li>ページ全体を選択（Ctrl+A / Cmd+A）</li>
+              <li>または、第1Rの「1R2026年」から第12Rの払戻金まで選択</li>
+            </ul>
+          </li>
+          <li>上のテキストエリアに貼り付け（Ctrl+V / Cmd+V）</li>
           <li>「12レース一括解析」ボタンをクリック</li>
           <li>プレビューで各レースの抽出結果を確認</li>
           <li>「12レース一括保存してGit Push」で keiba-data-shared に保存</li>
@@ -149,6 +158,7 @@ export const prerender = false;
         <h3>💡 ポイント</h3>
         <ul>
           <li>12レース分を一度に処理できます（効率重視）</li>
+          <li>HTMLタグは不要です（表示されているテキストをそのままコピー）</li>
           <li>エラーが出たレースは赤色で表示されます</li>
           <li>慎重に確認したい場合は <a href="/admin/results-manager" style="color: var(--primary-end);">個別入力</a> をご利用ください</li>
           <li>既存データは自動的にマージされます（上書きされません）</li>
@@ -479,74 +489,48 @@ export const prerender = false;
       }
     }
 
-    // レースHTMLを分割（結果用）
-    function splitRacesHTML(html) {
+    // レーステキストを分割（結果用・プレーンテキスト対応）
+    function splitRacesHTML(text) {
       const races = [];
 
-      console.log(`[splitRacesHTML] 入力HTML長: ${html.length}文字`);
-      console.log(`[splitRacesHTML] 最初の500文字:`, html.substring(0, 500));
+      console.log(`[splitRacesHTML] 入力テキスト長: ${text.length}文字`);
+      console.log(`[splitRacesHTML] 最初の500文字:`, text.substring(0, 500));
 
-      // パターン1: <div class='racename'> または <div class="racename">
-      const racenamePattern = /<div\s+class=["']racename["']\s*>/gi;
+      // 結果はプレーンテキスト形式（HTMLタグなし）
+      // パターン: 「1R2026年」「2R2026年」...「12R2026年」のような形式
+      const racePattern = /(\d{1,2}R)(\d{4})年/g;
 
-      const matches = [];
+      const raceMatches = [];
       let match;
-      racenamePattern.lastIndex = 0;
-      while ((match = racenamePattern.exec(html)) !== null) {
-        matches.push(match.index);
+
+      while ((match = racePattern.exec(text)) !== null) {
+        raceMatches.push({
+          index: match.index,
+          raceNum: parseInt(match[1].replace('R', ''), 10),
+          fullMatch: match[0]
+        });
       }
 
-      console.log(`[splitRacesHTML] racename検出数: ${matches.length}個`);
+      console.log(`[splitRacesHTML] ○R○年パターン検出数: ${raceMatches.length}個`);
 
-      // パターン1で見つからない場合、別の分割方法を試す
-      if (matches.length === 0) {
-        console.warn('[splitRacesHTML] racenameパターンで検出できません。別の方法を試します...');
+      if (raceMatches.length > 0) {
+        // 各レースのテキストを抽出
+        for (let i = 0; i < raceMatches.length; i++) {
+          const startIndex = raceMatches[i].index;
+          const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : text.length;
+          const raceText = text.substring(startIndex, endIndex);
 
-        // 結果HTMLは通常「第○R」という文字列で始まる可能性がある
-        // または「2026年○月○日」のような日付で区切られている可能性
-
-        // パターン2: レース番号「第1R」「第2R」などで分割
-        const raceNumberPattern = /第(\d{1,2})R/g;
-        const raceMatches = [];
-
-        while ((match = raceNumberPattern.exec(html)) !== null) {
-          raceMatches.push({
-            index: match.index,
-            raceNum: parseInt(match[1], 10)
-          });
-        }
-
-        console.log(`[splitRacesHTML] 第○Rパターン検出数: ${raceMatches.length}個`);
-
-        if (raceMatches.length > 0) {
-          for (let i = 0; i < raceMatches.length; i++) {
-            const startIndex = raceMatches[i].index;
-            const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : html.length;
-            const raceHTML = html.substring(startIndex, endIndex);
-
-            if (raceHTML.length > 100) {
-              races.push(raceHTML);
-              console.log(`[splitRacesHTML] レース${raceMatches[i].raceNum}: ${raceHTML.length}文字`);
-            }
+          if (raceText.length > 100) {
+            races.push(raceText);
+            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: ${raceText.length}文字`);
+            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R 最初の200文字:`, raceText.substring(0, 200));
+          } else {
+            console.warn(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: データが短すぎる（${raceText.length}文字）`);
           }
-        } else {
-          console.error('[splitRacesHTML] どのパターンでも検出できませんでした');
-          console.log('[splitRacesHTML] HTMLサンプル（最初の1000文字）:', html.substring(0, 1000));
         }
       } else {
-        // パターン1で見つかった場合
-        for (let i = 0; i < matches.length; i++) {
-          const startIndex = matches[i];
-          const endIndex = i < matches.length - 1 ? matches[i + 1] : html.length;
-          const raceHTML = html.substring(startIndex, endIndex);
-
-          if (raceHTML.length > 100) {
-            races.push(raceHTML);
-            console.log(`[splitRacesHTML] レース${i + 1}: ${raceHTML.length}文字`);
-          } else {
-            console.warn(`[splitRacesHTML] レース${i + 1}: データが短すぎる`);
-          }
-        }
+        console.error('[splitRacesHTML] レース境界を検出できませんでした');
+        console.log('[splitRacesHTML] テキストサンプル（最初の1000文字）:', text.substring(0, 1000));
       }
 
       console.log(`[splitRacesHTML] 最終的に検出したレース数: ${races.length}`);

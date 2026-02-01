@@ -47,17 +47,21 @@ export default async (req, context) => {
       forceOverwrite
     });
 
-    // バリデーション
-    if (!raceDate || !track || !raceNumber || !data) {
+    // バリデーション（raceNumberはオプショナル：一括入力対応）
+    if (!raceDate || !track || !data) {
       console.error('[save-predictions] 必須フィールド不足:', { raceDate, track, raceNumber, hasData: !!data });
       return new Response(
         JSON.stringify({
-          error: 'Missing required fields: raceDate, track, raceNumber, data',
+          error: 'Missing required fields: raceDate, track, data',
           received: { raceDate, track, raceNumber, hasData: !!data }
         }),
         { status: 400, headers }
       );
     }
+
+    // 一括入力モードかどうかを判定
+    const isBatchMode = !raceNumber;
+    console.log(`[save-predictions] モード: ${isBatchMode ? '一括入力' : '個別入力'}`);
 
     // 環境変数チェック
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
@@ -132,8 +136,47 @@ export default async (req, context) => {
       // 完全上書き
       mergedData = data;
       console.log('[save-predictions] 完全上書きモード');
+    } else if (isBatchMode) {
+      // 一括入力モード：既存データに全レース分をマージ
+      mergedData = { ...existingData };
+
+      if (!mergedData.races) {
+        mergedData.races = [];
+      }
+
+      // 新しいレースデータの各レースについて、既存データから同じレース番号を削除
+      if (data.races && data.races.length > 0) {
+        data.races.forEach(newRace => {
+          const newRaceNum = newRace.raceInfo?.raceNumber;
+          if (newRaceNum) {
+            mergedData.races = mergedData.races.filter(
+              race => race.raceInfo?.raceNumber !== newRaceNum
+            );
+          }
+        });
+
+        // 全ての新しいレースを追加
+        mergedData.races.push(...data.races);
+      }
+
+      // レース番号順にソート
+      mergedData.races.sort((a, b) => {
+        const raceNumA = a.raceInfo?.raceNumber || '';
+        const raceNumB = b.raceInfo?.raceNumber || '';
+        const numA = parseInt(raceNumA.replace('R', ''), 10) || 0;
+        const numB = parseInt(raceNumB.replace('R', ''), 10) || 0;
+        return numA - numB;
+      });
+
+      // totalRacesを更新
+      mergedData.totalRaces = mergedData.races.length;
+      mergedData.lastUpdated = new Date().toISOString();
+      mergedData.raceDate = data.raceDate;
+      mergedData.track = data.track;
+
+      console.log(`[save-predictions] 一括マージ完了: ${mergedData.races.length}レース`);
     } else {
-      // マージモード（既存データに新しいレースを追加）
+      // 個別入力モード（既存の動作）
       mergedData = { ...existingData };
 
       // racesリストをマージ
@@ -164,13 +207,19 @@ export default async (req, context) => {
       mergedData.totalRaces = mergedData.races.length;
       mergedData.lastUpdated = new Date().toISOString();
 
-      console.log(`[save-predictions] マージ完了: ${mergedData.races.length}レース`);
+      console.log(`[save-predictions] 個別マージ完了: ${mergedData.races.length}レース`);
     }
 
     // GitHub API: ファイルを作成/更新
     const putFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}`;
 
-    const commitMessage = `✨ 予想データ追加: ${track} ${raceNumber} ${raceDate}
+    const commitMessage = isBatchMode
+      ? `✨ 予想データ一括追加: ${track} ${mergedData.totalRaces}レース ${raceDate}
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`
+      : `✨ 予想データ追加: ${track} ${raceNumber} ${raceDate}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 

@@ -439,9 +439,11 @@ export const prerender = false;
                 track: venue,
                 raceNumber: `${raceNum}R`,
                 raceName: raceInfo.raceName,
+                raceSubtitle: raceInfo.raceSubtitle,
                 raceType: raceInfo.raceType,
                 distance: raceInfo.distance,
                 surface: raceInfo.surface,
+                startTime: raceInfo.startTime,
               },
               horses: scored.horses.map(h => ({
                 number: h.number,
@@ -598,10 +600,12 @@ export const prerender = false;
       let html = `
         <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
           <h4 style="margin-bottom: 0.5rem;">📋 レース情報</h4>
+          <p><strong>発走:</strong> ${data.raceInfo.startTime || '-'}</p>
           <p><strong>レース名:</strong> ${data.raceInfo.raceName || '-'}</p>
+          ${data.raceInfo.raceSubtitle ? `<p><strong>サブタイトル:</strong> ${data.raceInfo.raceSubtitle}</p>` : ''}
+          ${data.raceInfo.raceType ? `<p><strong>条件:</strong> ${data.raceInfo.raceType}</p>` : ''}
           <p><strong>距離:</strong> ${data.raceInfo.surface}${data.raceInfo.distance}m</p>
           <p><strong>出走頭数:</strong> ${data.horses.length}頭</p>
-          <p><strong>予想者数:</strong> ${data.predictors.length}名</p>
         </div>
       `;
 
@@ -645,19 +649,25 @@ export const prerender = false;
       html += '</div>';
       html += '</div>';
 
-      // 全馬の詳細テーブル
+      // 全馬の詳細テーブル（印4→印1の順に表示）
       html += '<div style="margin-bottom: 1rem;">';
       html += '<h4 style="margin-bottom: 0.5rem;">🏇 全馬詳細</h4>';
       html += '<div style="overflow-x: auto;">';
       html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
       html += '<thead><tr style="background: var(--bg-tertiary);">';
       html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬番</th>';
-      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬名</th>';
-      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">合計点</th>';
-      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">振り分け</th>';
+
+      // 印を逆順（印4→印1）で表示
       data.predictors.forEach(p => {
         html += `<th style="padding: 0.5rem; border: 1px solid var(--border-color);">${p}</th>`;
       });
+
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬名</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">性齢</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">騎手</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">厩舎</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">合計点</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">振り分け</th>';
       html += '</tr></thead><tbody>';
 
       // 点数順にソート
@@ -666,13 +676,19 @@ export const prerender = false;
       sortedHorses.forEach(horse => {
         html += '<tr>';
         html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.number}</td>`;
-        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${horse.name}</td>`;
-        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center; font-weight: 600;">${horse.totalScore}</td>`;
-        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.assignment}</td>`;
+
+        // 印を逆順で表示
         data.predictors.forEach(p => {
           const mark = horse.marks[p] || '-';
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${mark}</td>`;
         });
+
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${horse.name}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.seirei || '-'}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.kisyu || '-'}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.kyusya || '-'}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center; font-weight: 600;">${horse.totalScore}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.assignment}</td>`;
         html += '</tr>';
       });
 
@@ -1098,35 +1114,55 @@ export const prerender = false;
 
       let date = '';
       let raceName = '';
+      let raceSubtitle = '';
       let raceType = '';
       let distance = '';
       let surface = '';
+      let startTime = '';
 
       if (racenameDiv) {
         const text = racenameDiv.textContent || '';
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 
-        console.log('[extractRaceInfo] racenameDiv テキスト:', text.substring(0, 200));
+        console.log('[extractRaceInfo] racenameDiv テキスト:', text.substring(0, 300));
 
+        // 日付抽出
         const dateMatch = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
         if (dateMatch) {
           date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
         }
 
+        // 発走時刻抽出
+        const timeMatch = text.match(/発走[\s\u3000]*(\d{1,2}:\d{2})/);
+        if (timeMatch) {
+          startTime = timeMatch[1];
+        }
+
+        // レース名抽出（特別・賞・杯・盃を含む行）
         for (let line of lines) {
-          if (line.match(/特別|賞|杯|盃|[ＡＢＣ][１２３０]/)) {
+          if (line.match(/特別|賞|杯|盃/) && !line.match(/\d{4}年|\d{1,2}月|発走|ダ|芝|サラ|選定馬/)) {
             raceName = line;
             break;
           }
         }
 
+        // サブタイトル抽出（特選、選定馬、シリーズ名など）
         for (let line of lines) {
-          if (line.match(/[ＡＢＣ][１２３０]/)) {
+          if (line.match(/特選|選定馬|シリーズ/) && line !== raceName) {
+            raceSubtitle = line;
+            break;
+          }
+        }
+
+        // 条件抽出（サラ、Ａ２、Ｂ１など）
+        for (let line of lines) {
+          if (line.match(/サラ|[ＡＢＣ][１２３０]/)) {
             raceType = line;
             break;
           }
         }
 
+        // 距離抽出
         let distanceMatch = text.match(/(\d{3,4})m[\s\u3000]*\(/);
         if (distanceMatch) {
           distance = distanceMatch[1];
@@ -1142,6 +1178,7 @@ export const prerender = false;
           }
         }
 
+        // 馬場抽出
         if (text.includes('ダート') || text.includes('ダ')) {
           surface = 'ダート';
         } else if (text.includes('芝')) {
@@ -1149,7 +1186,7 @@ export const prerender = false;
         }
       }
 
-      return { date, raceName, raceType, distance, surface };
+      return { date, raceName, raceSubtitle, raceType, distance, surface, startTime };
     }
 
     function scoreAndAssign(result) {
@@ -1199,7 +1236,8 @@ export const prerender = false;
         } else if (index === 3) {
           assignments.connectTop = horse;
           horse.assignment = '連下最上位';
-        } else if (index >= 4 && index <= 8 && horse.totalScore > 0) {
+        } else if (index >= 4 && index <= 8 && horse.totalScore >= 2) {
+          // 連下は2点以上のみ（1点は補欠に回す）
           assignments.connect.push(horse);
           horse.assignment = '連下';
         } else if (horse.totalScore > 0) {

@@ -509,7 +509,7 @@ export const prerender = false;
       const races = [];
 
       // パターン1: <div class='racename'> または <div class="racename"> で分割
-      const racenamePattern = /<div class=['"]racename['"]>/gi;
+      const racenamePattern = /<div\s+class=["']racename["']\s*>/gi;
       const parts = html.split(racenamePattern);
 
       console.log(`[splitRacesHTML] racename分割結果: ${parts.length}個`);
@@ -522,7 +522,7 @@ export const prerender = false;
           if (nextRaceIndex !== -1) {
             // tableの終了まで含める（tableタグの閉じまで）
             const tableEndIndex = parts[i].indexOf('</table>') + '</table>'.length;
-            const raceHTML = "<div class='racename'>" + parts[i].substring(0, tableEndIndex);
+            const raceHTML = '<div class="racename">' + parts[i].substring(0, tableEndIndex);
             races.push(raceHTML);
           }
         }
@@ -726,9 +726,25 @@ export const prerender = false;
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
 
-        const table = doc.querySelector('table.default.syutuba');
+        // 複数のセレクタパターンを試す
+        let table = doc.querySelector('table.default.syutuba');
+        if (!table) {
+          // フォールバック: クラス名を個別に指定
+          table = doc.querySelector('table[class*="syutuba"]');
+        }
+        if (!table) {
+          // さらにフォールバック: テーブルを全検索
+          const tables = doc.querySelectorAll('table');
+          console.log(`[extractPredictions] テーブル数: ${tables.length}`);
+          if (tables.length > 0) {
+            // 最初のテーブルを使用（通常は出馬表）
+            table = tables[0];
+            console.log(`[extractPredictions] フォールバック: 最初のテーブルを使用`);
+          }
+        }
         if (!table) {
           errors.push('出馬表テーブルが見つかりません');
+          console.error('[extractPredictions] HTMLの最初の500文字:', html.substring(0, 500));
           return { success: false, horses: [], predictors: [], errors };
         }
 
@@ -972,7 +988,12 @@ export const prerender = false;
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
 
-      const racenameDiv = doc.querySelector('div.racename');
+      // div.racenameを複数パターンで検索
+      let racenameDiv = doc.querySelector('div.racename');
+      if (!racenameDiv) {
+        racenameDiv = doc.querySelector('div[class*="racename"]');
+      }
+
       let date = '';
       let raceName = '';
       let raceType = '';
@@ -982,6 +1003,8 @@ export const prerender = false;
       if (racenameDiv) {
         const text = racenameDiv.textContent || '';
         const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+        console.log('[extractRaceInfo] racenameDiv テキスト:', text.substring(0, 200));
 
         const dateMatch = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
         if (dateMatch) {

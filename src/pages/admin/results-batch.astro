@@ -479,10 +479,14 @@ export const prerender = false;
       }
     }
 
-    // レースHTMLを分割（predictions-batchと同じロジック）
+    // レースHTMLを分割（結果用）
     function splitRacesHTML(html) {
       const races = [];
 
+      console.log(`[splitRacesHTML] 入力HTML長: ${html.length}文字`);
+      console.log(`[splitRacesHTML] 最初の500文字:`, html.substring(0, 500));
+
+      // パターン1: <div class='racename'> または <div class="racename">
       const racenamePattern = /<div\s+class=["']racename["']\s*>/gi;
 
       const matches = [];
@@ -494,16 +498,54 @@ export const prerender = false;
 
       console.log(`[splitRacesHTML] racename検出数: ${matches.length}個`);
 
-      for (let i = 0; i < matches.length; i++) {
-        const startIndex = matches[i];
-        const endIndex = i < matches.length - 1 ? matches[i + 1] : html.length;
-        const raceHTML = html.substring(startIndex, endIndex);
+      // パターン1で見つからない場合、別の分割方法を試す
+      if (matches.length === 0) {
+        console.warn('[splitRacesHTML] racenameパターンで検出できません。別の方法を試します...');
 
-        if (raceHTML.length > 100) {
-          races.push(raceHTML);
-          console.log(`[splitRacesHTML] レース${i + 1}: ${raceHTML.length}文字`);
+        // 結果HTMLは通常「第○R」という文字列で始まる可能性がある
+        // または「2026年○月○日」のような日付で区切られている可能性
+
+        // パターン2: レース番号「第1R」「第2R」などで分割
+        const raceNumberPattern = /第(\d{1,2})R/g;
+        const raceMatches = [];
+
+        while ((match = raceNumberPattern.exec(html)) !== null) {
+          raceMatches.push({
+            index: match.index,
+            raceNum: parseInt(match[1], 10)
+          });
+        }
+
+        console.log(`[splitRacesHTML] 第○Rパターン検出数: ${raceMatches.length}個`);
+
+        if (raceMatches.length > 0) {
+          for (let i = 0; i < raceMatches.length; i++) {
+            const startIndex = raceMatches[i].index;
+            const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : html.length;
+            const raceHTML = html.substring(startIndex, endIndex);
+
+            if (raceHTML.length > 100) {
+              races.push(raceHTML);
+              console.log(`[splitRacesHTML] レース${raceMatches[i].raceNum}: ${raceHTML.length}文字`);
+            }
+          }
         } else {
-          console.warn(`[splitRacesHTML] レース${i + 1}: データが短すぎる`);
+          console.error('[splitRacesHTML] どのパターンでも検出できませんでした');
+          console.log('[splitRacesHTML] HTMLサンプル（最初の1000文字）:', html.substring(0, 1000));
+        }
+      } else {
+        // パターン1で見つかった場合
+        for (let i = 0; i < matches.length; i++) {
+          const startIndex = matches[i];
+          const endIndex = i < matches.length - 1 ? matches[i + 1] : html.length;
+          const raceHTML = html.substring(startIndex, endIndex);
+
+          if (raceHTML.length > 100) {
+            races.push(raceHTML);
+            console.log(`[splitRacesHTML] レース${i + 1}: ${raceHTML.length}文字`);
+          } else {
+            console.warn(`[splitRacesHTML] レース${i + 1}: データが短すぎる`);
+          }
         }
       }
 

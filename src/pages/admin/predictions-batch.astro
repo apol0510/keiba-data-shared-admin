@@ -748,19 +748,42 @@ export const prerender = false;
           return { success: false, horses: [], predictors: [], errors };
         }
 
-        const headerRow = table.querySelector('thead tr');
+        // ヘッダー行を複数パターンで検索
+        let headerRow = table.querySelector('thead tr');
+        if (!headerRow) {
+          // フォールバック1: tbody内の最初のtr
+          console.log('[extractPredictions] thead trが見つからない、tbody trを探します');
+          headerRow = table.querySelector('tbody tr');
+        }
+        if (!headerRow) {
+          // フォールバック2: テーブル内の最初のtr
+          console.log('[extractPredictions] tbody trも見つからない、最初のtrを探します');
+          headerRow = table.querySelector('tr');
+        }
         if (!headerRow) {
           errors.push('ヘッダー行が見つかりません');
+          console.error('[extractPredictions] テーブルのHTML:', table.outerHTML.substring(0, 500));
           return { success: false, horses: [], predictors: [], errors };
         }
+        console.log('[extractPredictions] ヘッダー行を検出:', headerRow.textContent.substring(0, 100));
 
         const detectedPredictors = detectPredictors(headerRow);
         const predictors = detectedPredictors.map((_, index) => `印${detectedPredictors.length - index}`);
 
-        const rows = table.querySelectorAll('tbody tr');
-        const horses = [];
+        // データ行を取得
+        let rows = table.querySelectorAll('tbody tr');
 
-        rows.forEach(row => {
+        // ヘッダー行がtbody内にあった場合、最初の行をスキップ
+        const isHeaderInTbody = headerRow.parentElement?.tagName === 'TBODY';
+        if (isHeaderInTbody) {
+          console.log('[extractPredictions] ヘッダーがtbody内にあるため、最初の行をスキップ');
+          rows = Array.from(rows).slice(1);
+        }
+
+        console.log(`[extractPredictions] データ行数: ${rows.length}`);
+
+        const horses = [];
+        rows.forEach((row, index) => {
           const horse = extractHorseFromRow(row, detectedPredictors, predictors);
           if (horse) {
             horses.push(horse);

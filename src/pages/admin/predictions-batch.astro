@@ -770,17 +770,26 @@ export const prerender = false;
         const detectedPredictors = detectPredictors(headerRow);
         const predictors = detectedPredictors.map((_, index) => `印${detectedPredictors.length - index}`);
 
-        // データ行を取得
-        let rows = table.querySelectorAll('tbody tr');
+        // テーブル構造のデバッグ
+        const allTrs = Array.from(table.querySelectorAll('tr'));
+        const theadTrs = Array.from(table.querySelectorAll('thead tr'));
+        const tbodyTrs = Array.from(table.querySelectorAll('tbody tr'));
+        const tbodies = Array.from(table.querySelectorAll('tbody'));
 
-        // ヘッダー行がtbody内にあった場合、最初の行をスキップ
-        const isHeaderInTbody = headerRow.parentElement?.tagName === 'TBODY';
-        if (isHeaderInTbody) {
-          console.log('[extractPredictions] ヘッダーがtbody内にあるため、最初の行をスキップ');
-          rows = Array.from(rows).slice(1);
-        }
+        console.log(`[extractPredictions] テーブル構造:`);
+        console.log(`  - 全 tr: ${allTrs.length}`);
+        console.log(`  - thead tr: ${theadTrs.length}`);
+        console.log(`  - tbody tr: ${tbodyTrs.length}`);
+        console.log(`  - tbody 要素数: ${tbodies.length}`);
+        console.log(`  - ヘッダー行の親: ${headerRow.parentElement?.tagName}`);
 
-        console.log(`[extractPredictions] データ行数: ${rows.length}`);
+        // データ行を取得する新しいアプローチ
+        // ヘッダー行がどこにあるかに関わらず、ヘッダー行以降の全trを取得
+        const headerIndex = allTrs.indexOf(headerRow);
+        let rows = allTrs.slice(headerIndex + 1);
+
+        console.log(`  - ヘッダー行のインデックス: ${headerIndex}`);
+        console.log(`  - データ行数: ${rows.length}`);
 
         const horses = [];
         rows.forEach((row, index) => {

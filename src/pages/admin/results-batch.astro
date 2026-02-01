@@ -459,6 +459,8 @@ export const prerender = false;
               distance: raceInfo.distance,
               surface: raceInfo.surface,
               startTime: raceInfo.startTime,
+              weather: raceInfo.weather,
+              trackCondition: raceInfo.trackCondition,
               results: results,
               payouts: payouts,
               timeData: timeData,
@@ -1312,6 +1314,8 @@ export const prerender = false;
           <p><strong>レース名:</strong> ${data.raceName || '-'}</p>
           <p><strong>距離:</strong> ${data.surface}${data.distance}m</p>
           <p><strong>出走頭数:</strong> ${data.results?.length || 0}頭</p>
+          ${data.weather ? `<p><strong>天候:</strong> ${data.weather}</p>` : ''}
+          ${data.trackCondition ? `<p><strong>馬場:</strong> ${data.trackCondition}</p>` : ''}
         </div>
       `;
 
@@ -1337,6 +1341,7 @@ export const prerender = false;
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬番</th>';
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬名</th>';
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">騎手</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">調教師</th>';
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">タイム</th>';
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">着差</th>';
         html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">上3F</th>';
@@ -1350,6 +1355,7 @@ export const prerender = false;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.number}</td>`;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${r.name}</td>`;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${r.jockey}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${r.trainer || '-'}</td>`;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.time}</td>`;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.margin}</td>`;
           html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.lastFurlong}</td>`;
@@ -1382,13 +1388,27 @@ export const prerender = false;
 
         Object.entries(data.payouts).forEach(([key, items]) => {
           if (items && items.length > 0) {
-            const firstItem = items[0];
-            html += `<div style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">`;
-            html += `<div style="font-weight: 600; color: var(--primary-end);">${payoutLabels[key]}</div>`;
-            html += `<div>${firstItem.combination || firstItem.number}</div>`;
-            html += `<div style="font-size: 1.1rem; font-weight: 700;">${firstItem.payout.toLocaleString()}円</div>`;
-            html += `<div style="color: var(--text-secondary);">${firstItem.popularity}番人気</div>`;
-            html += `</div>`;
+            // 複勝は複数表示、その他は最初の1つのみ
+            if (key === 'fukusho') {
+              // 複勝：2-3着まで全て表示
+              items.forEach((item, idx) => {
+                html += `<div style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">`;
+                html += `<div style="font-weight: 600; color: var(--primary-end);">${payoutLabels[key]}${idx > 0 ? ` (${idx + 1}着)` : ''}</div>`;
+                html += `<div>${item.number}番</div>`;
+                html += `<div style="font-size: 1.1rem; font-weight: 700;">${item.payout.toLocaleString()}円</div>`;
+                html += `<div style="color: var(--text-secondary);">${item.popularity}番人気</div>`;
+                html += `</div>`;
+              });
+            } else {
+              // その他の券種：最初の1つのみ
+              const firstItem = items[0];
+              html += `<div style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">`;
+              html += `<div style="font-weight: 600; color: var(--primary-end);">${payoutLabels[key]}</div>`;
+              html += `<div>${firstItem.combination || firstItem.number}</div>`;
+              html += `<div style="font-size: 1.1rem; font-weight: 700;">${firstItem.payout.toLocaleString()}円</div>`;
+              html += `<div style="color: var(--text-secondary);">${firstItem.popularity}番人気</div>`;
+              html += `</div>`;
+            }
           }
         });
 

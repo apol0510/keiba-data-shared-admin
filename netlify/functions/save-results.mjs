@@ -39,21 +39,66 @@ export default async (req, context) => {
   try {
     // リクエストボディをパース
     const body = await req.json();
-    const { resultsJSON, archiveResultsJSON, forceOverwrite } = body;
+    const { resultsJSON, archiveResultsJSON, raceDate, track, data, forceOverwrite } = body;
 
-    // バリデーション
-    if (!resultsJSON) {
+    console.log('[save-results] リクエスト受信:', {
+      hasResultsJSON: !!resultsJSON,
+      hasRaceDate: !!raceDate,
+      hasTrack: !!track,
+      hasData: !!data,
+      forceOverwrite
+    });
+
+    // モード判定: 一括入力 vs 個別入力
+    const isBatchMode = !resultsJSON && raceDate && track && data;
+    const isIndividualMode = resultsJSON && !raceDate;
+
+    console.log(`[save-results] モード: ${isBatchMode ? '一括入力' : '個別入力'}`);
+
+    let parsedData, date, venue, venueCode;
+
+    if (isBatchMode) {
+      // 一括入力モード
+      if (!raceDate || !track || !data) {
+        return new Response(
+          JSON.stringify({
+            error: 'Missing required fields for batch mode: raceDate, track, data',
+            received: { raceDate, track, hasData: !!data }
+          }),
+          { status: 400, headers }
+        );
+      }
+
+      date = raceDate;
+      venue = track;
+      venueCode = track === '大井' ? 'OOI' : track === '川崎' ? 'KAW' : track === '船橋' ? 'FUN' : 'URA';
+      parsedData = data;
+
+    } else if (isIndividualMode) {
+      // 個別入力モード（既存）
+      if (!resultsJSON) {
+        return new Response(
+          JSON.stringify({
+            error: 'Missing required field: resultsJSON'
+          }),
+          { status: 400, headers }
+        );
+      }
+
+      parsedData = JSON.parse(resultsJSON);
+      date = parsedData.date;
+      venue = parsedData.venue;
+      venueCode = parsedData.venueCode;
+
+    } else {
       return new Response(
         JSON.stringify({
-          error: 'Missing required field: resultsJSON'
+          error: 'Invalid request format. Provide either (resultsJSON) or (raceDate, track, data)',
+          received: { hasResultsJSON: !!resultsJSON, hasRaceDate: !!raceDate, hasTrack: !!track, hasData: !!data }
         }),
         { status: 400, headers }
       );
     }
-
-    // JSONパース
-    const parsedData = JSON.parse(resultsJSON);
-    const { date, venue, venueCode } = parsedData;
 
     if (!date || !venue) {
       return new Response(
@@ -134,12 +179,25 @@ export default async (req, context) => {
     }
 
     // レース情報一覧生成
-    const racesList = parsedData.races.map(r => `第${r.raceNumber}R ${r.raceName || ''}`).join(', ');
-    const totalRaces = parsedData.races.length;
-    const raceNumbers = parsedData.races.map(r => `${r.raceNumber}R`).join('・');
+    const racesList = parsedData.races ? parsedData.races.map(r => `第${r.raceNumber}R ${r.raceName || ''}`).join(', ') : '';
+    const totalRaces = parsedData.races ? parsedData.races.length : 1;
+    const raceNumbers = parsedData.races ? parsedData.races.map(r => `${r.raceNumber}R`).join('・') : parsedData.raceNumber;
 
     // コミットメッセージ生成
-    const commitMessage = `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}
+    const commitMessage = isBatchMode
+      ? `✨ ${date} ${venue} ${totalRaces}レース一括結果${fileSha ? '更新' : '追加'}
+
+【結果データ（一括入力）】
+- 開催日: ${date}
+- 競馬場: ${venue}（${venueCode}）
+- レース: ${racesList}
+- ファイル: ${filePath}
+
+【keiba-data-shared】
+全プロジェクトで結果データ共有可能
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+      : `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}
 
 【結果データ】
 - 開催日: ${date}
@@ -150,7 +208,7 @@ export default async (req, context) => {
 【keiba-data-shared】
 全プロジェクトで結果データ共有可能
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+🤖 Generated with [Claude Code](https://claude.com/claude-code)`
 
 Co-Authored-By: Claude <noreply@anthropic.com>`;
 

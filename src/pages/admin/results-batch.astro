@@ -1,0 +1,1162 @@
+---
+/**
+ * 競馬結果データ管理画面（12レース一括入力版）
+ * results-managerとは完全に別のファイル
+ *
+ * 機能:
+ * - 12レース分の結果HTMLを一括貼り付け
+ * - レース境界を自動検出して分割
+ * - 各レースを個別に抽出・バリデーション
+ * - 12レース分を1つのJSONファイルに保存
+ */
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+export const prerender = false;
+---
+
+<BaseLayout
+  title="結果管理画面（一括入力）"
+  description="12レース分の結果HTMLを一括で解析してデータ化します"
+>
+  <section class="admin-section">
+    <div class="container">
+      <h1 class="page-title">⚡ 南関競馬 結果管理（12レース一括）</h1>
+      <p class="page-description">
+        <strong>12レース分の結果HTMLを一度に貼り付けて一括処理できます</strong><br>
+        ※ 個別入力が必要な場合は <a href="/admin/results-manager" style="color: var(--primary-end); text-decoration: underline;">結果管理（個別入力）</a> をご利用ください
+      </p>
+
+      <!-- 共通情報入力 -->
+      <div class="card common-info-card">
+        <h2>📅 開催情報（全レース共通）</h2>
+        <div class="common-info-grid">
+          <div class="form-group">
+            <label for="commonDate">開催日</label>
+            <input
+              type="date"
+              id="commonDate"
+              class="form-input"
+              value={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+          <div class="form-group">
+            <label for="commonVenue">競馬場</label>
+            <select id="commonVenue" class="form-select">
+              <option value="船橋">船橋</option>
+              <option value="大井">大井</option>
+              <option value="川崎">川崎</option>
+              <option value="浦和">浦和</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 一括入力エリア -->
+      <div class="card input-card">
+        <h2>📋 12レース分の結果HTML貼り付け</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">
+          南関公式サイトから<strong>第1R〜第12R</strong>までの結果HTMLを全てコピーして、下のテキストエリアに貼り付けてください。<br>
+          自動的にレースごとに分割・解析します。
+        </p>
+
+        <textarea
+          id="batchInput"
+          class="batch-textarea"
+          rows="20"
+          placeholder="12レース分の結果HTMLを貼り付けてください
+
+例:
+<div class='racename'>
+  2026年2月2日 川崎競馬 第1R
+  ...
+</div>
+<table>着順データ...</table>
+<div>払戻金データ...</div>
+
+<div class='racename'>
+  2026年2月2日 川崎競馬 第2R
+  ...
+</div>
+...
+
+... (第12Rまで)"
+        ></textarea>
+
+        <div class="action-buttons" style="margin-top: var(--spacing-lg);">
+          <button
+            type="button"
+            class="btn btn-primary btn-large"
+            onclick="parseBatchRaces()"
+          >
+            🔍 12レース一括解析
+          </button>
+        </div>
+
+        <div id="parseStatus" class="parse-status" style="display: none;"></div>
+      </div>
+
+      <!-- プレビューエリア -->
+      <div id="previewSection" class="preview-section" style="display: none;">
+        <div class="card">
+          <h2>✅ 解析結果プレビュー</h2>
+          <div id="raceSummary" class="race-summary"></div>
+
+          <!-- 各レースの詳細プレビュー -->
+          <div id="raceDetails" class="race-details"></div>
+
+          <!-- 一括保存ボタン -->
+          <div class="action-buttons" style="margin-top: var(--spacing-2xl);">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="copyAllJSON()"
+            >
+              📋 JSON全コピー
+            </button>
+            <button
+              type="button"
+              id="saveAllBtn"
+              class="btn btn-success btn-large"
+              onclick="saveAllRacesToGit(false)"
+            >
+              🚀 12レース一括保存してGit Push
+            </button>
+            <button
+              type="button"
+              class="btn btn-warning"
+              onclick="if(confirm('この日付の既存データを完全に上書きします。よろしいですか？')) saveAllRacesToGit(true)"
+            >
+              🔥 完全上書き保存
+            </button>
+          </div>
+          <div id="saveStatus" class="save-status" style="display: none;"></div>
+        </div>
+      </div>
+
+      <!-- 使用方法 -->
+      <div class="card info-card">
+        <h2>📖 使用方法</h2>
+        <ol>
+          <li><strong>開催日・競馬場</strong>を上部で選択</li>
+          <li>南関公式サイトから<strong>第1R〜第12R全ての結果HTML</strong>をコピー</li>
+          <li>上のテキストエリアに貼り付け</li>
+          <li>「12レース一括解析」ボタンをクリック</li>
+          <li>プレビューで各レースの抽出結果を確認</li>
+          <li>「12レース一括保存してGit Push」で keiba-data-shared に保存</li>
+          <li>自動的に各サイトに反映されます 🎉</li>
+        </ol>
+
+        <h3>💡 ポイント</h3>
+        <ul>
+          <li>12レース分を一度に処理できます（効率重視）</li>
+          <li>エラーが出たレースは赤色で表示されます</li>
+          <li>慎重に確認したい場合は <a href="/admin/results-manager" style="color: var(--primary-end);">個別入力</a> をご利用ください</li>
+          <li>既存データは自動的にマージされます（上書きされません）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <style>
+    .admin-section {
+      padding: var(--spacing-2xl) 0;
+      min-height: 100vh;
+    }
+
+    .page-title {
+      font-size: 2rem;
+      margin-bottom: var(--spacing-md);
+      text-align: center;
+    }
+
+    .page-description {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: var(--spacing-2xl);
+      line-height: 1.6;
+    }
+
+    .common-info-card {
+      max-width: 800px;
+      margin: 0 auto var(--spacing-2xl);
+    }
+
+    .common-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--spacing-lg);
+      margin-top: var(--spacing-md);
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .form-group label {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .form-input,
+    .form-select {
+      padding: var(--spacing-sm) var(--spacing-md);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+
+    .input-card {
+      max-width: 1200px;
+      margin: 0 auto var(--spacing-2xl);
+    }
+
+    .batch-textarea {
+      width: 100%;
+      padding: var(--spacing-md);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+      resize: vertical;
+      min-height: 400px;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: var(--spacing-md);
+      flex-wrap: wrap;
+    }
+
+    .btn-large {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .parse-status,
+    .save-status {
+      margin-top: var(--spacing-md);
+      padding: var(--spacing-md);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      display: none;
+    }
+
+    .parse-status.success,
+    .save-status.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 4px solid var(--success);
+      color: var(--success);
+    }
+
+    .parse-status.error,
+    .save-status.error {
+      background: rgba(239, 68, 68, 0.1);
+      border-left: 4px solid var(--error);
+      color: var(--error);
+    }
+
+    .parse-status.loading,
+    .save-status.loading {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid var(--primary-end);
+      color: var(--primary-end);
+    }
+
+    .preview-section {
+      max-width: 1200px;
+      margin: 0 auto var(--spacing-2xl);
+    }
+
+    .race-summary {
+      margin-bottom: var(--spacing-xl);
+      padding: var(--spacing-lg);
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+    }
+
+    .race-details {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+
+    .race-detail-card {
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .race-detail-card.success {
+      border-color: var(--success);
+    }
+
+    .race-detail-card.error {
+      border-color: var(--error);
+    }
+
+    .race-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: var(--spacing-lg);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1.25rem;
+      user-select: none;
+      background: var(--bg-secondary);
+    }
+
+    .race-detail-header:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .race-number-badge {
+      color: var(--primary-end);
+      font-size: 1.5rem;
+    }
+
+    .race-status-badge {
+      font-size: 0.875rem;
+      padding: 4px 12px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+    }
+
+    .race-status-badge.success {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--success);
+    }
+
+    .race-status-badge.error {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--error);
+    }
+
+    .race-detail-content {
+      padding: var(--spacing-lg);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .info-card {
+      max-width: 1200px;
+      margin: var(--spacing-2xl) auto 0;
+    }
+
+    .info-card ol,
+    .info-card ul {
+      margin-left: var(--spacing-lg);
+      color: var(--text-secondary);
+    }
+
+    .info-card li {
+      margin-bottom: var(--spacing-sm);
+    }
+
+    @media (max-width: 768px) {
+      .common-info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-buttons {
+        flex-direction: column;
+      }
+
+      .btn-large {
+        width: 100%;
+      }
+    }
+  </style>
+
+  <script is:inline>
+    // グローバル変数
+    let batchResults = [];
+
+    // 一括解析メイン関数
+    function parseBatchRaces() {
+      const textarea = document.getElementById('batchInput');
+      const html = textarea.value;
+
+      if (!html.trim()) {
+        alert('12レース分の結果HTMLを入力してください');
+        return;
+      }
+
+      const statusDiv = document.getElementById('parseStatus');
+      statusDiv.style.display = 'block';
+      statusDiv.className = 'parse-status loading';
+      statusDiv.textContent = '🔍 12レース分を解析中...';
+
+      try {
+        // レース境界で分割
+        const raceHTMLs = splitRacesHTML(html);
+        console.log(`[parseBatchRaces] 検出したレース数: ${raceHTMLs.length}`);
+
+        if (raceHTMLs.length === 0) {
+          statusDiv.className = 'parse-status error';
+          statusDiv.textContent = '❌ レースが検出できませんでした。HTMLの形式を確認してください。';
+          return;
+        }
+
+        // 共通情報取得
+        const date = document.getElementById('commonDate').value;
+        const venue = document.getElementById('commonVenue').value;
+
+        // 各レースを解析
+        batchResults = [];
+        let successCount = 0;
+        let errorCount = 0;
+
+        raceHTMLs.forEach((raceHTML, index) => {
+          const raceNum = index + 1;
+          try {
+            // レース情報抽出
+            const raceInfo = extractRaceInfo(raceHTML, raceNum);
+
+            // 結果データ抽出
+            const results = extractResults(raceHTML);
+            const payouts = extractPayouts(raceHTML);
+            const timeData = extractTimeData(raceHTML);
+            const cornerData = extractCornerData(raceHTML);
+            const comment = generateRaceComment(raceInfo, results, timeData, cornerData, payouts);
+
+            const data = {
+              date: date,
+              venue: venue,
+              raceNumber: raceNum,
+              raceName: raceInfo.raceName,
+              raceSubtitle: raceInfo.raceSubtitle,
+              raceType: raceInfo.raceType,
+              distance: raceInfo.distance,
+              surface: raceInfo.surface,
+              startTime: raceInfo.startTime,
+              results: results,
+              payouts: payouts,
+              timeData: timeData,
+              cornerData: cornerData,
+              comment: comment,
+            };
+
+            batchResults.push({
+              raceNumber: raceNum,
+              success: true,
+              data,
+              date,
+              venue,
+            });
+            successCount++;
+
+          } catch (error) {
+            console.error(`第${raceNum}R解析エラー:`, error);
+            batchResults.push({
+              raceNumber: raceNum,
+              success: false,
+              errors: [error.message],
+            });
+            errorCount++;
+          }
+        });
+
+        // ステータス更新
+        statusDiv.className = errorCount > 0 ? 'parse-status error' : 'parse-status success';
+        statusDiv.innerHTML = `
+          ✅ 解析完了: 成功 ${successCount}レース / エラー ${errorCount}レース<br>
+          ${errorCount > 0 ? '⚠️ エラーが出たレースは下で確認してください' : ''}
+        `;
+
+        // プレビュー表示
+        displayBatchPreview(batchResults, date, venue);
+
+      } catch (error) {
+        statusDiv.className = 'parse-status error';
+        statusDiv.innerHTML = `❌ エラー: ${error.message}`;
+        console.error(error);
+      }
+    }
+
+    // レースHTMLを分割（predictions-batchと同じロジック）
+    function splitRacesHTML(html) {
+      const races = [];
+
+      const racenamePattern = /<div\s+class=["']racename["']\s*>/gi;
+
+      const matches = [];
+      let match;
+      racenamePattern.lastIndex = 0;
+      while ((match = racenamePattern.exec(html)) !== null) {
+        matches.push(match.index);
+      }
+
+      console.log(`[splitRacesHTML] racename検出数: ${matches.length}個`);
+
+      for (let i = 0; i < matches.length; i++) {
+        const startIndex = matches[i];
+        const endIndex = i < matches.length - 1 ? matches[i + 1] : html.length;
+        const raceHTML = html.substring(startIndex, endIndex);
+
+        if (raceHTML.length > 100) {
+          races.push(raceHTML);
+          console.log(`[splitRacesHTML] レース${i + 1}: ${raceHTML.length}文字`);
+        } else {
+          console.warn(`[splitRacesHTML] レース${i + 1}: データが短すぎる`);
+        }
+      }
+
+      console.log(`[splitRacesHTML] 最終的に検出したレース数: ${races.length}`);
+      return races;
+    }
+
+    // ===== results-manager.astroから統合した抽出関数 =====
+
+    function extractRaceInfo(text, raceNumber) {
+      let raceName = '';
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+
+      console.log('[extractRaceInfo] レース番号:', raceNumber);
+
+      // 優先順位1: 重賞レース名
+      for (let line of lines) {
+        const trimmedLine = line.trim();
+        const hasKaisuu = trimmedLine.match(/第\d+回/);
+        const isDateOrVenue = trimmedLine.match(/競馬|月|日|年/);
+        const hasGrade = trimmedLine.match(/[（(][ＳＧＪ][ＩIｐｎ]/);
+
+        if ((hasKaisuu && !isDateOrVenue) || hasGrade) {
+          raceName = trimmedLine;
+          console.log('[extractRaceInfo] 重賞レース名抽出:', raceName);
+          break;
+        }
+      }
+
+      // 優先順位2: 地方競馬グレード
+      if (!raceName) {
+        for (let line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
+            raceName = trimmedLine;
+            console.log('[extractRaceInfo] グレードレース名抽出:', raceName);
+            break;
+          }
+        }
+      }
+
+      // 優先順位3: 「特別」「賞」「杯」
+      if (!raceName) {
+        for (let line of lines) {
+          const trimmedLine = line.trim();
+          if (trimmedLine.match(/特別|賞|杯|盃/)) {
+            raceName = trimmedLine;
+            console.log('[extractRaceInfo] 一般レース名抽出:', raceName);
+            break;
+          }
+        }
+      }
+
+      const distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
+      const distance = distanceMatch ? parseInt(distanceMatch[1] + distanceMatch[2], 10) : null;
+
+      const surface = text.includes('ダ') ? 'ダート' : '芝';
+
+      const track = null;
+
+      const horsesMatch = text.match(/（(\d+)頭）/);
+      const horses = horsesMatch ? parseInt(horsesMatch[1], 10) : null;
+
+      const startTimeMatch = text.match(/発走時刻(\d{1,2}):(\d{2})/);
+      const startTime = startTimeMatch ? `${startTimeMatch[1]}:${startTimeMatch[2]}` : null;
+
+      const weatherMatch = text.match(/天候:\s*([^\s　]+)/);
+      const weather = weatherMatch ? weatherMatch[1] : null;
+
+      const trackConditionMatch = text.match(/馬場:\s*(?:ダート|芝)\s+([^\s　]+)/);
+      const trackCondition = trackConditionMatch ? trackConditionMatch[1] : null;
+
+      return { raceNumber, raceName, distance, surface, track, horses, startTime, weather, trackCondition };
+    }
+
+    function extractResults(text) {
+      const results = [];
+      const lines = text.split('\n');
+
+      for (let line of lines) {
+        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(\d+)kg[\s\u3000]+([+-±＋－]?\d*)[\s\u3000]+(.+?)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.*?)[\s\u3000]+([\d.]+)[\s\u3000]+(.*)[\s\u3000]+(\d+)\s*$/);
+
+        if (match) {
+          results.push({
+            rank: parseInt(match[1], 10),
+            bracket: parseInt(match[2], 10),
+            number: parseInt(match[3], 10),
+            name: match[4].trim(),
+            jockey: match[8].trim(),
+            trainer: match[9].trim(),
+            time: match[10].trim(),
+            margin: match[11].trim() || '-',
+            lastFurlong: match[12].trim(),
+            popularity: parseInt(match[14], 10)
+          });
+        }
+      }
+
+      if (results.length === 0) throw new Error('着順データが見つかりません');
+      return results;
+    }
+
+    function extractPayouts(text) {
+      const payouts = {};
+
+      const payoutMatch = text.match(/払戻金[\s\S]*$/);
+      if (!payoutMatch) return payouts;
+
+      const payoutSection = payoutMatch[0];
+      const lines = payoutSection.split('\n').filter(l => l.trim());
+
+      // テーブル1
+      const table1HeaderIdx = lines.findIndex(l =>
+        l.includes('単勝') && l.includes('複勝') && l.includes('馬単')
+      );
+
+      if (table1HeaderIdx > -1) {
+        const dataRows = [];
+        for (let i = table1HeaderIdx + 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.includes('組番')) continue;
+          if (line.includes('ワイド') || line.includes('三連')) break;
+          if (/^[\d-]/.test(line)) {
+            dataRows.push(line);
+          } else if (dataRows.length > 0) {
+            break;
+          }
+        }
+
+        const ticketTypes = [
+          { key: 'tansho', offset: 0, hasNumber: true },
+          { key: 'fukusho', offset: 3, hasNumber: true },
+          { key: 'wakuren', offset: 6, hasNumber: false },
+          { key: 'umaren', offset: 9, hasNumber: false },
+          { key: 'wakutan', offset: 12, hasNumber: false },
+          { key: 'umatan', offset: 15, hasNumber: false }
+        ];
+
+        for (const type of ticketTypes) {
+          const items = [];
+          for (const row of dataRows) {
+            const values = row.split(/[\s\u3000]+/).filter(v => v);
+            const numOrCombo = values[type.offset];
+            const payout = values[type.offset + 1];
+            const popularity = values[type.offset + 2];
+
+            if (numOrCombo && numOrCombo !== '-' && payout && payout !== '-' && popularity && popularity !== '-') {
+              items.push({
+                [type.hasNumber ? 'number' : 'combination']: numOrCombo,
+                payout: parseInt(payout.replace(/,/g, ''), 10),
+                popularity: parseInt(popularity, 10)
+              });
+            }
+          }
+          if (items.length > 0) {
+            payouts[type.key] = items;
+          }
+        }
+      }
+
+      // テーブル2
+      const table2HeaderIdx = lines.findIndex(l =>
+        l.includes('ワイド') && l.includes('三連')
+      );
+
+      if (table2HeaderIdx > -1) {
+        const dataRows = [];
+        for (let i = table2HeaderIdx + 1; i < lines.length; i++) {
+          const line = lines[i];
+          if (line.includes('組番')) continue;
+          if (line.includes('備考')) break;
+          if (/^[\d-]/.test(line)) {
+            dataRows.push(line);
+          } else if (dataRows.length > 0) {
+            break;
+          }
+        }
+
+        const ticketTypes = [
+          { key: 'wide', offset: 0 },
+          { key: 'sanrenpuku', offset: 3 },
+          { key: 'sanrentan', offset: 6 }
+        ];
+
+        for (const type of ticketTypes) {
+          const items = [];
+          for (const row of dataRows) {
+            const values = row.split(/[\s\u3000]+/).filter(v => v);
+            const combo = values[type.offset];
+            const payout = values[type.offset + 1];
+            const popularity = values[type.offset + 2];
+
+            if (combo && combo !== '-' && payout && payout !== '-' && popularity && popularity !== '-') {
+              items.push({
+                combination: combo,
+                payout: parseInt(payout.replace(/,/g, ''), 10),
+                popularity: parseInt(popularity, 10)
+              });
+            }
+          }
+          if (items.length > 0) {
+            payouts[type.key] = items;
+          }
+        }
+      }
+
+      return payouts;
+    }
+
+    function extractTimeData(text) {
+      const timeData = {};
+
+      const lines = text.split('\n').map(l => l.trim());
+
+      const headerIdx = lines.findIndex(l =>
+        l.includes('上がり3F') &&
+        l.includes('上がり4F') &&
+        l.includes('ハロンタイム')
+      );
+
+      if (headerIdx === -1) {
+        return null;
+      }
+
+      if (!lines[headerIdx + 1]) {
+        return null;
+      }
+
+      const dataLine = lines[headerIdx + 1];
+      const values = dataLine.split(/[\s\t]+/).filter(v => v);
+      const headers = lines[headerIdx].split(/[\s\t]+/).filter(v => v);
+
+      const last3FIdx = headers.indexOf('上がり3F');
+      const last4FIdx = headers.indexOf('上がり4F');
+      const furlongIdx = headers.indexOf('ハロンタイム');
+
+      if (last3FIdx > -1 && values[last3FIdx]) {
+        timeData.last3F = parseFloat(values[last3FIdx]);
+      }
+
+      if (last4FIdx > -1 && values[last4FIdx]) {
+        timeData.last4F = parseFloat(values[last4FIdx]);
+      }
+
+      if (furlongIdx > -1 && values[furlongIdx]) {
+        const furlongStr = values[furlongIdx];
+        const furlongs = furlongStr.split('-').map(f => parseFloat(f.trim())).filter(f => !isNaN(f));
+        if (furlongs.length > 0) {
+          timeData.furlongTimes = furlongs;
+        }
+      }
+
+      return Object.keys(timeData).length > 0 ? timeData : null;
+    }
+
+    function extractCornerData(text) {
+      const corners = [];
+
+      const cornerSection = text.match(/(通過順|コーナー通過順)[\s\S]*?(?=払戻金|$)/);
+      if (!cornerSection) {
+        return null;
+      }
+
+      const cornerSectionText = cornerSection[0];
+
+      const cornerRegex = /([１２]周)?([１２３４])角[\s\t\u3000]+([\d,()]+)/g;
+
+      let match;
+      let hasFirstLap = false;
+
+      while ((match = cornerRegex.exec(cornerSectionText)) !== null) {
+        let lapPrefix = match[1] || '';
+        const cornerNumber = match[2];
+        const orderStr = match[3];
+
+        if (!lapPrefix) {
+          if (hasFirstLap) {
+            lapPrefix = '２周';
+          }
+        } else if (lapPrefix === '１周') {
+          hasFirstLap = true;
+        }
+
+        const cleanedStr = orderStr.replace(/[()]/g, '');
+        const order = cleanedStr.split(',').map(n => parseInt(n.trim(), 10)).filter(n => !isNaN(n));
+
+        if (order.length > 0) {
+          const cornerName = lapPrefix ? `${lapPrefix}${cornerNumber}角` : `${cornerNumber}角`;
+          corners.push({
+            corner: cornerName,
+            order
+          });
+        }
+      }
+
+      return corners.length > 0 ? corners : null;
+    }
+
+    function generateRaceComment(raceInfo, results, timeData, cornerData, payouts) {
+      if (!results || results.length === 0) return '';
+
+      const winner = results[0];
+      const second = results[1];
+      const third = results[2];
+
+      // 逃げ馬を特定
+      let pacemaker = null;
+      if (cornerData && cornerData.length > 0) {
+        const firstCorner = cornerData[0];
+        const leadHorseNum = firstCorner.order[0];
+        pacemaker = results.find(h => h.number === leadHorseNum);
+      }
+
+      let commentary = '';
+
+      // 冒頭：日付・競馬場・レース番号・条件
+      commentary += `${raceInfo.raceNumber}レース（${raceInfo.raceName || 'C3'} ${raceInfo.surface === 'ダート' ? 'ダ' : '芝'}${raceInfo.distance}m・${raceInfo.horses || ''}頭立）は、`;
+
+      // パターン1: 逃げ切り
+      if (pacemaker && pacemaker.number === winner.number) {
+        commentary += `${winner.number}番${winner.name}（${winner.popularity}番人気）がハナを切って主導権を握る展開。`;
+        commentary += `直線でも粘り強く脚を使い、勝ちタイム${winner.time}で1着。`;
+
+        if (second) {
+          commentary += `2着には${second.number}番${second.name}（${second.popularity}番人気）、`;
+        }
+        if (third) {
+          commentary += `3着には${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
+        }
+
+        if (payouts?.sanrentan && payouts.sanrentan.length > 0) {
+          const s = payouts.sanrentan[0];
+          commentary += `三連単${s.combination}は${s.payout.toLocaleString()}円（${s.popularity}番人気）で決着した。`;
+        }
+
+        commentary += `鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
+      }
+      // パターン2: 差し切り
+      else {
+        commentary += `${winner.number}番${winner.name}（${winner.popularity}番人気）が差し切り、勝ちタイム${winner.time}で1着となった。`;
+        commentary += `鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビ。`;
+
+        if (second && third) {
+          commentary += `2着に${second.number}番${second.name}（${second.popularity}番人気）、3着に${third.number}番${third.name}（${third.popularity}番人気）が入線。`;
+        }
+
+        if (payouts?.sanrentan && payouts.sanrentan.length > 0) {
+          const s = payouts.sanrentan[0];
+          commentary += `三連単${s.combination}は${s.payout.toLocaleString()}円（${s.popularity}番人気）で決着した。`;
+        }
+      }
+
+      // 250文字制限
+      if (commentary.length > 260) {
+        const trimmed = commentary.substring(0, 250);
+        const lastPeriod = trimmed.lastIndexOf('。');
+        if (lastPeriod > 200) {
+          commentary = trimmed.substring(0, lastPeriod + 1);
+        }
+      }
+
+      return commentary;
+    }
+
+    // プレビュー表示
+    function displayBatchPreview(results, date, venue) {
+      const previewSection = document.getElementById('previewSection');
+      const raceSummary = document.getElementById('raceSummary');
+      const raceDetails = document.getElementById('raceDetails');
+
+      const successResults = results.filter(r => r.success);
+      const errorResults = results.filter(r => !r.success);
+
+      // サマリー表示
+      raceSummary.innerHTML = `
+        <h3 style="margin-bottom: var(--spacing-md);">📊 解析サマリー</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-md);">
+          <div style="padding: var(--spacing-md); background: rgba(16, 185, 129, 0.1); border-radius: var(--radius-md);">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--success);">${successResults.length}</div>
+            <div style="color: var(--text-secondary);">成功</div>
+          </div>
+          <div style="padding: var(--spacing-md); background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-md);">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--error);">${errorResults.length}</div>
+            <div style="color: var(--text-secondary);">エラー</div>
+          </div>
+          <div style="padding: var(--spacing-md); background: rgba(59, 130, 246, 0.1); border-radius: var(--radius-md);">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--primary-end);">${results.length}</div>
+            <div style="color: var(--text-secondary);">合計</div>
+          </div>
+        </div>
+      `;
+
+      // 各レースの詳細
+      let detailsHTML = '';
+      results.forEach(result => {
+        const statusClass = result.success ? 'success' : 'error';
+        const statusText = result.success ? '✅ 成功' : '❌ エラー';
+
+        detailsHTML += `
+          <details class="race-detail-card ${statusClass}">
+            <summary class="race-detail-header">
+              <span class="race-number-badge">第${result.raceNumber}R</span>
+              <span class="race-status-badge ${statusClass}">${statusText}</span>
+            </summary>
+            <div class="race-detail-content">
+              ${result.success ? generateRacePreviewHTML(result) : generateErrorHTML(result)}
+            </div>
+          </details>
+        `;
+      });
+
+      raceDetails.innerHTML = detailsHTML;
+      previewSection.style.display = 'block';
+    }
+
+    // レースプレビューHTML生成（詳細版）
+    function generateRacePreviewHTML(result) {
+      const { data } = result;
+
+      let html = `
+        <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
+          <h4 style="margin-bottom: 0.5rem;">📋 レース情報</h4>
+          <p><strong>発走:</strong> ${data.startTime || '-'}</p>
+          <p><strong>レース名:</strong> ${data.raceName || '-'}</p>
+          <p><strong>距離:</strong> ${data.surface}${data.distance}m</p>
+          <p><strong>出走頭数:</strong> ${data.results?.length || 0}頭</p>
+        </div>
+      `;
+
+      // レースコメント
+      if (data.comment) {
+        html += `
+          <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-left: 4px solid var(--primary-end); border-radius: 8px;">
+            <h4 style="margin-bottom: 0.5rem;">📝 レースコメント</h4>
+            <p style="line-height: 1.8;">${data.comment}</p>
+          </div>
+        `;
+      }
+
+      // 着順テーブル
+      if (data.results && data.results.length > 0) {
+        html += '<div style="margin-bottom: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem;">🏇 着順</h4>';
+        html += '<div style="overflow-x: auto;">';
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+        html += '<thead><tr style="background: var(--bg-tertiary);">';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">着順</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">枠</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬番</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬名</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">騎手</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">タイム</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">着差</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">上3F</th>';
+        html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">人気</th>';
+        html += '</tr></thead><tbody>';
+
+        data.results.forEach(r => {
+          html += '<tr>';
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center; font-weight: 600;">${r.rank}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.bracket}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.number}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${r.name}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${r.jockey}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.time}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.margin}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.lastFurlong}</td>`;
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${r.popularity}</td>`;
+          html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+      }
+
+      // 払戻金
+      if (data.payouts && Object.keys(data.payouts).length > 0) {
+        html += '<div style="margin-bottom: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem;">💰 払戻金</h4>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; font-size: 0.875rem;">';
+
+        const payoutLabels = {
+          tansho: '単勝',
+          fukusho: '複勝',
+          wakuren: '枠連',
+          umaren: '馬連',
+          wakutan: '枠単',
+          umatan: '馬単',
+          wide: 'ワイド',
+          sanrenpuku: '三連複',
+          sanrentan: '三連単'
+        };
+
+        Object.entries(data.payouts).forEach(([key, items]) => {
+          if (items && items.length > 0) {
+            const firstItem = items[0];
+            html += `<div style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">`;
+            html += `<div style="font-weight: 600; color: var(--primary-end);">${payoutLabels[key]}</div>`;
+            html += `<div>${firstItem.combination || firstItem.number}</div>`;
+            html += `<div style="font-size: 1.1rem; font-weight: 700;">${firstItem.payout.toLocaleString()}円</div>`;
+            html += `<div style="color: var(--text-secondary);">${firstItem.popularity}番人気</div>`;
+            html += `</div>`;
+          }
+        });
+
+        html += '</div>';
+        html += '</div>';
+      }
+
+      // タイムデータ
+      if (data.timeData) {
+        html += '<div style="margin-bottom: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem;">⏱️ タイムデータ</h4>';
+        html += '<div style="display: flex; gap: 1rem; flex-wrap: wrap; font-size: 0.875rem;">';
+
+        if (data.timeData.last3F) {
+          html += `<div style="padding: 0.5rem 1rem; background: var(--bg-secondary); border-radius: 4px;"><strong>上がり3F:</strong> ${data.timeData.last3F}秒</div>`;
+        }
+        if (data.timeData.last4F) {
+          html += `<div style="padding: 0.5rem 1rem; background: var(--bg-secondary); border-radius: 4px;"><strong>上がり4F:</strong> ${data.timeData.last4F}秒</div>`;
+        }
+        if (data.timeData.furlongTimes) {
+          html += `<div style="padding: 0.5rem 1rem; background: var(--bg-secondary); border-radius: 4px;"><strong>ハロンタイム:</strong> ${data.timeData.furlongTimes.join(' - ')}</div>`;
+        }
+
+        html += '</div>';
+        html += '</div>';
+      }
+
+      // コーナー通過順
+      if (data.cornerData && data.cornerData.length > 0) {
+        html += '<div style="margin-bottom: 1rem;">';
+        html += '<h4 style="margin-bottom: 0.5rem;">🔄 コーナー通過順</h4>';
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; font-size: 0.875rem;">';
+
+        data.cornerData.forEach(c => {
+          html += `<div style="padding: 0.5rem; background: var(--bg-secondary); border-radius: 4px;">`;
+          html += `<div style="font-weight: 600; margin-bottom: 0.25rem;">${c.corner}</div>`;
+          html += `<div>${c.order.join(', ')}</div>`;
+          html += `</div>`;
+        });
+
+        html += '</div>';
+        html += '</div>';
+      }
+
+      return html;
+    }
+
+    // エラーHTML生成
+    function generateErrorHTML(result) {
+      return `
+        <div style="color: var(--error);">
+          <h4>❌ エラー内容</h4>
+          <ul style="margin-left: var(--spacing-lg);">
+            ${result.errors.map(err => `<li>${err}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    // JSON全コピー
+    function copyAllJSON() {
+      const successResults = batchResults.filter(r => r.success);
+      if (successResults.length === 0) {
+        alert('コピーできるデータがありません');
+        return;
+      }
+
+      const date = successResults[0].date;
+      const venue = successResults[0].venue;
+
+      const jsonData = {
+        raceDate: date,
+        lastUpdated: new Date().toISOString(),
+        track: venue,
+        totalRaces: successResults.length,
+        races: successResults.map(r => r.data),
+      };
+
+      navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2)).then(() => {
+        alert('JSONをコピーしました！');
+      });
+    }
+
+    // 一括保存
+    async function saveAllRacesToGit(forceOverwrite = false) {
+      const successResults = batchResults.filter(r => r.success);
+      if (successResults.length === 0) {
+        alert('保存できるデータがありません');
+        return;
+      }
+
+      const btn = document.getElementById('saveAllBtn');
+      const statusDiv = document.getElementById('saveStatus');
+
+      btn.disabled = true;
+      btn.textContent = '⏳ 保存中...';
+
+      statusDiv.style.display = 'block';
+      statusDiv.className = 'save-status loading';
+      statusDiv.textContent = forceOverwrite
+        ? `🔥 ${successResults.length}レース分を完全上書き中...`
+        : `🚀 ${successResults.length}レース分を保存中...`;
+
+      try {
+        const date = successResults[0].date;
+        const venue = successResults[0].venue;
+
+        const jsonData = {
+          raceDate: date,
+          lastUpdated: new Date().toISOString(),
+          track: venue,
+          totalRaces: successResults.length,
+          races: successResults.map(r => r.data),
+        };
+
+        const response = await fetch('/.netlify/functions/save-results', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            raceDate: date,
+            track: venue,
+            data: jsonData,
+            forceOverwrite: forceOverwrite
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          statusDiv.className = 'save-status success';
+          statusDiv.innerHTML = `
+            ✅ ${successResults.length}レース分の保存成功！<br>
+            <strong>ファイル:</strong> ${result.path}<br>
+            <strong>コミット:</strong> ${result.sha?.substring(0, 7) || '-'}
+          `;
+          btn.textContent = '✅ 保存完了';
+        } else {
+          statusDiv.className = 'save-status error';
+          statusDiv.innerHTML = `❌ エラー: ${result.error || '保存に失敗しました'}`;
+          btn.disabled = false;
+          btn.textContent = '🚀 12レース一括保存してGit Push';
+        }
+      } catch (error) {
+        statusDiv.className = 'save-status error';
+        statusDiv.innerHTML = `❌ ネットワークエラー: ${error.message}`;
+        btn.disabled = false;
+        btn.textContent = '🚀 12レース一括保存してGit Push';
+      }
+    }
+  </script>
+</BaseLayout>

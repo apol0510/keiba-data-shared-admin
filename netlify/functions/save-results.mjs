@@ -196,7 +196,9 @@ export default async (req, context) => {
 【keiba-data-shared】
 全プロジェクトで結果データ共有可能
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`
       : `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}
 
 【結果データ】
@@ -208,7 +210,7 @@ export default async (req, context) => {
 【keiba-data-shared】
 全プロジェクトで結果データ共有可能
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>`;
 

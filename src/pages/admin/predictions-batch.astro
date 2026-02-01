@@ -510,21 +510,29 @@ export const prerender = false;
 
       // パターン1: <div class='racename'> または <div class="racename"> で分割
       const racenamePattern = /<div\s+class=["']racename["']\s*>/gi;
-      const parts = html.split(racenamePattern);
 
-      console.log(`[splitRacesHTML] racename分割結果: ${parts.length}個`);
+      // 各レースの開始位置を見つける
+      const matches = [];
+      let match;
+      racenamePattern.lastIndex = 0; // リセット
+      while ((match = racenamePattern.exec(html)) !== null) {
+        matches.push(match.index);
+      }
 
-      if (parts.length > 1) {
-        // 最初の部分は空の可能性があるのでスキップ
-        for (let i = 1; i < parts.length; i++) {
-          // 次のレースの開始位置を探す
-          const nextRaceIndex = parts[i].indexOf('</table>');
-          if (nextRaceIndex !== -1) {
-            // tableの終了まで含める（tableタグの閉じまで）
-            const tableEndIndex = parts[i].indexOf('</table>') + '</table>'.length;
-            const raceHTML = '<div class="racename">' + parts[i].substring(0, tableEndIndex);
-            races.push(raceHTML);
-          }
+      console.log(`[splitRacesHTML] racename検出数: ${matches.length}個`);
+
+      // 各レースのHTMLを抽出（次のracenameまで、または最後まで）
+      for (let i = 0; i < matches.length; i++) {
+        const startIndex = matches[i];
+        const endIndex = i < matches.length - 1 ? matches[i + 1] : html.length;
+        const raceHTML = html.substring(startIndex, endIndex);
+
+        // 最低限のバリデーション（tableが含まれているか）
+        if (raceHTML.includes('<table')) {
+          races.push(raceHTML);
+          console.log(`[splitRacesHTML] レース${i + 1}: ${raceHTML.length}文字`);
+        } else {
+          console.warn(`[splitRacesHTML] レース${i + 1}: tableが見つからない`);
         }
       }
 

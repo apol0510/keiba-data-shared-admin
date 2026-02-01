@@ -18,9 +18,16 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
         <a href="/admin/predictions-manager" class="feature-card">
           <div class="card-icon">🎯</div>
-          <h2>予想管理</h2>
-          <p>予想データを自動抽出・変換</p>
-          <span class="badge">核機能</span>
+          <h2>予想管理（個別入力）</h2>
+          <p>レースごとに個別入力・慎重確認</p>
+          <span class="badge">安全重視</span>
+        </a>
+
+        <a href="/admin/predictions-batch" class="feature-card">
+          <div class="card-icon">⚡</div>
+          <h2>予想管理（一括入力）</h2>
+          <p>12レース分を一度に処理・効率化</p>
+          <span class="badge new-badge">NEW</span>
         </a>
 
         <a href="https://github.com/apol0510/keiba-data-shared" target="_blank" class="feature-card">
@@ -53,7 +60,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <p>管理画面専用リポジトリ</p>
             <ul>
               <li>results-manager - 結果入力画面</li>
-              <li>predictions-manager - 予想変換システム（核）</li>
+              <li>predictions-manager - 予想変換（個別入力）</li>
+              <li>predictions-batch - 予想変換（一括入力）NEW</li>
               <li>GitHub API - データ保存</li>
               <li>Netlify Functions - バックエンド</li>
             </ul>
@@ -127,6 +135,20 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       border-radius: var(--radius-sm);
       font-size: 0.875rem;
       margin-top: var(--spacing-sm);
+    }
+
+    .new-badge {
+      background: linear-gradient(135deg, #f59e0b, #ef4444);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.8;
+      }
     }
 
     .info-section {

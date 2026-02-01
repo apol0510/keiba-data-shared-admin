@@ -591,7 +591,7 @@ export const prerender = false;
       previewSection.style.display = 'block';
     }
 
-    // レースプレビューHTML生成
+    // レースプレビューHTML生成（詳細版）
     function generateRacePreviewHTML(result) {
       const { data } = result;
 
@@ -601,20 +601,82 @@ export const prerender = false;
           <p><strong>レース名:</strong> ${data.raceInfo.raceName || '-'}</p>
           <p><strong>距離:</strong> ${data.raceInfo.surface}${data.raceInfo.distance}m</p>
           <p><strong>出走頭数:</strong> ${data.horses.length}頭</p>
+          <p><strong>予想者数:</strong> ${data.predictors.length}名</p>
         </div>
       `;
 
-      // 振り分け結果（簡易版）
+      // 振り分け結果（カード形式・7種類全表示）
+      html += '<div style="margin-bottom: 1.5rem;">';
+      html += '<h4 style="margin-bottom: 0.75rem;">🎯 自動振り分け結果</h4>';
+      html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">';
+
+      const formatHorse = (horse) => horse ? `${horse.number}番 ${horse.name} (${horse.totalScore}点)` : "なし";
+
+      const createCard = (bgColor, borderColor, title, horses) => {
+        const horsesList = Array.isArray(horses)
+          ? horses.map(h => `<li style="margin: 0.25rem 0;">${formatHorse(h)}</li>`).join("")
+          : `<li style="margin: 0.25rem 0;">${formatHorse(horses)}</li>`;
+
+        const isEmpty = (Array.isArray(horses) && horses.length === 0) || (!Array.isArray(horses) && !horses);
+        const content = isEmpty ? "<li>なし</li>" : horsesList;
+
+        return `
+          <div style="background: ${bgColor}; border-left: 4px solid ${borderColor}; border-radius: 4px; padding: 0.75rem;">
+            <div style="font-weight: 600; margin-bottom: 0.5rem; color: ${borderColor};">${title}</div>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 0.875rem;">${content}</ul>
+          </div>
+        `;
+      };
+
+      html += createCard('rgba(239, 68, 68, 0.1)', '#ef4444', '◎ 本命', data.horses.find(h => h.number === data.assignments.main));
+      html += createCard('rgba(59, 130, 246, 0.1)', '#3b82f6', '○ 対抗', data.horses.find(h => h.number === data.assignments.sub));
+      html += createCard('rgba(245, 158, 11, 0.1)', '#f59e0b', '▲ 単穴', data.horses.find(h => h.number === data.assignments.hole));
+      html += createCard('rgba(16, 185, 129, 0.1)', '#10b981', '△ 連下最上位', data.horses.find(h => h.number === data.assignments.connectTop));
+
+      const connectHorses = data.assignments.connect.map(num => data.horses.find(h => h.number === num)).filter(h => h);
+      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~5頭)', connectHorses);
+
+      const reserveHorses = data.assignments.reserve.map(num => data.horses.find(h => h.number === num)).filter(h => h);
+      html += createCard('rgba(100, 116, 139, 0.1)', '#64748b', '× 補欠 (1点以上)', reserveHorses);
+
+      const noneHorses = data.assignments.none.map(num => data.horses.find(h => h.number === num)).filter(h => h);
+      html += createCard('rgba(156, 163, 175, 0.1)', '#9ca3af', '無 (0点)', noneHorses);
+
+      html += '</div>';
+      html += '</div>';
+
+      // 全馬の詳細テーブル
       html += '<div style="margin-bottom: 1rem;">';
-      html += '<h4 style="margin-bottom: 0.5rem;">🎯 振り分け結果</h4>';
-      html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; font-size: 0.875rem;">';
+      html += '<h4 style="margin-bottom: 0.5rem;">🏇 全馬詳細</h4>';
+      html += '<div style="overflow-x: auto;">';
+      html += '<table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">';
+      html += '<thead><tr style="background: var(--bg-tertiary);">';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬番</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">馬名</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">合計点</th>';
+      html += '<th style="padding: 0.5rem; border: 1px solid var(--border-color);">振り分け</th>';
+      data.predictors.forEach(p => {
+        html += `<th style="padding: 0.5rem; border: 1px solid var(--border-color);">${p}</th>`;
+      });
+      html += '</tr></thead><tbody>';
 
-      const formatHorse = (horse) => horse ? `${horse.number}番 ${horse.name}` : "なし";
+      // 点数順にソート
+      const sortedHorses = [...data.horses].sort((a, b) => b.totalScore - a.totalScore);
 
-      html += `<div><strong>本命:</strong> ${formatHorse(data.horses.find(h => h.number === data.assignments.main))}</div>`;
-      html += `<div><strong>対抗:</strong> ${formatHorse(data.horses.find(h => h.number === data.assignments.sub))}</div>`;
-      html += `<div><strong>単穴:</strong> ${formatHorse(data.horses.find(h => h.number === data.assignments.hole))}</div>`;
+      sortedHorses.forEach(horse => {
+        html += '<tr>';
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.number}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color);">${horse.name}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center; font-weight: 600;">${horse.totalScore}</td>`;
+        html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${horse.assignment}</td>`;
+        data.predictors.forEach(p => {
+          const mark = horse.marks[p] || '-';
+          html += `<td style="padding: 0.5rem; border: 1px solid var(--border-color); text-align: center;">${mark}</td>`;
+        });
+        html += '</tr>';
+      });
 
+      html += '</tbody></table>';
       html += '</div>';
       html += '</div>';
 

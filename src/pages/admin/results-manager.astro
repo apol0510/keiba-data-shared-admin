@@ -864,57 +864,109 @@ export const prerender = false;
     // パーサー関数群（既存のロジックを移植）
 
     function extractRaceInfo(text, raceNumber) {
-      let raceName = '';
       const lines = text.split('\n').map(l => l.trim()).filter(l => l);
 
       console.log('[DEBUG extractRaceInfo] レース番号:', raceNumber);
       console.log('[DEBUG extractRaceInfo] テキスト行数:', lines.length);
 
-      // 優先順位1: 重賞レース名
-      // 「第○回」を含み、かつ「競馬」「月」「日」を含まない行（日付情報と区別）
-      // または、重賞グレード記号を含む行
-      for (let line of lines) {
-        const trimmedLine = line.trim();
+      // レース名候補を評価する関数（スコアが高いほど適切）
+      const evaluateRaceNameCandidate = (line) => {
+        let score = 0;
 
-        // 「第○回」を含むが、日付情報や競馬場名でない
-        const hasKaisuu = trimmedLine.match(/第\d+回/);
-        const isDateOrVenue = trimmedLine.match(/競馬|月|日|年/);
+        // 絶対NG（スコア: -1000）
+        if (
+          line.includes('賞金') ||
+          line.includes('番組ポイント') ||
+          line.includes('サラブレッド系') ||
+          line.includes('普通競走') ||
+          line.includes('アラブ系') ||
+          line.includes('発走時刻') ||
+          line.includes('天候:') ||
+          line.includes('馬場:') ||
+          line.includes('着') && line.includes('枠') && line.includes('馬番') ||  // ヘッダー行
+          /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line) ||  // データ行（着順データ）
+          line.length > 40 ||  // 長すぎる行は不適切
+          line.length < 2      // 短すぎる行も不適切
+        ) {
+          return -1000;
+        }
 
-        // 重賞グレード記号を含む
-        const hasGrade = trimmedLine.match(/[（(][ＳＧＪ][ＩIｐｎ]/);
+        // 重賞レース（スコア: +100）
+        if (line.match(/第\d+回/) && !line.match(/競馬|月|日|年/)) {
+          score += 100;
+        }
 
-        if ((hasKaisuu && !isDateOrVenue) || hasGrade) {
-          raceName = trimmedLine;
-          console.log('[DEBUG extractRaceInfo] 重賞レース名抽出:', raceName);
-          break;
+        // 重賞グレード記号（スコア: +100）
+        if (line.match(/[（(][ＳＧＪ][ＩIｐｎ]/)) {
+          score += 100;
+        }
+
+        // 地方競馬グレード（スコア: +80）
+        // 全角数字を含むパターン（例: Ａ１、Ｂ２、Ｃ３）
+        if (line.match(/[ＡＢＣ][１２３０]/)) {
+          score += 80;
+        }
+
+        // 半角グレード表記（スコア: +80）
+        // 例: A1、B2、C3
+        if (line.match(/[ABC][0-3]/)) {
+          score += 80;
+        }
+
+        // 特別レース名（スコア: +60）
+        // 「特別」を含むが「賞金」は含まない
+        if (line.includes('特別') && !line.includes('賞金')) {
+          score += 60;
+        }
+
+        // 杯・盃を含む（スコア: +50）
+        if (line.match(/杯|盃/) && !line.includes('賞金')) {
+          score += 50;
+        }
+
+        // 記念を含む（スコア: +50）
+        if (line.includes('記念') && !line.includes('賞金')) {
+          score += 50;
+        }
+
+        // 適切な文字数（10-30文字）にボーナス（スコア: +20）
+        if (line.length >= 10 && line.length <= 30) {
+          score += 20;
+        }
+
+        // カタカナを含む（競走馬名風）（スコア: +10）
+        if (line.match(/[ァ-ヴ]/)) {
+          score += 10;
+        }
+
+        // 数字が多すぎる行はマイナス（スコア: -50）
+        const digitCount = (line.match(/\d/g) || []).length;
+        if (digitCount > 5) {
+          score -= 50;
+        }
+
+        return score;
+      };
+
+      // 全行を評価してスコアリング
+      const candidates = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const score = evaluateRaceNameCandidate(line);
+
+        if (score > 0) {
+          candidates.push({ line, score, index: i });
+          console.log(`[DEBUG extractRaceInfo] 候補: "${line}" (スコア: ${score})`);
         }
       }
 
-      // 優先順位2: 地方競馬グレード（Ａ１、Ｂ２など）
-      if (!raceName) {
-        for (let line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
-            raceName = trimmedLine;
-            console.log('[DEBUG extractRaceInfo] グレードレース名抽出:', raceName);
-            break;
-          }
-        }
-      }
-
-      // 優先順位3: 「特別」「賞」「杯」を含む行（副題の可能性あり）
-      if (!raceName) {
-        for (let line of lines) {
-          const trimmedLine = line.trim();
-          if (trimmedLine.match(/特別|賞|杯|盃/)) {
-            raceName = trimmedLine;
-            console.log('[DEBUG extractRaceInfo] 一般レース名抽出:', raceName);
-            break;
-          }
-        }
-      }
-
-      if (!raceName) {
+      // スコアが最も高い候補を選択
+      let raceName = '';
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => b.score - a.score);
+        raceName = candidates[0].line;
+        console.log(`[DEBUG extractRaceInfo] レース名決定: "${raceName}" (スコア: ${candidates[0].score})`);
+      } else {
         console.log('[DEBUG extractRaceInfo] レース名が見つかりません');
         console.log('[DEBUG extractRaceInfo] 最初の10行:', lines.slice(0, 10));
       }
@@ -1311,7 +1363,46 @@ export const prerender = false;
         const [year, month, day] = date.split('-');
         const formattedDate = `${year}年${parseInt(month)}月${parseInt(day)}日`;
         const surfaceLabel = race.surface === 'ダート' ? 'ダ' : '芝';
-        commentary += `${formattedDate}${venue}競馬${race.raceNumber}レース（${race.raceName || 'C3'} ${surfaceLabel}${race.distance}m・${race.horses}頭立）は、`;
+
+        // レース名の検証（厳格）
+        let displayRaceName = race.raceName || '';
+
+        // 不適切なパターンを含む場合は空文字列にする
+        const invalidPatterns = [
+          '賞金',
+          '番組ポイント',
+          'サラブレッド系',
+          '普通競走',
+          'アラブ系',
+          '発走時刻',
+          '天候:',
+          '馬場:'
+        ];
+
+        for (const pattern of invalidPatterns) {
+          if (displayRaceName.includes(pattern)) {
+            console.log(`[WARNING] レース名に不適切なパターン検出: "${pattern}" → 空文字列に置換`);
+            displayRaceName = '';
+            break;
+          }
+        }
+
+        // 文字数チェック（2-40文字が妥当）
+        if (displayRaceName.length < 2 || displayRaceName.length > 40) {
+          console.log(`[WARNING] レース名の文字数が不適切: ${displayRaceName.length}文字 → 空文字列に置換`);
+          displayRaceName = '';
+        }
+
+        // 数字が多すぎる（5個以上）場合は不適切
+        const digitCount = (displayRaceName.match(/\d/g) || []).length;
+        if (digitCount > 5) {
+          console.log(`[WARNING] レース名に数字が多すぎる: ${digitCount}個 → 空文字列に置換`);
+          displayRaceName = '';
+        }
+
+        // レース名が空の場合は省略
+        const raceNamePart = displayRaceName ? `${displayRaceName} ` : '';
+        commentary += `${formattedDate}${venue}競馬${race.raceNumber}レース（${raceNamePart}${surfaceLabel}${race.distance}m・${race.horses}頭立）は、`;
       }
 
       // パターン1: 逃げ切り勝ち
@@ -1327,7 +1418,10 @@ export const prerender = false;
         commentary += `スタートからハナを切って主導権を握る展開。`;
 
         // 直線での粘り
-        commentary += `直線でも粘り強く脚を使い、勝ちタイム${winner.time}で1着。`;
+        commentary += `直線でも粘り強く脚を使い、勝ちタイム${winner.time}で1着、`;
+
+        // 騎手・厩舎情報を追加（簡潔に）
+        commentary += `鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビでした。`;
 
         // 2着馬
         if (second && secondPosLast) {
@@ -1348,9 +1442,6 @@ export const prerender = false;
           const sanrentanCombo = race.payouts.sanrentan[0].combination;
           commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
         }
-
-        // 騎手・厩舎情報を追加（簡潔に、必ず句点で閉じる）
-        commentary += `鞍上は${winner.jockey}騎手と${winner.trainer}厩舎のコンビだった。`;
       }
       // パターン2: 逃げ馬がいて、差し切りパターン
       else if (pacemaker && pacemaker.number !== winner.number) {

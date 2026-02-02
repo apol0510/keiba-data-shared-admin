@@ -1138,25 +1138,36 @@ export const prerender = false;
           startTime = timeMatch[1];
         }
 
-        // レース名抽出（特別・賞・杯・盃を含む行）
-        for (let line of lines) {
-          if (line.match(/特別|賞|杯|盃/) && !line.match(/\d{4}年|\d{1,2}月|発走|ダ|芝|サラ|選定馬/)) {
-            raceName = line;
-            break;
+        // h1タグの内容を優先的にraceNameとして抽出
+        const h1Element = racenameDiv.querySelector('h1');
+        if (h1Element) {
+          raceName = h1Element.textContent.trim();
+          console.log('[extractRaceInfo] h1からレース名抽出:', raceName);
+        }
+
+        // h1が無い場合、または「サラ○歳」のみの場合は、特別レース名を探す
+        if (!raceName || raceName.match(/^サラ[\d歳以上]+$/)) {
+          for (let line of lines) {
+            if (line.match(/特別|賞|杯|盃/) && !line.match(/\d{4}年|\d{1,2}月|発走|ダ|芝|選定馬/)) {
+              raceName = line;
+              console.log('[extractRaceInfo] 特別レース名抽出:', raceName);
+              break;
+            }
           }
         }
 
-        // サブタイトル抽出（特選、選定馬、シリーズ名など）
+        // サブタイトル抽出（Ｃ２－２組・３組など）
         for (let line of lines) {
-          if (line.match(/特選|選定馬|シリーズ/) && line !== raceName) {
+          if (line.match(/[ＡＢＣ][１２３０][\-－]|特選|選定馬|シリーズ/) && line !== raceName) {
             raceSubtitle = line;
+            console.log('[extractRaceInfo] サブタイトル抽出:', raceSubtitle);
             break;
           }
         }
 
         // 条件抽出（サラ、Ａ２、Ｂ１など）
         for (let line of lines) {
-          if (line.match(/サラ|[ＡＢＣ][１２３０]/)) {
+          if (line.match(/サラ|[ＡＢＣ][１２３０]/) && line !== raceName && line !== raceSubtitle) {
             raceType = line;
             break;
           }

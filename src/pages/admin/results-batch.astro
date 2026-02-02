@@ -513,8 +513,8 @@ export const prerender = false;
       console.log(`[splitRacesHTML] 最初の500文字:`, text.substring(0, 500));
 
       // 結果はプレーンテキスト形式（HTMLタグなし）
-      // パターン: 「1R2026年」「2R2026年」...「12R2026年」のような形式
-      const racePattern = /(\d{1,2}R)(\d{4})年/g;
+      // パターン: 「1R 2026年」「2R 2026年」...「12R 2026年」のような形式（スペースあり/なし両対応）
+      const racePattern = /(\d{1,2}R)\s*(\d{4})年/g;
 
       const raceMatches = [];
       let match;

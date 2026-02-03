@@ -600,8 +600,20 @@ export const prerender = false;
         }
       }
 
-      const distanceMatch = text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
-      const distance = distanceMatch ? parseInt(distanceMatch[1] + distanceMatch[2], 10) : null;
+      // 距離パターン: "ダ1,800m" または "ダ900m" の両方に対応
+      const distanceMatch = text.match(/[ダ芝][\s\u3000]*(?:(\d{1}),?(\d{3})|(\d{3}))m/);
+      let distance = null;
+      if (distanceMatch) {
+        if (distanceMatch[1] && distanceMatch[2]) {
+          // 1,800形式（1桁+カンマ+3桁）
+          distance = parseInt(distanceMatch[1] + distanceMatch[2], 10);
+        } else if (distanceMatch[3]) {
+          // 900形式（3桁のみ）
+          distance = parseInt(distanceMatch[3], 10);
+        }
+      }
+
+      console.log('[extractRaceInfo] 距離抽出:', distance, 'from:', distanceMatch);
 
       const surface = text.includes('ダ') ? 'ダート' : '芝';
 
@@ -637,7 +649,17 @@ export const prerender = false;
       const headerIdx = lines.findIndex(l => l.includes('着') && l.includes('枠') && l.includes('馬番'));
       console.log('[extractResults] ヘッダー行インデックス:', headerIdx);
 
+      // 払戻金セクションの開始位置を見つける（着順データ抽出を停止するため）
+      const payoutStartIdx = lines.findIndex(l => l.includes('払戻金'));
+      console.log('[extractResults] 払戻金セクション開始:', payoutStartIdx);
+
       for (let i = 0; i < lines.length; i++) {
+        // 払戻金セクションに到達したら着順データ抽出を終了
+        if (payoutStartIdx !== -1 && i >= payoutStartIdx) {
+          console.log('[extractResults] 払戻金セクション到達 - 抽出終了');
+          break;
+        }
+
         const line = lines[i];
 
         // 着順データ行のパターン（タブまたは複数スペース区切り）

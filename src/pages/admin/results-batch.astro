@@ -1538,11 +1538,18 @@ export const prerender = false;
         const date = successResults[0].date;
         const venue = successResults[0].venue;
 
+        // 競馬場コードマッピング
+        const venueCodeMap = {
+          '大井': 'OI',
+          '川崎': 'KA',
+          '船橋': 'FU',
+          '浦和': 'UR'
+        };
+
         const jsonData = {
-          raceDate: date,
-          lastUpdated: new Date().toISOString(),
-          track: venue,
-          totalRaces: successResults.length,
+          date: date,  // ✅ 正しいフィールド名
+          venue: venue,  // ✅ 正しいフィールド名
+          venueCode: venueCodeMap[venue] || 'OI',  // ✅ 競馬場コード追加
           races: successResults.map(r => r.data),
         };
 

@@ -71,7 +71,14 @@ export default async (req, context) => {
 
       date = raceDate;
       venue = track;
-      venueCode = track === '大井' ? 'OOI' : track === '川崎' ? 'KAW' : track === '船橋' ? 'FUN' : 'URA';
+      // 正しい競馬場コード
+      const venueCodeMap = {
+        '大井': 'OI',
+        '川崎': 'KA',
+        '船橋': 'FU',
+        '浦和': 'UR'
+      };
+      venueCode = venueCodeMap[track] || 'OI';
       parsedData = data;
 
     } else if (isIndividualMode) {

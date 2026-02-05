@@ -562,8 +562,15 @@ export const prerender = false;
       console.log('[extractRaceInfo] レース番号:', raceNumber);
       console.log('[extractRaceInfo] テキスト行数:', lines.length);
 
+      // 払戻金セクションより前の行のみを対象にする（賞金データの混入を防止）
+      const payoutStartIdx = lines.findIndex(l => l.includes('払戻金'));
+      const targetLines = payoutStartIdx !== -1 ? lines.slice(0, payoutStartIdx) : lines;
+
+      console.log('[extractRaceInfo] 払戻金セクション開始:', payoutStartIdx);
+      console.log('[extractRaceInfo] レース名検索対象行数:', targetLines.length);
+
       // 優先順位1: 重賞レース名
-      for (let line of lines) {
+      for (let line of targetLines) {
         const trimmedLine = line.trim();
         const hasKaisuu = trimmedLine.match(/第\d+回/);
         const isDateOrVenue = trimmedLine.match(/競馬|月|日|年/);
@@ -578,7 +585,7 @@ export const prerender = false;
 
       // 優先順位2: 地方競馬グレード
       if (!raceName) {
-        for (let line of lines) {
+        for (let line of targetLines) {
           const trimmedLine = line.trim();
           if (trimmedLine.match(/[ＡＢＣ][１２３０]/)) {
             raceName = trimmedLine;
@@ -589,9 +596,16 @@ export const prerender = false;
       }
 
       // 優先順位3: 「特別」「賞」「杯」
+      // ⚠️ 払戻金キーワード（「単勝」「複勝」「馬連」など）と賞金キーワードを除外
       if (!raceName) {
-        for (let line of lines) {
+        for (let line of targetLines) {
           const trimmedLine = line.trim();
+          // 払戻金・賞金関連のキーワードを含む行はスキップ
+          const isPayoutRelated = trimmedLine.match(/単勝|複勝|馬連|馬単|枠連|枠単|ワイド|三連|組番|払戻|人気|円|賞金|番組ポイント/);
+          if (isPayoutRelated) {
+            continue; // この行はスキップ
+          }
+
           if (trimmedLine.match(/特別|賞|杯|盃/)) {
             raceName = trimmedLine;
             console.log('[extractRaceInfo] 一般レース名抽出:', raceName);

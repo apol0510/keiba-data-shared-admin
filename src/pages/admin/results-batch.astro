@@ -614,6 +614,26 @@ export const prerender = false;
         }
       }
 
+      // 優先順位4: クラス名（「３歳」「２歳」など）
+      // 特別名がない一般レースの場合
+      if (!raceName) {
+        for (let line of targetLines) {
+          const trimmedLine = line.trim();
+          // 払戻金・賞金関連のキーワードを含む行はスキップ
+          const isPayoutRelated = trimmedLine.match(/単勝|複勝|馬連|馬単|枠連|枠単|ワイド|三連|組番|払戻|人気|円|賞金|番組ポイント|サラブレッド系|アラブ系|普通競走/);
+          if (isPayoutRelated) {
+            continue; // この行はスキップ
+          }
+
+          // ３歳(三)、２歳、４歳以上 などのパターン
+          if (trimmedLine.match(/^[２３４]歳(\(.*\))?$/) || trimmedLine.match(/^\d歳以上/)) {
+            raceName = trimmedLine;
+            console.log('[extractRaceInfo] クラス名抽出:', raceName);
+            break;
+          }
+        }
+      }
+
       // 距離パターン: "ダ1,800m" または "ダ900m" の両方に対応
       const distanceMatch = text.match(/[ダ芝][\s\u3000]*(?:(\d{1}),?(\d{3})|(\d{3}))m/);
       let distance = null;

@@ -1742,6 +1742,18 @@ export const prerender = false;
           const sanrentanCombo = race.payouts.sanrentan[0].combination;
           commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
         }
+
+        // 1番人気が馬券外の場合、敗退情報を追加
+        if (favorite && favorite.number !== winner.number &&
+            (!second || favorite.number !== second.number) &&
+            (!third || favorite.number !== third.number)) {
+          const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          if (favoriteRank === 4) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
+          } else if (favoriteRank >= 5) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
+          }
+        }
       }
       // パターン2: 逃げ馬がいて、差し切りパターン
       else if (pacemaker && pacemaker.number !== winner.number) {
@@ -1871,6 +1883,18 @@ export const prerender = false;
           const sanrentanCombo = race.payouts.sanrentan[0].combination;
           commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
         }
+
+        // 1番人気が馬券外の場合、敗退情報を追加
+        if (favorite && favorite.number !== winner.number &&
+            (!second || favorite.number !== second.number) &&
+            (!third || favorite.number !== third.number)) {
+          const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          if (favoriteRank === 4) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
+          } else if (favoriteRank >= 5) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
+          }
+        }
       }
       // パターン3: 逃げ馬情報なし
       else {
@@ -1908,6 +1932,18 @@ export const prerender = false;
           const sanrentanPop = race.payouts.sanrentan[0].popularity;
           const sanrentanCombo = race.payouts.sanrentan[0].combination;
           commentary += `三連単${sanrentanCombo}は${sanrentanPayout.toLocaleString()}円（${sanrentanPop}番人気）で決着した。`;
+        }
+
+        // 1番人気が馬券外の場合、敗退情報を追加
+        if (favorite && favorite.number !== winner.number &&
+            (!second || favorite.number !== second.number) &&
+            (!third || favorite.number !== third.number)) {
+          const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          if (favoriteRank === 4) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
+          } else if (favoriteRank >= 5) {
+            commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
+          }
         }
       }
 

@@ -1088,6 +1088,16 @@ export const prerender = false;
           // 継続行の判定：着順データの一部と思われる場合のみ結合
           // ただし、明らかに別のセクションのデータは結合しない
 
+          // 枠色パターン（"枠8桃"など）が来たら、別の馬のデータなので前の行を処理
+          const hasWakuIro = /枠\d+[桃橙青赤緑黄黒白]/.test(line);
+          if (hasWakuIro) {
+            console.log('[DEBUG extractResults] 枠色検出（前の行を処理）:', line);
+            processLine(currentLine, results);
+            currentLine = '';
+            inResultSection = false;
+            continue;
+          }
+
           // 継続行として結合すべきかどうかを判定
           const shouldMerge = !isStartOfResult &&
                              !isEndOfSection &&
@@ -1098,9 +1108,21 @@ export const prerender = false;
                              !line.startsWith('払戻');
 
           if (shouldMerge) {
-            // 継続行を結合
-            currentLine += ' ' + line;
-            console.log('[DEBUG extractResults] 継続行結合:', line.substring(0, 50));
+            // 継続行を結合（ただし、性齢が2回目に出現したら切る）
+            const currentSexAgeCount = (currentLine.match(/[牡牝セ]\d+/g) || []).length;
+            const lineSexAgeCount = (line.match(/[牡牝セ]\d+/g) || []).length;
+
+            if (currentSexAgeCount > 0 && lineSexAgeCount > 0) {
+              // 性齢が既にcurrentLineにあり、新しい行にもある場合、別の馬のデータ
+              console.log('[DEBUG extractResults] 性齢重複検出（前の行を処理）');
+              processLine(currentLine, results);
+              currentLine = '';
+              inResultSection = false;
+            } else {
+              // 継続行を結合
+              currentLine += ' ' + line;
+              console.log('[DEBUG extractResults] 継続行結合:', line.substring(0, 50));
+            }
           }
         }
       }

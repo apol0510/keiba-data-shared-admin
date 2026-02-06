@@ -1055,30 +1055,53 @@ export const prerender = false;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
+        if (!line) continue; // 空行をスキップ
 
         // セクション終了判定
         const isEndOfSection = sectionEndKeywords.some(keyword => line.includes(keyword));
-        if (isEndOfSection && currentLine) {
-          console.log('[DEBUG extractResults] セクション終了検出:', line);
-          // 現在の行を処理して終了
-          processLine(currentLine, results);
-          currentLine = '';
+        if (isEndOfSection) {
+          if (currentLine) {
+            console.log('[DEBUG extractResults] セクション終了検出（前の行を処理）:', line);
+            // 現在の行を処理して終了
+            processLine(currentLine, results);
+            currentLine = '';
+          }
           inResultSection = false;
           continue;
         }
 
         // 着順データの開始を検出（数字で始まり、枠番・馬番が続く）
-        if (/^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line)) {
+        const isStartOfResult = /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line);
+
+        if (isStartOfResult) {
+          // 新しい着順行が始まった
           if (currentLine) {
             // 前の行を処理
+            console.log('[DEBUG extractResults] 新しい着順行検出（前の行を処理）');
             processLine(currentLine, results);
           }
+          // 新しい行を開始
           currentLine = line;
           inResultSection = true;
-          console.log('[DEBUG extractResults] 着順行開始:', line.substring(0, 50));
-        } else if (inResultSection && currentLine && line && !isEndOfSection) {
-          // 継続行を結合（セクション終了でない場合のみ）
-          currentLine += ' ' + line;
+          console.log('[DEBUG extractResults] 着順行開始:', line.substring(0, 80));
+        } else if (inResultSection && currentLine) {
+          // 継続行の判定：着順データの一部と思われる場合のみ結合
+          // ただし、明らかに別のセクションのデータは結合しない
+
+          // 継続行として結合すべきかどうかを判定
+          const shouldMerge = !isStartOfResult &&
+                             !isEndOfSection &&
+                             line.length > 0 &&
+                             !line.startsWith('タイム') &&
+                             !line.startsWith('ハロン') &&
+                             !line.startsWith('コーナー') &&
+                             !line.startsWith('払戻');
+
+          if (shouldMerge) {
+            // 継続行を結合
+            currentLine += ' ' + line;
+            console.log('[DEBUG extractResults] 継続行結合:', line.substring(0, 50));
+          }
         }
       }
 
@@ -1100,14 +1123,21 @@ export const prerender = false;
 
       const parts = line.split(/[\s\u3000]+/).filter(p => p && p !== '•');
 
-      console.log('[DEBUG processLine] parts:', parts);
+      console.log('[DEBUG processLine] parts:', parts.slice(0, 20)); // 最初の20個のみ表示
 
-      if (parts.length < 8) return; // データ不足
+      if (parts.length < 8) {
+        console.log('[DEBUG processLine] データ不足、スキップ');
+        return;
+      }
 
       let idx = 0;
 
       // 着順
       const rank = parseInt(parts[idx++], 10);
+      if (isNaN(rank)) {
+        console.log('[DEBUG processLine] 着順が数字でない、スキップ');
+        return;
+      }
 
       // 枠
       const bracket = parseInt(parts[idx++], 10);
@@ -1115,8 +1145,40 @@ export const prerender = false;
       // 馬番
       const number = parseInt(parts[idx++], 10);
 
-      // 馬名（カタカナを含む、または数字でない）
-      const name = parts[idx++];
+      // 馬名（カタカナまたは英字を含む名前を探す）
+      // 性齢パターン（牡3など）や負担重量パターン（57.0など）が来るまで探す
+      let name = '';
+      while (idx < parts.length && idx < 10) { // 最大10個まで探す
+        const part = parts[idx];
+        // 性齢パターン（牡3、牝3、セ3など）が来たら馬名終了
+        if (/^[牡牝セ]\d+$/.test(part)) {
+          break;
+        }
+        // 負担重量パターン（57.0など）が来たら馬名終了
+        if (/^\d+\.\d+$/.test(part)) {
+          break;
+        }
+        // カタカナ、ひらがな、英字を含む場合は馬名の一部
+        if (/[ァ-ヴぁ-んa-zA-Z]/.test(part)) {
+          name = part;
+          idx++;
+          break;
+        }
+        // 数字だけの場合はスキップ（馬名ではない）
+        if (/^\d+$/.test(part)) {
+          idx++;
+          continue;
+        }
+        // その他の文字列は馬名候補
+        name = part;
+        idx++;
+        break;
+      }
+
+      if (!name) {
+        console.log('[DEBUG processLine] 馬名が見つからない、スキップ');
+        return;
+      }
 
       // 性齢をスキップ（牡3など）
       while (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {

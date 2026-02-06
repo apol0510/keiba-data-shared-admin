@@ -1070,8 +1070,9 @@ export const prerender = false;
           continue;
         }
 
-        // 着順データの開始を検出（数字で始まり、枠番・馬番が続く）
-        const isStartOfResult = /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line);
+        // 着順データの開始を検出（中央競馬は必ず「枠」という文字を含む）
+        // 例: "1     枠10白     10     ケブランリ..."
+        const isStartOfResult = /^\d+[\s\u3000]+枠\d+/.test(line);
 
         if (isStartOfResult) {
           // 新しい着順行が始まった

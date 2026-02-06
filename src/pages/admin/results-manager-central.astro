@@ -1161,8 +1161,16 @@ export const prerender = false;
         return;
       }
 
-      // 枠
-      const bracket = parseInt(parts[idx++], 10);
+      // 枠（中央競馬は "枠8桃" 形式、南関は "8" 形式）
+      let bracket = 0;
+      const bracketPart = parts[idx++];
+      const wakuMatch = bracketPart.match(/^枠(\d+)[桃橙青赤緑黄黒白]$/);
+      if (wakuMatch) {
+        bracket = parseInt(wakuMatch[1], 10);
+        console.log('[DEBUG processLine] 枠色検出:', bracketPart, '→', bracket);
+      } else {
+        bracket = parseInt(bracketPart, 10);
+      }
 
       // 馬番
       const number = parseInt(parts[idx++], 10);

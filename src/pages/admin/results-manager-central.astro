@@ -897,7 +897,15 @@ export const prerender = false;
           line.includes('馬場') ||
           line.includes('本賞金') ||
           line.includes('オッズ') ||
+          line.includes('コース：') ||
+          line.includes('コース:') ||
+          line.includes('メートル') ||
+          line.includes('印刷用') ||
+          line.includes('レース映像') ||
+          line.includes('パトロール') ||
           line.includes('着') && line.includes('枠') && line.includes('馬番') ||  // ヘッダー行
+          line.includes('番') && line.includes('馬名') && line.includes('性齢') ||  // ヘッダー行
+          line.includes('重量') && line.includes('騎手') ||  // ヘッダー行
           /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line) ||  // データ行（着順データ）
           line.length > 40 ||  // 長すぎる行は不適切
           line.length < 2      // 短すぎる行も不適切
@@ -910,9 +918,17 @@ export const prerender = false;
           score += 100;
         }
 
-        // 重賞グレード記号（スコア: +100）
-        if (line.match(/[（(][ＧＪ][ＩＩＩＩＩＩＩ]/)) {
-          score += 100;
+        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +150）
+        if (line.match(/[（(]G[IⅠⅡⅢ]+[）)]/)) {
+          score += 150;
+        }
+
+        // 中央競馬の一般レース名（スコア: +120）
+        if (line.match(/[1-4]歳|新馬|未勝利|1勝クラス|2勝クラス|3勝クラス|オープン/)) {
+          score += 120;
+        }
+        if (line.match(/\d+万下/)) {
+          score += 120;
         }
 
         // 地方競馬グレード（スコア: +80）
@@ -935,6 +951,11 @@ export const prerender = false;
 
         // 記念を含む（スコア: +50）
         if (line.includes('記念') && !line.includes('賞金')) {
+          score += 50;
+        }
+
+        // ステークスを含む（スコア: +50）
+        if (line.includes('ステークス') || line.includes('Ｓ')) {
           score += 50;
         }
 
@@ -1015,39 +1036,116 @@ export const prerender = false;
       const results = [];
       const lines = text.split('\n');
 
-      for (let line of lines) {
-        // 中央競馬のフォーマット
-        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.*?)[\s\u3000]+.*?[\s\u3000]+([\d.]+)[\s\u3000]+([\d()+-]+)[\s\u3000]+(.+?)[\s\u3000]+(\d+)\s*$/);
+      // 中央競馬のフォーマット（複数行に分かれている可能性があるので結合）
+      let currentLine = '';
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
 
-        if (match) {
-          const rank = parseInt(match[1], 10);
-          const bracket = parseInt(match[2], 10);
-          const number = parseInt(match[3], 10);
-          const name = match[4].trim();
-          const jockey = match[6].trim();
-          const time = match[7].trim();
-          const margin = match[8].trim() || '-';
-          const lastFurlong = match[9].trim();
-          const trainer = match[11].trim();
-          const popularity = parseInt(match[12], 10);
-
-          results.push({
-            rank,
-            bracket,
-            number,
-            name,
-            jockey,
-            trainer,
-            time,
-            margin,
-            lastFurlong,
-            popularity
-          });
+        // 着順データの開始を検出（数字で始まり、枠番・馬番が続く）
+        if (/^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line)) {
+          if (currentLine) {
+            // 前の行を処理
+            processLine(currentLine, results);
+          }
+          currentLine = line;
+        } else if (currentLine && line) {
+          // 継続行を結合
+          currentLine += ' ' + line;
         }
+      }
+
+      // 最後の行を処理
+      if (currentLine) {
+        processLine(currentLine, results);
       }
 
       if (results.length === 0) throw new Error('着順データが見つかりません');
       return results;
+    }
+
+    function processLine(line, results) {
+      // 中央競馬フォーマット:
+      // 着順 枠 馬番 馬名 性齢 負担重量 騎手名 タイム 着差 コーナー通過 推定上り 馬体重 調教師名 単勝人気
+      // 例: 1    10    ケブランリ    牡3    57.0    C.ルメール    1:25.4        •    1 •    1    37.2    500(-2)    加藤 士津八    1
+
+      const parts = line.split(/[\s\u3000]+/).filter(p => p && p !== '•');
+
+      if (parts.length < 10) return; // データ不足
+
+      const rank = parseInt(parts[0], 10);
+      const bracket = parseInt(parts[1], 10);
+      const number = parseInt(parts[2], 10);
+      const name = parts[3];
+
+      // 性齢をスキップ（牡3など）
+      let idx = 4;
+      while (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
+        idx++;
+      }
+
+      // 負担重量をスキップ
+      if (idx < parts.length && /^[\d.]+$/.test(parts[idx])) {
+        idx++;
+      }
+
+      // 騎手名
+      const jockey = parts[idx] || '';
+      idx++;
+
+      // タイム
+      const time = parts[idx] || '';
+      idx++;
+
+      // 着差（空白やクビ、ハナなど）
+      let margin = '-';
+      if (idx < parts.length && !/^[\d.]+$/.test(parts[idx]) && !/^\d+\(/.test(parts[idx])) {
+        margin = parts[idx];
+        idx++;
+      }
+      // 着差が複数パーツの場合（例: "２ 1/2"）
+      if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
+        margin = (margin === '-' ? '' : margin + ' ') + parts[idx];
+        idx++;
+      }
+
+      // コーナー通過をスキップ（数字が続く）
+      while (idx < parts.length && /^\d+$/.test(parts[idx])) {
+        idx++;
+      }
+
+      // 推定上り（上3F）
+      let lastFurlong = '';
+      if (idx < parts.length && /^[\d.]+$/.test(parts[idx])) {
+        lastFurlong = parts[idx];
+        idx++;
+      }
+
+      // 馬体重（増減）をスキップ
+      if (idx < parts.length && /^\d+\(/.test(parts[idx])) {
+        idx++;
+      }
+
+      // 調教師名
+      const trainer = parts[idx] || '';
+      idx++;
+
+      // 単勝人気
+      const popularity = parseInt(parts[idx], 10) || 0;
+
+      if (!isNaN(rank) && !isNaN(bracket) && !isNaN(number) && name) {
+        results.push({
+          rank,
+          bracket,
+          number,
+          name,
+          jockey,
+          trainer,
+          time,
+          margin: margin || '-',
+          lastFurlong,
+          popularity
+        });
+      }
     }
 
     function extractPayouts(text) {

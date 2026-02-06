@@ -706,7 +706,7 @@ export const prerender = false;
           html += `
             <div class="info-item" style="grid-column: 1 / -1;">
               <span class="info-label">${corner.corner}:</span>
-              <span class="info-value">${corner.order.join(', ')}</span>
+              <span class="info-value">${corner.orderString || corner.order.join(', ')}</span>
             </div>
           `;
         });
@@ -1523,16 +1523,25 @@ export const prerender = false;
       const cornerSectionText = cornerSection[0];
       console.log('[DEBUG] コーナー通過順セクション抽出成功');
 
-      // 中央競馬のコーナー通過順: 「3コーナー    (1,*10)(8,11,15)(9,14)3,12(2,5,6)-16,4-7-13」
-      const cornerRegex = /([１２３４\d])コーナー\s+([\d,*()[\s\u3000-]+)/g;
+      // 中央競馬のコーナー通過順: 改行で分割して各コーナーを個別に処理
+      // 例:
+      // 1コーナー     7,10(5,12,11)(3,4,6)9(1,13)8-2
+      // 2コーナー     7,10(5,11)12(3,4,6)9(1,13)8-2
+      const lines = cornerSectionText.split('\n');
 
-      let match;
-      while ((match = cornerRegex.exec(cornerSectionText)) !== null) {
-        const cornerNumber = match[1];
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) continue;
+
+        // コーナー番号とデータを抽出（全角・半角対応）
+        const match = trimmedLine.match(/([１２３４1234])コーナー\s+(.*)/);
+        if (!match) continue;
+
+        const cornerNumber = match[1].replace(/[１]/g, '1').replace(/[２]/g, '2').replace(/[３]/g, '3').replace(/[４]/g, '4');
         const orderStr = match[2].trim();
 
-        console.log('[DEBUG] コーナーマッチ:', match[0]);
-        console.log('[DEBUG] - cornerNumber:', cornerNumber, 'orderStr:', orderStr);
+        console.log('[DEBUG] コーナーマッチ:', cornerNumber, 'コーナー');
+        console.log('[DEBUG] - orderStr:', orderStr);
 
         // 括弧やハイフンで分割して馬番を抽出
         // 例: (1,*10)(8,11,15)(9,14)3,12(2,5,6)-16,4-7-13 → 1,10,8,11,15,9,14,3,12,2,5,6,16,4,7,13
@@ -1548,7 +1557,8 @@ export const prerender = false;
           const cornerName = `${cornerNumber}コーナー`;
           corners.push({
             corner: cornerName,
-            order
+            order,
+            orderString: orderStr  // 元の文字列を保存（括弧やハイフンを含む）
           });
           console.log('[DEBUG] コーナー抽出成功:', cornerName, '頭数:', order.length);
         }

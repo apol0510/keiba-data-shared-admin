@@ -522,9 +522,9 @@ export const prerender = false;
       console.log(`[splitRacesHTML] 入力テキスト長: ${text.length}文字`);
       console.log(`[splitRacesHTML] 最初の500文字:`, text.substring(0, 500));
 
-      // 結果はプレーンテキスト形式（HTMLタグなし）
-      // パターン: 「1R 2026年」「2R 2026年」...「12R 2026年」のような形式（スペースあり/なし両対応）
-      const racePattern = /(\d{1,2}R)\s*(\d{4})年/g;
+      // 中央競馬の結果はプレーンテキスト形式（HTMLタグなし）
+      // パターン: 「1レース」「2レース」...「12レース」のような形式
+      const racePattern = /(\d{1,2})レース/g;
 
       const raceMatches = [];
       let match;
@@ -532,12 +532,12 @@ export const prerender = false;
       while ((match = racePattern.exec(text)) !== null) {
         raceMatches.push({
           index: match.index,
-          raceNum: parseInt(match[1].replace('R', ''), 10),
+          raceNum: parseInt(match[1], 10),
           fullMatch: match[0]
         });
       }
 
-      console.log(`[splitRacesHTML] ○R○年パターン検出数: ${raceMatches.length}個`);
+      console.log(`[splitRacesHTML] ○レースパターン検出数: ${raceMatches.length}個`);
 
       if (raceMatches.length > 0) {
         // 各レースのテキストを抽出
@@ -548,10 +548,10 @@ export const prerender = false;
 
           if (raceText.length > 100) {
             races.push(raceText);
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: ${raceText.length}文字`);
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R 最初の200文字:`, raceText.substring(0, 200));
+            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース: ${raceText.length}文字`);
+            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース 最初の200文字:`, raceText.substring(0, 200));
           } else {
-            console.warn(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: データが短すぎる（${raceText.length}文字）`);
+            console.warn(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース: データが短すぎる（${raceText.length}文字）`);
           }
         }
       } else {

@@ -597,6 +597,12 @@ export const prerender = false;
             <span class="info-label">出走頭数:</span>
             <span class="info-value">${raceData.horses}頭</span>
           </div>
+          ${raceData.startTime ? `
+          <div class="info-item">
+            <span class="info-label">発走時刻:</span>
+            <span class="info-value">${raceData.startTime}</span>
+          </div>
+          ` : ''}
           ${raceData.weather ? `
           <div class="info-item">
             <span class="info-label">天候:</span>
@@ -626,6 +632,7 @@ export const prerender = false;
         html += '<th style="padding: 0.5rem; text-align: center;">タイム</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">着差</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">上3F</th>';
+        html += '<th style="padding: 0.5rem; text-align: left;">調教師</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">人気</th>';
         html += '</tr></thead><tbody>';
 
@@ -639,6 +646,7 @@ export const prerender = false;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.time}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.margin}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.lastFurlong}</td>`;
+          html += `<td style="padding: 0.5rem;">${horse.trainer || ''}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.popularity}</td>`;
           html += '</tr>';
         });
@@ -1272,11 +1280,12 @@ export const prerender = false;
       if (idx < parts.length) {
         const part = parts[idx];
         // 着差のパターン: "１", "２", "３"などの全角数字、または "-"
-        // 数字だけの場合はコーナー通過順位なのでスキップしない
+        // 半角数字だけの場合はコーナー通過順位なので含めない
         if (!/^\d+$/.test(part) && !/^\d+\.\d+$/.test(part) && !/^\d+\(/.test(part)) {
           margin = parts[idx++];
           // 着差が複数パーツの場合（例: "１ 1/2", "２ 1/4"）
-          if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
+          // スラッシュを含む場合のみ着差として扱う（半角数字だけはコーナー通過順位）
+          if (idx < parts.length && /^[\d/]+$/.test(parts[idx]) && parts[idx].includes('/')) {
             margin += ' ' + parts[idx++];
           }
         }
@@ -1339,8 +1348,8 @@ export const prerender = false;
       const payoutSection = payoutMatch[0];
       const lines = payoutSection.split('\n').filter(l => l.trim());
 
-      // 単勝: 10 210円 1番人気
-      const tanshoMatch = payoutSection.match(/単勝\s+(\d+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 単勝: 10 210円 1番人気 または 1 → 650円 (3人気)
+      const tanshoMatch = payoutSection.match(/単勝[：:\s]+(\d+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (tanshoMatch) {
         payouts.tansho = [{
           number: tanshoMatch[1],
@@ -1350,17 +1359,28 @@ export const prerender = false;
       }
 
       // 複勝: 10 120円 1番人気  9 210円 5番人気  6 150円 3番人気
-      const fukushoMatches = [...payoutSection.matchAll(/複勝.*?(\d+)\s+([\d,]+)円\s+(\d+)番人気/g)];
+      // 中央競馬形式: 1 → 120円 (1番人気) または 1 120円 1番人気
+      const fukushoMatches = [...payoutSection.matchAll(/(\d+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/g)];
       if (fukushoMatches.length > 0) {
-        payouts.fukusho = fukushoMatches.map(m => ({
-          number: m[1],
-          payout: parseInt(m[2].replace(/,/g, ''), 10),
-          popularity: parseInt(m[3], 10)
-        }));
+        // 「複勝」キーワードの後のマッチのみを抽出
+        const fukushoStartIndex = payoutSection.indexOf('複勝');
+        const fukushoEndIndex = payoutSection.indexOf('枠', fukushoStartIndex) !== -1
+          ? payoutSection.indexOf('枠', fukushoStartIndex)
+          : payoutSection.indexOf('馬', fukushoStartIndex);
+        const fukushoSection = payoutSection.substring(fukushoStartIndex, fukushoEndIndex);
+
+        const fukushoOnlyMatches = [...fukushoSection.matchAll(/(\d+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/g)];
+        if (fukushoOnlyMatches.length > 0) {
+          payouts.fukusho = fukushoOnlyMatches.map(m => ({
+            number: m[1],
+            payout: parseInt(m[2].replace(/,/g, ''), 10),
+            popularity: parseInt(m[3], 10)
+          }));
+        }
       }
 
-      // 枠連: 5-5 1,270円 6番人気
-      const wakurenMatch = payoutSection.match(/枠連\s+([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 枠連: 5-5 1,270円 6番人気 または 1-8 → 1,580円 (6人気)
+      const wakurenMatch = payoutSection.match(/枠[連複単][：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (wakurenMatch) {
         payouts.wakuren = [{
           combination: wakurenMatch[1],
@@ -1370,17 +1390,30 @@ export const prerender = false;
       }
 
       // ワイド: 9-10 380円 3番人気  6-10 330円 2番人気  6-9 740円 10番人気
-      const wideMatches = [...payoutSection.matchAll(/ワイド.*?([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/g)];
+      // 中央競馬形式: 1-2 → 380円 (3番人気) または 1-2 380円 3番人気
+      const wideMatches = [...payoutSection.matchAll(/([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/g)];
       if (wideMatches.length > 0) {
-        payouts.wide = wideMatches.map(m => ({
-          combination: m[1],
-          payout: parseInt(m[2].replace(/,/g, ''), 10),
-          popularity: parseInt(m[3], 10)
-        }));
+        // 「ワイド」キーワードの後のマッチのみを抽出
+        const wideStartIndex = payoutSection.indexOf('ワイド');
+        if (wideStartIndex !== -1) {
+          const wideEndIndex = payoutSection.indexOf('馬連', wideStartIndex) !== -1
+            ? payoutSection.indexOf('馬連', wideStartIndex)
+            : payoutSection.indexOf('馬単', wideStartIndex);
+          const wideSection = payoutSection.substring(wideStartIndex, wideEndIndex);
+
+          const wideOnlyMatches = [...wideSection.matchAll(/([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/g)];
+          if (wideOnlyMatches.length > 0) {
+            payouts.wide = wideOnlyMatches.map(m => ({
+              combination: m[1],
+              payout: parseInt(m[2].replace(/,/g, ''), 10),
+              popularity: parseInt(m[3], 10)
+            }));
+          }
+        }
       }
 
-      // 馬連: 9-10 1,010円 3番人気
-      const umarenMatch = payoutSection.match(/馬連\s+([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 馬連: 9-10 1,010円 3番人気 または 1-12 → 2,550円 (9人気)
+      const umarenMatch = payoutSection.match(/馬[連複][：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (umarenMatch) {
         payouts.umaren = [{
           combination: umarenMatch[1],
@@ -1389,8 +1422,8 @@ export const prerender = false;
         }];
       }
 
-      // 馬単: 10-9 1,380円 3番人気
-      const umatanMatch = payoutSection.match(/馬単\s+([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 馬単: 10-9 1,380円 3番人気 または 1-12 → 5,530円 (18人気)
+      const umatanMatch = payoutSection.match(/馬単[：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (umatanMatch) {
         payouts.umatan = [{
           combination: umatanMatch[1],
@@ -1399,8 +1432,8 @@ export const prerender = false;
         }];
       }
 
-      // 3連複: 6-9-10 1,730円 4番人気
-      const sanrenpukuMatch = payoutSection.match(/3連複\s+([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 3連複: 6-9-10 1,730円 4番人気 または 1-10-12 → 3,750円 (12人気)
+      const sanrenpukuMatch = payoutSection.match(/[三3]連複[：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (sanrenpukuMatch) {
         payouts.sanrenpuku = [{
           combination: sanrenpukuMatch[1],
@@ -1409,8 +1442,8 @@ export const prerender = false;
         }];
       }
 
-      // 3連単: 10-9-6 6,940円 12番人気
-      const sanrentanMatch = payoutSection.match(/3連単\s+([\d-]+)\s+([\d,]+)円\s+(\d+)番人気/);
+      // 3連単: 10-9-6 6,940円 12番人気 または 1-12-10 → 23,020円 (69人気)
+      const sanrentanMatch = payoutSection.match(/[三3]連単[：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (sanrentanMatch) {
         payouts.sanrentan = [{
           combination: sanrentanMatch[1],

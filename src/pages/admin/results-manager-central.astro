@@ -1577,6 +1577,20 @@ export const prerender = false;
       const fourth = race.results[3];
       const favorite = race.results.find(h => h.popularity === 1);
 
+      // デバッグ：1番人気の確認
+      console.log('[COMMENTARY DEBUG] 1番人気:', favorite ? `${favorite.number}番${favorite.name}` : '見つからない');
+      console.log('[COMMENTARY DEBUG] 勝ち馬:', winner ? `${winner.number}番${winner.name}（${winner.popularity}番人気）` : 'なし');
+      console.log('[COMMENTARY DEBUG] 2着馬:', second ? `${second.number}番${second.name}（${second.popularity}番人気）` : 'なし');
+      console.log('[COMMENTARY DEBUG] 3着馬:', third ? `${third.number}番${third.name}（${third.popularity}番人気）` : 'なし');
+      if (favorite) {
+        const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+        console.log('[COMMENTARY DEBUG] 1番人気着順:', favoriteRank, '着');
+        const isOutOfMoney = favorite.number !== winner.number &&
+            (!second || favorite.number !== second.number) &&
+            (!third || favorite.number !== third.number);
+        console.log('[COMMENTARY DEBUG] 1番人気馬券外:', isOutOfMoney);
+      }
+
       // デバッグ：コーナーデータの状態確認
       console.log('[COMMENTARY DEBUG] race.cornerData:', race.cornerData);
       console.log('[COMMENTARY DEBUG] cornerData length:', race.cornerData ? race.cornerData.length : 0);
@@ -1744,15 +1758,19 @@ export const prerender = false;
         }
 
         // 1番人気が馬券外の場合、敗退情報を追加
+        console.log('[COMMENTARY DEBUG] 1番人気敗退チェック開始');
         if (favorite && favorite.number !== winner.number &&
             (!second || favorite.number !== second.number) &&
             (!third || favorite.number !== third.number)) {
           const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          console.log('[COMMENTARY DEBUG] 1番人気は', favoriteRank, '着 → 敗退情報追加');
           if (favoriteRank === 4) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
           } else if (favoriteRank >= 5) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
           }
+        } else {
+          console.log('[COMMENTARY DEBUG] 1番人気は3着以内 → 敗退情報なし');
         }
       }
       // パターン2: 逃げ馬がいて、差し切りパターン
@@ -1885,15 +1903,19 @@ export const prerender = false;
         }
 
         // 1番人気が馬券外の場合、敗退情報を追加
+        console.log('[COMMENTARY DEBUG] 1番人気敗退チェック開始');
         if (favorite && favorite.number !== winner.number &&
             (!second || favorite.number !== second.number) &&
             (!third || favorite.number !== third.number)) {
           const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          console.log('[COMMENTARY DEBUG] 1番人気は', favoriteRank, '着 → 敗退情報追加');
           if (favoriteRank === 4) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
           } else if (favoriteRank >= 5) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
           }
+        } else {
+          console.log('[COMMENTARY DEBUG] 1番人気は3着以内 → 敗退情報なし');
         }
       }
       // パターン3: 逃げ馬情報なし
@@ -1935,15 +1957,19 @@ export const prerender = false;
         }
 
         // 1番人気が馬券外の場合、敗退情報を追加
+        console.log('[COMMENTARY DEBUG] 1番人気敗退チェック開始');
         if (favorite && favorite.number !== winner.number &&
             (!second || favorite.number !== second.number) &&
             (!third || favorite.number !== third.number)) {
           const favoriteRank = race.results.findIndex(h => h.number === favorite.number) + 1;
+          console.log('[COMMENTARY DEBUG] 1番人気は', favoriteRank, '着 → 敗退情報追加');
           if (favoriteRank === 4) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は4着に敗れた。`;
           } else if (favoriteRank >= 5) {
             commentary += `1番人気の${favorite.number}番${favorite.name}は${favoriteRank}着に敗れた。`;
           }
+        } else {
+          console.log('[COMMENTARY DEBUG] 1番人気は3着以内 → 敗退情報なし');
         }
       }
 
@@ -1955,12 +1981,13 @@ export const prerender = false;
         }
       }
 
-      // 250文字を超える場合はトリミング（最後の句点で切る）
-      if (commentary.length > 260) {
+      // 280文字を超える場合はトリミング（最後の句点で切る）
+      // 1番人気敗退情報を含めるため、閾値を280文字に拡大
+      if (commentary.length > 280) {
         console.log('[COMMENTARY DEBUG] 文字数オーバー:', commentary.length, '文字 → トリミング実行');
-        const trimmed = commentary.substring(0, 250);
+        const trimmed = commentary.substring(0, 270);
         const lastPeriod = trimmed.lastIndexOf('。');
-        if (lastPeriod > 200) {
+        if (lastPeriod > 230) {
           commentary = trimmed.substring(0, lastPeriod + 1);
         }
       }

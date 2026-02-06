@@ -514,7 +514,7 @@ export const prerender = false;
           distance: raceInfo.distance,
           surface: raceInfo.surface,
           track: raceInfo.track,
-          horses: raceInfo.horses,
+          horses: raceInfo.horses || results.length,  // フォールバック: 抽出できなければ実際の着順数
           startTime: raceInfo.startTime,
           weather: raceInfo.weather,
           trackCondition: raceInfo.trackCondition,
@@ -1011,10 +1011,17 @@ export const prerender = false;
       const trackMatch = text.match(/（(外|内|右|左)）/);
       const track = trackMatch ? trackMatch[1] : null;
 
-      const horsesMatch = text.match(/（(\d+)頭）/) || text.match(/(\d+)頭立/);
+      // 出走頭数（複数パターン対応）
+      const horsesMatch = text.match(/（(\d+)頭）/) ||
+                         text.match(/(\d+)頭立/) ||
+                         text.match(/出走頭数[：:]\s*(\d+)/) ||
+                         text.match(/出走[：:]\s*(\d+)頭/);
       const horses = horsesMatch ? parseInt(horsesMatch[1], 10) : null;
 
-      const startTimeMatch = text.match(/発走時刻[：:]\s*(\d{1,2})[:時](\d{2})/);
+      // 発走時刻（複数パターン対応）
+      const startTimeMatch = text.match(/発走時刻[：:]\s*(\d{1,2})[:：時](\d{2})/) ||
+                            text.match(/発走[：:]\s*(\d{1,2})[:：時](\d{2})/) ||
+                            text.match(/(\d{1,2})[:：](\d{2})\s*発走/);
       const startTime = startTimeMatch ? `${startTimeMatch[1]}:${startTimeMatch[2]}` : null;
 
       // 天候抽出（中央競馬: 「* 天候晴」のような形式）
@@ -1096,6 +1103,17 @@ export const prerender = false;
             processLine(currentLine, results);
             currentLine = '';
             inResultSection = false;
+            continue;
+          }
+
+          // 特記事項行（ブリンカー着用など）をスキップ
+          const isRemark = line.includes('ブリンカー着用') ||
+                          line.includes('シャドーロール着用') ||
+                          line.includes('メンコ着用') ||
+                          line.includes('パシュファイヤー着用') ||
+                          line.includes('着用');
+          if (isRemark) {
+            console.log('[DEBUG extractResults] 特記事項行をスキップ:', line);
             continue;
           }
 
@@ -1249,19 +1267,24 @@ export const prerender = false;
         time = parts[idx++];
       }
 
-      // 着差（数字でない項目、または "2 1/2" のようなパターン）
+      // 着差（1着は"-"、それ以外は数字+単位のパターン）
       let margin = '-';
-      if (idx < parts.length && !/^\d+$/.test(parts[idx]) && !/^\d+\.\d+$/.test(parts[idx]) && !/^\d+\(/.test(parts[idx])) {
-        margin = parts[idx++];
-        // 着差が複数パーツの場合（例: "２ 1/2"）
-        if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
-          margin += ' ' + parts[idx++];
+      if (idx < parts.length) {
+        const part = parts[idx];
+        // 着差のパターン: "１", "２", "３"などの全角数字、または "-"
+        // 数字だけの場合はコーナー通過順位なのでスキップしない
+        if (!/^\d+$/.test(part) && !/^\d+\.\d+$/.test(part) && !/^\d+\(/.test(part)) {
+          margin = parts[idx++];
+          // 着差が複数パーツの場合（例: "１ 1/2", "２ 1/4"）
+          if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
+            margin += ' ' + parts[idx++];
+          }
         }
       }
 
-      // コーナー通過をスキップ（単純な数字が1-2個続く）
+      // コーナー通過順位をスキップ（中央競馬は4個：1C, 2C, 3C, 4C）
       let cornerSkipped = 0;
-      while (idx < parts.length && /^\d+$/.test(parts[idx]) && cornerSkipped < 2) {
+      while (idx < parts.length && /^\d+$/.test(parts[idx]) && cornerSkipped < 4) {
         idx++;
         cornerSkipped++;
       }
@@ -1277,9 +1300,11 @@ export const prerender = false;
         idx++;
       }
 
-      // 調教師名（次の項目が単勝人気の数字になるまで、残りを全て結合）
+      // 調教師名（最後から2番目まで、最後の1個は単勝人気）
       let trainer = '';
-      while (idx < parts.length - 1) {
+      // parts.length - 1 が最後の要素（単勝人気）なので、それより前を全て結合
+      const endIdx = parts.length - 1;
+      while (idx < endIdx) {
         trainer += (trainer ? ' ' : '') + parts[idx];
         idx++;
       }

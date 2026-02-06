@@ -628,6 +628,8 @@ export const prerender = false;
         html += '<th style="padding: 0.5rem; text-align: center;">枠</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">馬番</th>';
         html += '<th style="padding: 0.5rem; text-align: left;">馬名</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">性齢</th>';
+        html += '<th style="padding: 0.5rem; text-align: center;">斤量</th>';
         html += '<th style="padding: 0.5rem; text-align: left;">騎手</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">タイム</th>';
         html += '<th style="padding: 0.5rem; text-align: center;">着差</th>';
@@ -642,6 +644,8 @@ export const prerender = false;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.bracket}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center; font-weight: 600;">${horse.number}</td>`;
           html += `<td style="padding: 0.5rem;">${horse.name}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.sexAge || ''}</td>`;
+          html += `<td style="padding: 0.5rem; text-align: center;">${horse.weight || ''}</td>`;
           html += `<td style="padding: 0.5rem;">${horse.jockey}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.time}</td>`;
           html += `<td style="padding: 0.5rem; text-align: center;">${horse.margin}</td>`;
@@ -1237,14 +1241,16 @@ export const prerender = false;
         return;
       }
 
-      // 性齢をスキップ（牡3など）
-      while (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
-        idx++;
+      // 性齢を抽出（牡3など）
+      let sexAge = '';
+      if (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
+        sexAge = parts[idx++];
       }
 
-      // 負担重量をスキップ（57.0など）
-      while (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
-        idx++;
+      // 負担重量を抽出（57.0など）
+      let weight = '';
+      if (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
+        weight = parts[idx++];
       }
 
       // 騎手名（次の項目がタイム形式 "1:25.4" になるまで、または最大3パーツまで）
@@ -1321,7 +1327,7 @@ export const prerender = false;
       // 単勝人気（最後の数字）
       const popularity = parseInt(parts[idx], 10) || 0;
 
-      console.log('[DEBUG processLine] 抽出結果:', { rank, bracket, number, name, jockey, time, margin, lastFurlong, trainer, popularity });
+      console.log('[DEBUG processLine] 抽出結果:', { rank, bracket, number, name, sexAge, weight, jockey, time, margin, lastFurlong, trainer, popularity });
 
       if (!isNaN(rank) && !isNaN(bracket) && !isNaN(number) && name) {
         results.push({
@@ -1329,6 +1335,8 @@ export const prerender = false;
           bracket,
           number,
           name,
+          sexAge,
+          weight,
           jockey,
           trainer,
           time,

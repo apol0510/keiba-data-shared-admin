@@ -1070,67 +1070,90 @@ export const prerender = false;
 
       const parts = line.split(/[\s\u3000]+/).filter(p => p && p !== '•');
 
-      if (parts.length < 10) return; // データ不足
+      console.log('[DEBUG processLine] parts:', parts);
 
-      const rank = parseInt(parts[0], 10);
-      const bracket = parseInt(parts[1], 10);
-      const number = parseInt(parts[2], 10);
-      const name = parts[3];
+      if (parts.length < 8) return; // データ不足
+
+      let idx = 0;
+
+      // 着順
+      const rank = parseInt(parts[idx++], 10);
+
+      // 枠
+      const bracket = parseInt(parts[idx++], 10);
+
+      // 馬番
+      const number = parseInt(parts[idx++], 10);
+
+      // 馬名（カタカナを含む、または数字でない）
+      const name = parts[idx++];
 
       // 性齢をスキップ（牡3など）
-      let idx = 4;
       while (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
         idx++;
       }
 
-      // 負担重量をスキップ
-      if (idx < parts.length && /^[\d.]+$/.test(parts[idx])) {
+      // 負担重量をスキップ（57.0など）
+      while (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
         idx++;
       }
 
-      // 騎手名
-      const jockey = parts[idx] || '';
-      idx++;
+      // 騎手名（次の項目がタイム形式 "1:25.4" になるまで）
+      let jockey = '';
+      while (idx < parts.length && !/^\d+:\d+\.\d+$/.test(parts[idx])) {
+        jockey += (jockey ? ' ' : '') + parts[idx];
+        idx++;
+        // タイム形式が見つかったらループを抜ける
+        if (idx < parts.length && /^\d+:\d+\.\d+$/.test(parts[idx])) break;
+        // 安全のため、10個以上のパーツを結合しない
+        if (idx - 4 > 10) break;
+      }
 
-      // タイム
-      const time = parts[idx] || '';
-      idx++;
+      // タイム（"1:25.4" 形式）
+      let time = '';
+      if (idx < parts.length && /^\d+:\d+\.\d+$/.test(parts[idx])) {
+        time = parts[idx++];
+      }
 
-      // 着差（空白やクビ、ハナなど）
+      // 着差（数字でない項目、または "2 1/2" のようなパターン）
       let margin = '-';
-      if (idx < parts.length && !/^[\d.]+$/.test(parts[idx]) && !/^\d+\(/.test(parts[idx])) {
-        margin = parts[idx];
-        idx++;
-      }
-      // 着差が複数パーツの場合（例: "２ 1/2"）
-      if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
-        margin = (margin === '-' ? '' : margin + ' ') + parts[idx];
-        idx++;
+      if (idx < parts.length && !/^\d+$/.test(parts[idx]) && !/^\d+\.\d+$/.test(parts[idx]) && !/^\d+\(/.test(parts[idx])) {
+        margin = parts[idx++];
+        // 着差が複数パーツの場合（例: "２ 1/2"）
+        if (idx < parts.length && /^[\d/]+$/.test(parts[idx])) {
+          margin += ' ' + parts[idx++];
+        }
       }
 
-      // コーナー通過をスキップ（数字が続く）
-      while (idx < parts.length && /^\d+$/.test(parts[idx])) {
+      // コーナー通過をスキップ（単純な数字が1-2個続く）
+      let cornerSkipped = 0;
+      while (idx < parts.length && /^\d+$/.test(parts[idx]) && cornerSkipped < 2) {
         idx++;
+        cornerSkipped++;
       }
 
-      // 推定上り（上3F）
+      // 推定上り（上3F: "37.2" のような小数）
       let lastFurlong = '';
-      if (idx < parts.length && /^[\d.]+$/.test(parts[idx])) {
-        lastFurlong = parts[idx];
+      if (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
+        lastFurlong = parts[idx++];
+      }
+
+      // 馬体重（増減）をスキップ（"500(-2)" 形式）
+      if (idx < parts.length && /^\d+\([+-]?\d+\)$/.test(parts[idx])) {
         idx++;
       }
 
-      // 馬体重（増減）をスキップ
-      if (idx < parts.length && /^\d+\(/.test(parts[idx])) {
+      // 調教師名（次の項目が単勝人気の数字になるまで、残りを全て結合）
+      let trainer = '';
+      while (idx < parts.length - 1) {
+        trainer += (trainer ? ' ' : '') + parts[idx];
         idx++;
       }
 
-      // 調教師名
-      const trainer = parts[idx] || '';
-      idx++;
-
-      // 単勝人気
+      // 単勝人気（最後の数字）
       const popularity = parseInt(parts[idx], 10) || 0;
+
+      console.log('[DEBUG processLine] 抽出結果:', { rank, bracket, number, name, jockey, time, margin, lastFurlong, trainer, popularity });
 
       if (!isNaN(rank) && !isNaN(bracket) && !isNaN(number) && name) {
         results.push({

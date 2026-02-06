@@ -1388,12 +1388,22 @@ export const prerender = false;
       }
 
       // 枠連: 5-5 1,270円 6番人気 または 1-8 → 1,580円 (6人気)
-      const wakurenMatch = payoutSection.match(/枠[連複単][：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
+      const wakurenMatch = payoutSection.match(/枠連[：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
       if (wakurenMatch) {
         payouts.wakuren = [{
           combination: wakurenMatch[1],
           payout: parseInt(wakurenMatch[2].replace(/,/g, ''), 10),
           popularity: parseInt(wakurenMatch[3], 10)
+        }];
+      }
+
+      // 枠単: 1-2 → 340円 (2人気)
+      const wakutanMatch = payoutSection.match(/枠単[：:\s]+([\d-]+)\s*(?:→)?\s*([\d,]+)円\s*[\(（]?(\d+)番?人気[\)）]?/);
+      if (wakutanMatch) {
+        payouts.wakutan = [{
+          combination: wakutanMatch[1],
+          payout: parseInt(wakutanMatch[2].replace(/,/g, ''), 10),
+          popularity: parseInt(wakutanMatch[3], 10)
         }];
       }
 

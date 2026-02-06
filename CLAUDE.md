@@ -598,12 +598,27 @@ GITHUB_REPO_OWNER=apol0510
 
 ---
 
-**📅 最終更新日**: 2026-02-01
-**🏁 Project Phase**: Phase 1-4 完了 ✅（結果管理＋予想管理 完全実装＋一括入力対応）
-**🎯 Next Priority**: 運用開始 → 各予想サイトでデータ読み込み・調整 → results-batch.astro実装
-**📊 進捗率**: 100%完了（Phase 1-4: 完了、運用準備完了、効率化機能追加済み）
+**📅 最終更新日**: 2026-02-06
+**🏁 Project Phase**: Phase 1-5 完了 ✅（南関＋中央競馬 完全対応）
+**🎯 Next Priority**: 運用開始 → 中央競馬データ実運用 → 各予想サイトでデータ読み込み
+**📊 進捗率**: 100%完了（Phase 1-5: 南関＋中央競馬完全実装、運用準備完了）
 
-**✨ 最新の成果（2026-02-01）**:
+**✨ 最新の成果（2026-02-06）**:
+  - **中央競馬対応完了** 🎌 NEW
+    - results-manager-central.astro 実装 ✅
+    - save-results-central.mjs（Netlify Function）実装 ✅
+    - 中央競馬データフォーマット対応 ✅
+      - 「1回東京2日」開催情報
+      - 「1,400メートル」距離表記（カンマ区切り）
+      - 「3コーナー」「4コーナー」全角表記
+      - 推定上り（上3F）データ抽出
+    - 競馬場10会場対応（東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館）✅
+    - 最大18頭対応 ✅
+    - 保存先: `central/results/YYYY/MM/` ✅
+  - **index.astro更新**
+    - 南関競馬・中央競馬を明確に分離表示 ✅
+
+**✨ 過去の成果（2026-02-01）**:
   - **predictions-batch（予想管理一括入力）完全実装** ⚡ NEW
     - 12レース分を一度に処理（36万文字対応）✅
     - レース境界自動検出（`<div class='racename'>`で分割）✅
@@ -669,8 +684,8 @@ GITHUB_REPO_OWNER=apol0510
   - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - **Netlify Functions**: 2個実装（save-results.mjs, save-predictions.mjs）
-  - **ページ**: 4個実装（index.astro, results-manager.astro, predictions-manager.astro, predictions-batch.astro）
+  - **Netlify Functions**: 3個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs）
+  - **ページ**: 5個実装（index.astro, results-manager.astro, results-manager-central.astro, predictions-manager.astro, predictions-batch.astro）
   - **参考ライブラリ**: 6個実装（extractor/normalizer/validator/exporter/site-profiles/types）
   - **結果管理**: 6種類抽出機能（レース情報/着順/払戻金/タイム/コーナー/レースコメント）
   - **予想管理**: 完全自動化実装（個別入力＋一括入力）
@@ -680,7 +695,7 @@ GITHUB_REPO_OWNER=apol0510
     - カード形式表示
     - GitHub自動保存（keiba-data-shared Private）
     - **一括入力対応**（12レース分×36万文字、レース境界自動検出）
-  - **対応レース**: 南関競馬全競馬場（大井/船橋/川崎/浦和）+ 中央競馬
+  - **対応レース**: 南関競馬4競馬場（大井/船橋/川崎/浦和）+ 中央競馬10競馬場（東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館）
   - **対応頭数**: 最大18頭
   - **対応距離**: 2周レース対応（13ハロン）
   - **対応券種**: 全9券種（単勝/複勝/枠連/馬連/枠単/馬単/ワイド/三連複/三連単）

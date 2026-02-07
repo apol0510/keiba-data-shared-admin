@@ -40,9 +40,26 @@ export const prerender = false;
               value={new Date().toISOString().split('T')[0]}
             />
           </div>
+          <div class="form-group">
+            <label for="fallbackVenue">競馬場（自動検出失敗時）</label>
+            <select id="fallbackVenue" class="form-select">
+              <option value="">-- 自動検出を優先 --</option>
+              <option value="東京">東京</option>
+              <option value="中山">中山</option>
+              <option value="京都">京都</option>
+              <option value="阪神">阪神</option>
+              <option value="中京">中京</option>
+              <option value="新潟">新潟</option>
+              <option value="福島">福島</option>
+              <option value="小倉">小倉</option>
+              <option value="札幌">札幌</option>
+              <option value="函館">函館</option>
+            </select>
+          </div>
         </div>
         <p style="color: var(--text-secondary); margin-top: var(--spacing-sm); font-size: 0.9rem;">
-          ※ 競馬場は貼り付けたテキストから自動で抽出されます（「○○競馬」という記載から取得）
+          ※ 競馬場は貼り付けたテキストから自動抽出されます（「○○競馬」「1回○○2日」などから取得）<br>
+          ※ 自動検出に失敗した場合のみ、上のフィールドで手動選択してください
         </p>
       </div>
 
@@ -413,6 +430,7 @@ export const prerender = false;
 
         // 共通情報取得
         const date = document.getElementById('commonDate').value;
+        const fallbackVenue = document.getElementById('fallbackVenue').value;
 
         // 各レースを解析
         batchResults = [];
@@ -429,9 +447,18 @@ export const prerender = false;
             // 最初のレースでvenueを設定
             if (index === 0) {
               commonVenue = raceInfo.venue;
-              if (!commonVenue) {
-                throw new Error('競馬場が検出できませんでした。HTMLに「○○競馬」という記載があるか確認してください。');
+
+              // 自動検出できなかった場合、フォールバックを使用
+              if (!commonVenue && fallbackVenue) {
+                commonVenue = fallbackVenue;
+                console.log(`[Batch] 自動検出失敗。フォールバック競馬場を使用: ${commonVenue}`);
               }
+
+              if (!commonVenue) {
+                throw new Error('競馬場が検出できませんでした。「競馬場（自動検出失敗時）」フィールドで手動選択してください。');
+              }
+
+              console.log(`[Batch] 確定した競馬場: ${commonVenue}`);
             } else {
               // 2レース目以降はvenueの一致を確認
               if (raceInfo.venue && raceInfo.venue !== commonVenue) {
@@ -572,20 +599,36 @@ export const prerender = false;
 
       console.log('[extractRaceInfo] レース番号:', raceNumber);
       console.log('[extractRaceInfo] テキスト行数:', lines.length);
+      console.log('[extractRaceInfo] 最初の10行:', lines.slice(0, 10));
 
-      // 競馬場を抽出（例: 「2026年2月1日 京都競馬 第1日」から「京都」を抽出）
+      // 競馬場を抽出（複数パターンに対応）
+      // 例: 「2026年2月1日 京都競馬 第1日」
+      // 例: 「京都競馬場」
+      // 例: 「1回京都2日」
       let venue = '';
       const venueNames = ['東京', '中山', '京都', '阪神', '中京', '新潟', '福島', '小倉', '札幌', '函館'];
+
       for (const line of lines) {
+        // パターン1: 「○○競馬」
         for (const venueName of venueNames) {
           if (line.includes(`${venueName}競馬`)) {
             venue = venueName;
-            console.log('[extractRaceInfo] 競馬場:', venue);
+            console.log('[extractRaceInfo] 競馬場（パターン1）:', venue);
             break;
           }
         }
         if (venue) break;
+
+        // パターン2: 「1回○○2日」形式（JRA公式の開催表記）
+        const match = line.match(/\d+回(東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館)\d+日/);
+        if (match) {
+          venue = match[1];
+          console.log('[extractRaceInfo] 競馬場（パターン2）:', venue);
+          break;
+        }
       }
+
+      console.log('[extractRaceInfo] 抽出したvenue:', venue || '(検出できず)');
 
       // レース名候補を評価する関数（スコアが高いほど適切）
       const evaluateRaceNameCandidate = (line) => {

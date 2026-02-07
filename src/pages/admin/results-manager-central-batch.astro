@@ -691,31 +691,58 @@ export const prerender = false;
         raceName = candidates[0].line;
         console.log(`[extractRaceInfo] レース名決定: "${raceName}" (スコア: ${candidates[0].score})`);
 
-        // 条件（サブタイトル）を取得: 2番目に高いスコアの候補を確認
-        // または「3歳」「4歳以上」「未勝利」「1勝クラス」などを含む行
-        for (let i = 1; i < candidates.length; i++) {
-          const candidate = candidates[i];
+        // 条件（サブタイトル）を取得: 複数行を結合
+        // 「3歳」「4歳以上」「未勝利」「1勝クラス」などを含む行を収集
+        const subtitleParts = [];
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+
           // レース名と同じ行はスキップ
-          if (candidate.line === raceName) continue;
+          if (line === raceName) continue;
+
+          // 不適切な行をスキップ
+          if (
+            line.includes('賞金') ||
+            line.includes('番組ポイント') ||
+            line.includes('コース：') ||
+            line.includes('コース:') ||
+            line.includes('メートル') ||
+            line.includes('発走時刻') ||
+            line.includes('天候') ||
+            line.includes('馬場') ||
+            line.includes('本賞金') ||
+            line.includes('オッズ') ||
+            line.length > 30 ||
+            line.length < 2
+          ) {
+            continue;
+          }
 
           // 条件として適切なパターンをチェック
           if (
-            candidate.line.match(/^[234]歳/) ||
-            candidate.line.match(/歳以上/) ||
-            candidate.line.match(/未勝利/) ||
-            candidate.line.match(/\d+勝クラス/) ||
-            candidate.line.match(/新馬/) ||
-            candidate.line.match(/オープン/) ||
-            candidate.line.match(/[指定]/) ||
-            candidate.line.match(/定量/) ||
-            candidate.line.match(/ハンデ/) ||
-            candidate.line.match(/牝/) ||
-            candidate.line.match(/牡/)
+            line.match(/^[234]歳/) ||
+            line.match(/歳以上/) ||
+            line.match(/未勝利/) ||
+            line.match(/\d+勝クラス/) ||
+            line.match(/新馬/) ||
+            line.match(/オープン/) ||
+            line.match(/^\[指定\]$/) ||
+            line.match(/^[（(]?[混合指定]+[）)]?$/) ||
+            line.match(/^牝\[指定\]$/) ||
+            line.match(/^牝［指定］$/) ||
+            line.match(/^定量$/) ||
+            line.match(/^ハンデ$/) ||
+            line.match(/^馬齢$/)
           ) {
-            raceSubtitle = candidate.line;
-            console.log(`[extractRaceInfo] 条件（サブタイトル）決定: "${raceSubtitle}" (スコア: ${candidate.score})`);
-            break;
+            subtitleParts.push(line);
+            console.log(`[extractRaceInfo] 条件パーツ追加: "${line}"`);
           }
+        }
+
+        // 複数行を結合（最大3行まで）
+        if (subtitleParts.length > 0) {
+          raceSubtitle = subtitleParts.slice(0, 3).join('　');
+          console.log(`[extractRaceInfo] 条件（サブタイトル）決定: "${raceSubtitle}"`);
         }
       } else {
         console.log('[extractRaceInfo] レース名が見つかりません');
@@ -729,7 +756,9 @@ export const prerender = false;
 
       const surface = text.includes('ダート') || text.includes('ダ') ? 'ダート' : '芝';
 
-      const trackMatch = text.match(/（(外|内|右|左)）/);
+      // コースの方向を抽出（全角中点「・」の後）
+      const trackMatch = text.match(/[・･](外|内|右|左)[）)]/) ||
+                         text.match(/（(外|内|右|左)）/);
       const track = trackMatch ? trackMatch[1] : null;
 
       // 出走頭数（複数パターン対応）

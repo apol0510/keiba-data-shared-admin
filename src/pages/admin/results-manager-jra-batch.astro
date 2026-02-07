@@ -29,7 +29,7 @@ export const prerender = false;
 
       <!-- 共通情報入力 -->
       <div class="card common-info-card">
-        <h2>📅 開催情報（全レース共通）</h2>
+        <h2>📅 開催情報</h2>
         <div class="common-info-grid">
           <div class="form-group">
             <label for="commonDate">開催日</label>
@@ -40,22 +40,10 @@ export const prerender = false;
               value={new Date().toISOString().split('T')[0]}
             />
           </div>
-          <div class="form-group">
-            <label for="commonVenue">競馬場</label>
-            <select id="commonVenue" class="form-select">
-              <option value="東京">東京</option>
-              <option value="中山">中山</option>
-              <option value="京都">京都</option>
-              <option value="阪神">阪神</option>
-              <option value="中京">中京</option>
-              <option value="新潟">新潟</option>
-              <option value="福島">福島</option>
-              <option value="小倉">小倉</option>
-              <option value="札幌">札幌</option>
-              <option value="函館">函館</option>
-            </select>
-          </div>
         </div>
+        <p style="color: var(--text-secondary); margin-top: var(--spacing-sm); font-size: 0.9rem;">
+          ※ 競馬場は貼り付けたテキストから自動で抽出されます（「○○競馬」という記載から取得）
+        </p>
       </div>
 
       <!-- 一括入力エリア -->
@@ -425,18 +413,31 @@ export const prerender = false;
 
         // 共通情報取得
         const date = document.getElementById('commonDate').value;
-        const venue = document.getElementById('commonVenue').value;
 
         // 各レースを解析
         batchResults = [];
         let successCount = 0;
         let errorCount = 0;
+        let commonVenue = null; // 全レース共通の競馬場
 
         raceHTMLs.forEach((raceHTML, index) => {
           const raceNum = index + 1;
           try {
             // レース情報抽出
             const raceInfo = extractRaceInfo(raceHTML, raceNum);
+
+            // 最初のレースでvenueを設定
+            if (index === 0) {
+              commonVenue = raceInfo.venue;
+              if (!commonVenue) {
+                throw new Error('競馬場が検出できませんでした。HTMLに「○○競馬」という記載があるか確認してください。');
+              }
+            } else {
+              // 2レース目以降はvenueの一致を確認
+              if (raceInfo.venue && raceInfo.venue !== commonVenue) {
+                console.warn(`⚠️ 第${raceNum}Rの競馬場（${raceInfo.venue}）が第1Rの競馬場（${commonVenue}）と異なります。`);
+              }
+            }
 
             // 結果データ抽出
             const results = extractResults(raceHTML);
@@ -457,11 +458,11 @@ export const prerender = false;
               timeData: timeData
             };
 
-            const comment = generateRaceCommentary(race, date, venue);
+            const comment = generateRaceCommentary(race, date, commonVenue);
 
             const data = {
               date: date,
-              venue: venue,
+              venue: commonVenue,
               raceNumber: raceNum,
               raceName: raceInfo.raceName,
               raceSubtitle: raceInfo.raceSubtitle,
@@ -483,7 +484,7 @@ export const prerender = false;
               success: true,
               data,
               date,
-              venue,
+              venue: commonVenue,
             });
             successCount++;
 
@@ -502,11 +503,11 @@ export const prerender = false;
         statusDiv.className = errorCount > 0 ? 'parse-status error' : 'parse-status success';
         statusDiv.innerHTML = `
           ✅ 解析完了: 成功 ${successCount}レース / エラー ${errorCount}レース<br>
-          ${errorCount > 0 ? '⚠️ エラーが出たレースは下で確認してください' : ''}
+          ${commonVenue ? `📍 競馬場: ${commonVenue}` : ''}${commonVenue && errorCount > 0 ? '<br>' : ''}${errorCount > 0 ? '⚠️ エラーが出たレースは下で確認してください' : ''}
         `;
 
         // プレビュー表示
-        displayBatchPreview(batchResults, date, venue);
+        displayBatchPreview(batchResults, date, commonVenue);
 
       } catch (error) {
         statusDiv.className = 'parse-status error';
@@ -571,6 +572,20 @@ export const prerender = false;
 
       console.log('[extractRaceInfo] レース番号:', raceNumber);
       console.log('[extractRaceInfo] テキスト行数:', lines.length);
+
+      // 競馬場を抽出（例: 「2026年2月1日 京都競馬 第1日」から「京都」を抽出）
+      let venue = '';
+      const venueNames = ['東京', '中山', '京都', '阪神', '中京', '新潟', '福島', '小倉', '札幌', '函館'];
+      for (const line of lines) {
+        for (const venueName of venueNames) {
+          if (line.includes(`${venueName}競馬`)) {
+            venue = venueName;
+            console.log('[extractRaceInfo] 競馬場:', venue);
+            break;
+          }
+        }
+        if (venue) break;
+      }
 
       // レース名候補を評価する関数（スコアが高いほど適切）
       const evaluateRaceNameCandidate = (line) => {
@@ -786,8 +801,9 @@ export const prerender = false;
       console.log('[extractRaceInfo] 天候:', weather);
       console.log('[extractRaceInfo] 馬場状態:', trackCondition);
       console.log('[extractRaceInfo] 条件（サブタイトル）:', raceSubtitle);
+      console.log('[extractRaceInfo] 競馬場（venue）:', venue);
 
-      return { raceNumber, raceName, raceSubtitle, distance, surface, track, horses, startTime, weather, trackCondition };
+      return { raceNumber, raceName, raceSubtitle, distance, surface, track, horses, startTime, weather, trackCondition, venue };
     }
 
     function extractResults(text) {
@@ -1905,7 +1921,7 @@ export const prerender = false;
           '中京': 'CHU',
           '新潟': 'NII',
           '福島': 'FKU',
-          '小倉': 'KKU',
+          '小倉': 'KOK',
           '札幌': 'SAP',
           '函館': 'HKD'
         };

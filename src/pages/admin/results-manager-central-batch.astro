@@ -1923,9 +1923,7 @@ export const prerender = false;
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            raceDate: date,
-            track: venue,
-            data: jsonData,
+            resultsJSON: JSON.stringify(jsonData),
             forceOverwrite: forceOverwrite
           })
         });

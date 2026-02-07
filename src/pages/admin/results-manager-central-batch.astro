@@ -690,84 +690,294 @@ export const prerender = false;
 
       console.log('[extractResults] テキスト行数:', lines.length);
 
-      // 「着    枠    馬番」で始まるヘッダー行を探す
-      const headerIdx = lines.findIndex(l => l.includes('着') && l.includes('枠') && l.includes('馬番'));
-      console.log('[extractResults] ヘッダー行インデックス:', headerIdx);
+      // 着順データのセクション終了を示すキーワード
+      const sectionEndKeywords = [
+        'タイム',
+        'ハロンタイム',
+        'コーナー通過順位',
+        '払戻金',
+        '上り',
+        '4F',
+        '3F'
+      ];
 
-      // 払戻金セクションの開始位置を見つける（着順データ抽出を停止するため）
-      const payoutStartIdx = lines.findIndex(l => l.includes('払戻金'));
-      console.log('[extractResults] 払戻金セクション開始:', payoutStartIdx);
+      // 中央競馬のフォーマット（複数行に分かれている可能性があるので結合）
+      let currentLine = '';
+      let inResultSection = false;
 
       for (let i = 0; i < lines.length; i++) {
-        // 払戻金セクションに到達したら着順データ抽出を終了
-        if (payoutStartIdx !== -1 && i >= payoutStartIdx) {
-          console.log('[extractResults] 払戻金セクション到達 - 抽出終了');
-          break;
+        const line = lines[i].trim();
+        if (!line) continue; // 空行をスキップ
+
+        // セクション終了判定
+        const isEndOfSection = sectionEndKeywords.some(keyword => line.includes(keyword));
+        if (isEndOfSection) {
+          if (currentLine) {
+            console.log('[extractResults] セクション終了検出（前の行を処理）:', line);
+            // 現在の行を処理して終了
+            processLine(currentLine, results);
+            currentLine = '';
+          }
+          inResultSection = false;
+          continue;
         }
 
-        const line = lines[i];
+        // 着順データの開始を検出（中央競馬は必ず「枠」という文字を含む）
+        // 例: "1     枠10白     10     ケブランリ..."
+        const isStartOfResult = /^\d+[\s\u3000]+枠\d+/.test(line);
 
-        // 着順データ行のパターン（タブまたは複数スペース区切り）
-        // 1    3    5    ブルマリンシェール    牡6    56.0    504kg    ＋11    ☆谷内貫太    佐野謙二    1:55.7    -    38.7    10-10-9-7    4
-        const parts = line.split(/[\s\t]+/).filter(p => p);
+        if (isStartOfResult) {
+          // 新しい着順行が始まった
+          if (currentLine) {
+            // 前の行を処理
+            console.log('[extractResults] 新しい着順行検出（前の行を処理）');
+            processLine(currentLine, results);
+          }
+          // 新しい行を開始
+          currentLine = line;
+          inResultSection = true;
+          console.log('[extractResults] 着順行開始:', line.substring(0, 80));
+        } else if (inResultSection && currentLine) {
+          // 継続行の判定：着順データの一部と思われる場合のみ結合
+          // ただし、明らかに別のセクションのデータは結合しない
 
-        // 最初が数字（着順）で、少なくとも14フィールド以上ある
-        if (parts.length >= 14 && /^\d+$/.test(parts[0])) {
-          const rank = parseInt(parts[0], 10);
-          const bracket = parseInt(parts[1], 10);
-          const number = parseInt(parts[2], 10);
+          // 枠色パターン（"枠8桃"など）が来たら、別の馬のデータなので前の行を処理
+          const hasWakuIro = /枠\d+[桃橙青赤緑黄黒白]/.test(line);
+          if (hasWakuIro) {
+            console.log('[extractResults] 枠色検出（前の行を処理）:', line);
+            processLine(currentLine, results);
+            currentLine = '';
+            inResultSection = false;
+            continue;
+          }
 
-          // 馬名
-          const name = parts[3];
+          // 特記事項行（ブリンカー着用など）をスキップ
+          const isRemark = line.includes('ブリンカー着用') ||
+                          line.includes('シャドーロール着用') ||
+                          line.includes('メンコ着用') ||
+                          line.includes('パシュファイヤー着用') ||
+                          line.includes('着用');
+          if (isRemark) {
+            console.log('[extractResults] 特記事項行をスキップ:', line);
+            continue;
+          }
 
-          // 性齢（牡6など）はスキップ（parts[4]）
-          // 負担（56.0など）はスキップ（parts[5]）
-          // 馬体重（504kgなど）はスキップ（parts[6]）
-          // 増減（＋11など）はスキップ（parts[7]）
+          // 継続行として結合すべきかどうかを判定
+          const shouldMerge = !isStartOfResult &&
+                             !isEndOfSection &&
+                             line.length > 0 &&
+                             !line.startsWith('タイム') &&
+                             !line.startsWith('ハロン') &&
+                             !line.startsWith('コーナー') &&
+                             !line.startsWith('払戻');
 
-          // 騎手（☆谷内貫太）
-          const jockey = parts[8];
+          if (shouldMerge) {
+            // 継続行を結合（ただし、性齢が2回目に出現したら切る）
+            const currentSexAgeCount = (currentLine.match(/[牡牝セ]\d+/g) || []).length;
+            const lineSexAgeCount = (line.match(/[牡牝セ]\d+/g) || []).length;
 
-          // 調教師（佐野謙二）
-          const trainer = parts[9];
-
-          // タイム
-          const time = parts[10];
-
-          // 着差
-          const margin = parts[11] || '-';
-
-          // 上がり3F
-          const lastFurlong = parts[12];
-
-          // コーナー通過順（parts[13]）はスキップ
-
-          // 人気
-          const popularity = parseInt(parts[14], 10);
-
-          if (!isNaN(rank) && !isNaN(number) && !isNaN(popularity)) {
-            results.push({
-              rank,
-              bracket,
-              number,
-              name,
-              jockey,
-              trainer,
-              time,
-              margin,
-              lastFurlong,
-              popularity
-            });
-
-            console.log(`[extractResults] 第${rank}着: ${number}番 ${name} (${jockey} / ${trainer})`);
+            if (currentSexAgeCount > 0 && lineSexAgeCount > 0) {
+              // 性齢が既にcurrentLineにあり、新しい行にもある場合、別の馬のデータ
+              console.log('[extractResults] 性齢重複検出（前の行を処理）');
+              processLine(currentLine, results);
+              currentLine = '';
+              inResultSection = false;
+            } else {
+              // 継続行を結合
+              currentLine += ' ' + line;
+              console.log('[extractResults] 継続行結合:', line.substring(0, 50));
+            }
           }
         }
       }
 
-      console.log('[extractResults] 抽出した頭数:', results.length);
+      // 最後の行を処理
+      if (currentLine) {
+        processLine(currentLine, results);
+      }
+
+      console.log('[extractResults] 抽出された着順数:', results.length);
 
       if (results.length === 0) throw new Error('着順データが見つかりません');
       return results;
+    }
+
+    function processLine(line, results) {
+      // 中央競馬フォーマット:
+      // 着順 枠 馬番 馬名 性齢 負担重量 騎手名 タイム 着差 コーナー通過 推定上り 馬体重 調教師名 単勝人気
+      // 例: 1    10    ケブランリ    牡3    57.0    C.ルメール    1:25.4        •    1 •    1    37.2    500(-2)    加藤 士津八    1
+
+      const parts = line.split(/[\s\u3000]+/).filter(p => p && p !== '•');
+
+      console.log('[processLine] parts:', parts.slice(0, 20)); // 最初の20個のみ表示
+
+      if (parts.length < 8) {
+        console.log('[processLine] データ不足、スキップ');
+        return;
+      }
+
+      let idx = 0;
+
+      // 着順
+      const rank = parseInt(parts[idx++], 10);
+      if (isNaN(rank)) {
+        console.log('[processLine] 着順が数字でない、スキップ');
+        return;
+      }
+
+      // 枠（中央競馬は "枠8桃" 形式、南関は "8" 形式）
+      let bracket = 0;
+      const bracketPart = parts[idx++];
+      const wakuMatch = bracketPart.match(/^枠(\d+)[桃橙青赤緑黄黒白]$/);
+      if (wakuMatch) {
+        bracket = parseInt(wakuMatch[1], 10);
+        console.log('[processLine] 枠色検出:', bracketPart, '→', bracket);
+      } else {
+        bracket = parseInt(bracketPart, 10);
+      }
+
+      // 馬番
+      const number = parseInt(parts[idx++], 10);
+
+      // 馬名（カタカナまたは英字を含む名前を探す）
+      // 性齢パターン（牡3など）や負担重量パターン（57.0など）が来るまで探す
+      let name = '';
+      while (idx < parts.length && idx < 10) { // 最大10個まで探す
+        const part = parts[idx];
+        // 性齢パターン（牡3、牝3、セ3など）が来たら馬名終了
+        if (/^[牡牝セ]\d+$/.test(part)) {
+          break;
+        }
+        // 負担重量パターン（57.0など）が来たら馬名終了
+        if (/^\d+\.\d+$/.test(part)) {
+          break;
+        }
+        // カタカナ、ひらがな、英字を含む場合は馬名の一部
+        if (/[ァ-ヴぁ-んa-zA-Z]/.test(part)) {
+          name = part;
+          idx++;
+          break;
+        }
+        // 数字だけの場合はスキップ（馬名ではない）
+        if (/^\d+$/.test(part)) {
+          idx++;
+          continue;
+        }
+        // その他の文字列は馬名候補
+        name = part;
+        idx++;
+        break;
+      }
+
+      if (!name) {
+        console.log('[processLine] 馬名が見つからない、スキップ');
+        return;
+      }
+
+      // 性齢を抽出（牡3など）
+      let sexAge = '';
+      if (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
+        sexAge = parts[idx++];
+      }
+
+      // 負担重量を抽出（57.0など）
+      let weight = '';
+      if (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
+        weight = parts[idx++];
+      }
+
+      // 騎手名（次の項目がタイム形式 "1:25.4" になるまで、または最大3パーツまで）
+      let jockey = '';
+      let jockeyPartCount = 0;
+      const startIdx = idx;
+      while (idx < parts.length && jockeyPartCount < 3) {
+        // タイム形式が見つかったらループを抜ける
+        if (/^\d+:\d+\.\d+$/.test(parts[idx])) {
+          break;
+        }
+        // 不適切なパターン（馬体重や調教師エリア）が来たら抜ける
+        if (/^\d+\([+-]?\d+\)$/.test(parts[idx])) {
+          break;
+        }
+        // "タイム"などのセクションヘッダーが来たら抜ける
+        if (parts[idx] === 'タイム' || parts[idx] === 'ハロンタイム' || parts[idx] === 'コーナー通過順位') {
+          break;
+        }
+        jockey += (jockey ? ' ' : '') + parts[idx];
+        idx++;
+        jockeyPartCount++;
+      }
+
+      // タイム（"1:25.4" 形式）
+      let time = '';
+      if (idx < parts.length && /^\d+:\d+\.\d+$/.test(parts[idx])) {
+        time = parts[idx++];
+      }
+
+      // 着差（1着は"-"、それ以外は数字+単位のパターン）
+      let margin = '-';
+      if (idx < parts.length) {
+        const part = parts[idx];
+        // 着差のパターン: "１", "２", "３"などの全角数字、または "-"
+        // 半角数字だけの場合はコーナー通過順位なので含めない
+        if (!/^\d+$/.test(part) && !/^\d+\.\d+$/.test(part) && !/^\d+\(/.test(part)) {
+          margin = parts[idx++];
+          // 着差が複数パーツの場合（例: "１ 1/2", "２ 1/4"）
+          // スラッシュを含む場合のみ着差として扱う（半角数字だけはコーナー通過順位）
+          if (idx < parts.length && /^[\d/]+$/.test(parts[idx]) && parts[idx].includes('/')) {
+            margin += ' ' + parts[idx++];
+          }
+        }
+      }
+
+      // コーナー通過順位をスキップ（中央競馬は4個：1C, 2C, 3C, 4C）
+      let cornerSkipped = 0;
+      while (idx < parts.length && /^\d+$/.test(parts[idx]) && cornerSkipped < 4) {
+        idx++;
+        cornerSkipped++;
+      }
+
+      // 推定上り（上3F: "37.2" のような小数）
+      let lastFurlong = '';
+      if (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
+        lastFurlong = parts[idx++];
+      }
+
+      // 馬体重（増減）をスキップ（"500(-2)" 形式）
+      if (idx < parts.length && /^\d+\([+-]?\d+\)$/.test(parts[idx])) {
+        idx++;
+      }
+
+      // 調教師名（最後から2番目まで、最後の1個は単勝人気）
+      let trainer = '';
+      // parts.length - 1 が最後の要素（単勝人気）なので、それより前を全て結合
+      const endIdx = parts.length - 1;
+      while (idx < endIdx) {
+        trainer += (trainer ? ' ' : '') + parts[idx];
+        idx++;
+      }
+
+      // 単勝人気（最後の数字）
+      const popularity = parseInt(parts[idx], 10) || 0;
+
+      console.log('[processLine] 抽出結果:', { rank, bracket, number, name, sexAge, weight, jockey, time, margin, lastFurlong, trainer, popularity });
+
+      if (!isNaN(rank) && !isNaN(bracket) && !isNaN(number) && name) {
+        results.push({
+          rank,
+          bracket,
+          number,
+          name,
+          sexAge,
+          weight,
+          jockey,
+          trainer,
+          time,
+          margin: margin || '-',
+          lastFurlong,
+          popularity
+        });
+      }
     }
 
     function extractPayouts(text) {

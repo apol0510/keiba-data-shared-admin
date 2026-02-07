@@ -1934,8 +1934,10 @@ export const prerender = false;
           statusDiv.className = 'save-status success';
           statusDiv.innerHTML = `
             ✅ ${successResults.length}レース分の保存成功！<br>
-            <strong>ファイル:</strong> ${result.path}<br>
-            <strong>コミット:</strong> ${result.sha?.substring(0, 7) || '-'}
+            <strong>ファイル:</strong> ${result.filePath || result.fileName || '-'}<br>
+            <strong>コミット:</strong> ${result.commitSha?.substring(0, 7) || '-'}<br>
+            ${result.commitUrl ? `<a href="${result.commitUrl}" target="_blank" style="color: var(--primary-end);">📝 コミットを確認</a><br>` : ''}
+            ${result.rawUrl ? `<a href="${result.rawUrl}" target="_blank" style="color: var(--primary-end);">📄 JSONファイルを確認</a>` : ''}
           `;
           btn.textContent = '✅ 保存完了';
         } else {

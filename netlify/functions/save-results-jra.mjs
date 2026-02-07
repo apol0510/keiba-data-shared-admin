@@ -85,10 +85,11 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: jra/results/2026/02/2026-02-06.json）
+    // ファイルパス生成（例: jra/results/2026/02/2026-02-06-京都.json）
+    // JRAは同日複数開催があるため、競馬場名を含める
     const year = date.substring(0, 4);
     const month = date.substring(5, 7);
-    const fileName = `${date}.json`;
+    const fileName = `${date}-${venue}.json`;
     const filePath = `jra/results/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ

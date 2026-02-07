@@ -1,8 +1,8 @@
 /**
- * Netlify Function: 中央競馬結果JSONをkeiba-data-sharedリポジトリに保存
+ * Netlify Function: JRA結果JSONをkeiba-data-sharedリポジトリに保存
  *
  * 機能:
- * - 結果JSONを keiba-data-shared/central/results/YYYY/MM/ に保存
+ * - 結果JSONを keiba-data-shared/jra/results/YYYY/MM/ に保存
  * - GitHub API を使ってコミット・プッシュ
  * - 全プロジェクトで結果データ共有
  *
@@ -85,11 +85,11 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: central/results/2026/02/2026-02-06.json）
+    // ファイルパス生成（例: jra/results/2026/02/2026-02-06.json）
     const year = date.substring(0, 4);
     const month = date.substring(5, 7);
     const fileName = `${date}.json`;
-    const filePath = `central/results/${year}/${month}/${fileName}`;
+    const filePath = `jra/results/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ
     const getFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}?ref=${GITHUB_BRANCH}`;
@@ -146,7 +146,7 @@ export default async (req, context) => {
     // コミットメッセージ生成
     const commitMessage = `✨ ${date} ${venue} ${raceNumbers} 結果${fileSha ? '更新' : '追加'}
 
-【中央競馬 結果データ】
+【JRA 結果データ】
 - 開催日: ${date}
 - 競馬場: ${venue}（${venueCode}）
 - レース: ${racesList}
@@ -240,7 +240,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         // archiveResults.jsonを保存
         const archiveCommitMessage = `📊 ${date} ${venue} ${raceNumbers} 的中判定データ更新
 
-【中央競馬 的中情報】
+【JRA 的中情報】
 - 開催日: ${date}
 - 競馬場: ${venue}（${venueCode}）
 - 全${parsedData.races?.length || 0}R

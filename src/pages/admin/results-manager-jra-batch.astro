@@ -1,7 +1,7 @@
 ---
 /**
- * 中央競馬結果データ管理画面（12レース一括入力版）
- * results-manager-centralとは完全に別のファイル
+ * JRA結果データ管理画面（12レース一括入力版）
+ * results-manager-jraとは完全に別のファイル
  *
  * 機能:
  * - 12レース分の結果HTMLを一括貼り付け
@@ -15,16 +15,16 @@ export const prerender = false;
 ---
 
 <BaseLayout
-  title="中央競馬 結果管理画面（一括入力）"
+  title="JRA 結果管理画面（一括入力）"
   description="12レース分の結果HTMLを一括で解析してデータ化します"
 >
   <section class="admin-section">
     <div class="container">
-      <h1 class="page-title">⚡ 中央競馬 結果管理（12レース一括）</h1>
+      <h1 class="page-title">⚡ JRA 結果管理（12レース一括）</h1>
       <p class="page-description">
         <strong>12レース分の結果を一度に貼り付けて一括処理できます</strong><br>
         JRA公式サイトの結果ページをコピー＆貼り付けするだけ！<br>
-        ※ 個別入力が必要な場合は <a href="/admin/results-manager-central" style="color: var(--primary-end); text-decoration: underline;">中央競馬 結果管理（個別入力）</a> をご利用ください
+        ※ 個別入力が必要な場合は <a href="/admin/results-manager-jra" style="color: var(--primary-end); text-decoration: underline;">JRA 結果管理（個別入力）</a> をご利用ください
       </p>
 
       <!-- 共通情報入力 -->
@@ -170,7 +170,7 @@ export const prerender = false;
           <li>12レース分を一度に処理できます（効率重視）</li>
           <li>HTMLタグは不要です（表示されているテキストをそのままコピー）</li>
           <li>エラーが出たレースは赤色で表示されます</li>
-          <li>慎重に確認したい場合は <a href="/admin/results-manager-central" style="color: var(--primary-end);">個別入力</a> をご利用ください</li>
+          <li>慎重に確認したい場合は <a href="/admin/results-manager-jra" style="color: var(--primary-end);">個別入力</a> をご利用ください</li>
           <li>既存データは自動的にマージされます（上書きされません）</li>
         </ul>
       </div>
@@ -563,7 +563,7 @@ export const prerender = false;
       return races;
     }
 
-    // ===== results-manager-central.astroから統合した抽出関数 =====
+    // ===== results-manager-jra.astroから統合した抽出関数 =====
     // TODO: 中央競馬特有のフォーマット対応が必要な場合は個別に調整
 
     function extractRaceInfo(text, raceNumber) {
@@ -1917,7 +1917,7 @@ export const prerender = false;
           races: successResults.map(r => r.data),
         };
 
-        const response = await fetch('/.netlify/functions/save-results-central', {
+        const response = await fetch('/.netlify/functions/save-results-jra', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

@@ -5,12 +5,12 @@ export const prerender = false;
 ---
 
 <BaseLayout
-  title="中央競馬 結果管理画面"
+  title="JRA 結果管理画面"
   description="中央競馬公式サイトからコピーした結果を自動解析してデータ化します"
 >
   <section class="admin-section">
     <div class="container">
-      <h1 class="page-title">🏇 中央競馬 結果管理</h1>
+      <h1 class="page-title">🏇 JRA 結果管理</h1>
       <p class="page-description">
         各レースごとに個別入力できます。<br>
         <strong>※ レースごとに貼り付けて解析・保存してください</strong>
@@ -847,7 +847,7 @@ export const prerender = false;
         : '🚀 keiba-data-shared リポジトリに保存中...';
 
       try {
-        const response = await fetch('/.netlify/functions/save-results-central', {
+        const response = await fetch('/.netlify/functions/save-results-jra', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

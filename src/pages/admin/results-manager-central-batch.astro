@@ -465,7 +465,6 @@ export const prerender = false;
               raceNumber: raceNum,
               raceName: raceInfo.raceName,
               raceSubtitle: raceInfo.raceSubtitle,
-              raceType: raceInfo.raceType,
               distance: raceInfo.distance,
               surface: raceInfo.surface,
               startTime: raceInfo.startTime,
@@ -683,12 +682,41 @@ export const prerender = false;
         }
       }
 
-      // スコアが最も高い候補を選択
+      // スコアが最も高い候補を選択（レース名）
       let raceName = '';
+      let raceSubtitle = '';
+
       if (candidates.length > 0) {
         candidates.sort((a, b) => b.score - a.score);
         raceName = candidates[0].line;
         console.log(`[extractRaceInfo] レース名決定: "${raceName}" (スコア: ${candidates[0].score})`);
+
+        // 条件（サブタイトル）を取得: 2番目に高いスコアの候補を確認
+        // または「3歳」「4歳以上」「未勝利」「1勝クラス」などを含む行
+        for (let i = 1; i < candidates.length; i++) {
+          const candidate = candidates[i];
+          // レース名と同じ行はスキップ
+          if (candidate.line === raceName) continue;
+
+          // 条件として適切なパターンをチェック
+          if (
+            candidate.line.match(/^[234]歳/) ||
+            candidate.line.match(/歳以上/) ||
+            candidate.line.match(/未勝利/) ||
+            candidate.line.match(/\d+勝クラス/) ||
+            candidate.line.match(/新馬/) ||
+            candidate.line.match(/オープン/) ||
+            candidate.line.match(/[指定]/) ||
+            candidate.line.match(/定量/) ||
+            candidate.line.match(/ハンデ/) ||
+            candidate.line.match(/牝/) ||
+            candidate.line.match(/牡/)
+          ) {
+            raceSubtitle = candidate.line;
+            console.log(`[extractRaceInfo] 条件（サブタイトル）決定: "${raceSubtitle}" (スコア: ${candidate.score})`);
+            break;
+          }
+        }
       } else {
         console.log('[extractRaceInfo] レース名が見つかりません');
         console.log('[extractRaceInfo] 最初の10行:', lines.slice(0, 10));
@@ -717,19 +745,19 @@ export const prerender = false;
                             text.match(/(\d{1,2})[:：](\d{2})\s*発走/);
       const startTime = startTimeMatch ? `${startTimeMatch[1]}:${startTimeMatch[2]}` : null;
 
-      // 天候抽出（中央競馬: 「* 天候晴」のような形式）
-      const weatherMatch = text.match(/天候\s*([^\s　\n*]+)/) || text.match(/天候:\s*([^\s　]+)/);
+      // 天候抽出（改善版: 「天候晴ダート良」→「晴」のみ取得）
+      const weatherMatch = text.match(/天候\s*([^\s　\nダ芝・]+)/);
       const weather = weatherMatch ? weatherMatch[1] : null;
 
-      // 馬場状態抽出（中央競馬: 「* ダート良」のような形式）
-      const trackConditionMatch = text.match(/(?:ダート|芝)\s*([^\s　\n*]+)/) ||
-                                 text.match(/馬場:\s*(?:ダート|芝)\s+([^\s　]+)/);
+      // 馬場状態抽出（改善版: 「ダート良」→「良」のみ取得）
+      const trackConditionMatch = text.match(/(?:ダート|芝)\s*(良|稍重|重|不良)/);
       const trackCondition = trackConditionMatch ? trackConditionMatch[1] : null;
 
       console.log('[extractRaceInfo] 天候:', weather);
       console.log('[extractRaceInfo] 馬場状態:', trackCondition);
+      console.log('[extractRaceInfo] 条件（サブタイトル）:', raceSubtitle);
 
-      return { raceNumber, raceName, distance, surface, track, horses, startTime, weather, trackCondition };
+      return { raceNumber, raceName, raceSubtitle, distance, surface, track, horses, startTime, weather, trackCondition };
     }
 
     function extractResults(text) {
@@ -1615,15 +1643,29 @@ export const prerender = false;
     function generateRacePreviewHTML(result) {
       const { data } = result;
 
+      // コース情報を組み立て（距離・surface・track）
+      let courseInfo = '';
+      if (data.distance) {
+        const distanceStr = data.distance.toString().replace(/(\d)(\d{3})$/, '$1,$2'); // カンマ区切り
+        courseInfo = `${distanceStr}メートル（${data.surface}`;
+        if (data.track) {
+          courseInfo += `・${data.track}`;
+        }
+        courseInfo += '）';
+      } else {
+        courseInfo = '-';
+      }
+
       let html = `
         <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
           <h4 style="margin-bottom: 0.5rem;">📋 レース情報</h4>
-          <p><strong>発走:</strong> ${data.startTime || '-'}</p>
           <p><strong>レース名:</strong> ${data.raceName || '-'}</p>
-          <p><strong>距離:</strong> ${data.surface}${data.distance}m</p>
+          ${data.raceSubtitle ? `<p><strong>条件:</strong> ${data.raceSubtitle}</p>` : ''}
+          <p><strong>コース:</strong> ${courseInfo}</p>
           <p><strong>出走頭数:</strong> ${data.results?.length || 0}頭</p>
+          <p><strong>発走時刻:</strong> ${data.startTime || '-'}</p>
           ${data.weather ? `<p><strong>天候:</strong> ${data.weather}</p>` : ''}
-          ${data.trackCondition ? `<p><strong>馬場:</strong> ${data.trackCondition}</p>` : ''}
+          ${data.trackCondition ? `<p><strong>${data.surface}:</strong> ${data.trackCondition}</p>` : ''}
         </div>
       `;
 

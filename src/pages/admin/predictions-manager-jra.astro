@@ -976,6 +976,14 @@ export const prerender = false;
           }
         });
 
+        // デバッグ: 1番馬のthを全て表示
+        if (number === 1) {
+          console.log('[DEBUG] 1番馬のヘッダー行:');
+          ths.forEach((th, idx) => {
+            console.log(`  th[${idx}]: "${th.textContent?.trim()}"`);
+          });
+        }
+
         // 性齢・騎手・斤量・厩舎もth位置から特定
         const fieldMap = {
           '性齢': 'seirei',
@@ -992,6 +1000,10 @@ export const prerender = false;
             if (text.includes(keyword)) {
               if (idx < tds.length) {
                 const td = tds[idx];
+
+                if (number === 1) {
+                  console.log(`[DEBUG] マッチ: th="${text}" → fieldName="${fieldName}", td="${td.textContent?.trim().substring(0, 30)}"`);
+                }
 
                 if (fieldName === 'kyusya') {
                   // 厩舎の場合、<span class="syozoku">を括弧で囲む

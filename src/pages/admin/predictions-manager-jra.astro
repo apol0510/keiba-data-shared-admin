@@ -72,16 +72,25 @@ export const prerender = false;
                   rows="15"
                   placeholder={`第${raceNum}Rの予想HTMLを貼り付けてください
 
+【重要】以下の範囲を全てコピーしてください：
+1. <div class="racename"> から始まる部分（レース名、距離、馬場情報）
+2. <table class="default syutuba"> のテーブル全体
+
 例:
 <div class="racename">
-  2026年2月8日 1回小倉6日目 第${raceNum}R
-  小倉日経賞
-  ...
+  <div class="racenameleft">
+    <p>2026年2月8日</p>
+    <h2>1回小倉6日目</h2>
+    <h1>小倉日経賞</h1>
+  </div>
+  <div class="racenameright">
+    <p class="racekyori"><button>2000m</button></p>
+    <p class="raceshibada">(芝Ａ・右)</p>
+  </div>
 </div>
-<table class="default syutuba">
-  <thead>...</thead>
-  <tbody>...</tbody>
-</table>`}
+<table class="default syutuba">...</table>
+
+※ div.racenameがないとレース情報が抽出できません`}
                 ></textarea>
                 <button
                   type="button"
@@ -146,7 +155,13 @@ export const prerender = false;
         <ol>
           <li><strong>開催日・競馬場</strong>を上部で選択</li>
           <li>各レースのセクション（第1R〜第12R）を展開</li>
-          <li>予想サイトから<strong>該当レースのみコピー</strong></li>
+          <li>予想サイトから<strong>以下の範囲を全てコピー</strong>
+            <ul style="margin-top: 0.5rem;">
+              <li>✅ <code>&lt;div class="racename"&gt;</code> から始まるレース情報部分</li>
+              <li>✅ <code>&lt;table class="default syutuba"&gt;</code> のテーブル全体</li>
+              <li>❌ テーブルだけコピーすると、レース名・距離・馬場が抽出できません</li>
+            </ul>
+          </li>
           <li>「解析」ボタンでプレビュー確認</li>
           <li>「保存してGit Push」で keiba-data-shared に保存</li>
           <li>全レース保存後、自動的に各予想サイトに反映されます 🎉</li>
@@ -157,6 +172,7 @@ export const prerender = false;
           <li>レースごとに個別に貼り付け・保存できます</li>
           <li>既存レースは自動的にマージされます（上書きされません）</li>
           <li>完全上書き保存を使うと、その日のデータを全て削除して新規保存します</li>
+          <li><strong>⚠️ 必ず<code>&lt;div class="racename"&gt;</code>を含めてコピーしてください</strong></li>
         </ul>
       </div>
     </div>
@@ -388,6 +404,15 @@ export const prerender = false;
 
     .info-card li {
       margin-bottom: var(--spacing-sm);
+    }
+
+    .info-card code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.875rem;
+      color: var(--primary-end);
     }
 
     .w-full {
@@ -1032,7 +1057,12 @@ export const prerender = false;
 
         console.log('[extractRaceInfo] 抽出結果:', { date, raceName, raceType, distance, surface });
       } else {
-        console.error('[extractRaceInfo] div.racename が見つかりません');
+        console.error('[extractRaceInfo] ❌ div.racename が見つかりません');
+        console.error('[extractRaceInfo] 📋 貼り付けたHTMLに <div class="racename"> が含まれているか確認してください');
+        console.error('[extractRaceInfo] 💡 ヒント: レース名の部分から <table class="default syutuba"> まで全てコピーしてください');
+
+        // ユーザーに警告を表示
+        alert('⚠️ レース情報が見つかりません\n\n<div class="racename">から始まる部分を含めて、HTMLをコピーしてください。\n\nテーブル部分だけでは、レース名・距離・馬場情報が抽出できません。');
       }
 
       return { date, raceName, raceType, distance, surface };

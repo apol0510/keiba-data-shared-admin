@@ -58,6 +58,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div class="card-icon">🎯</div>
           <h2>JRA 予想管理（個別）</h2>
           <p>中央競馬（JRA）の予想を個別入力</p>
+          <span class="badge badge-jra">JRA</span>
+        </a>
+
+        <a href="/admin/predictions-manager-jra-batch" class="feature-card">
+          <div class="card-icon">⚡</div>
+          <h2>JRA 予想管理（一括）</h2>
+          <p>中央競馬（JRA）12レース分を一括入力</p>
           <div class="badge-group">
             <span class="badge badge-jra">JRA</span>
             <span class="badge new-badge">NEW</span>
@@ -98,7 +105,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <li>南関競馬: 結果入力（個別/一括）</li>
               <li>南関競馬: 予想変換（個別/一括）</li>
               <li>中央競馬（JRA）: 結果入力（個別/一括）</li>
-              <li>中央競馬（JRA）: 予想変換（個別）NEW</li>
+              <li>中央競馬（JRA）: 予想変換（個別/一括）NEW</li>
               <li>GitHub API - データ保存</li>
               <li>Netlify Functions - バックエンド</li>
             </ul>

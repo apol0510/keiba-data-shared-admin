@@ -825,7 +825,7 @@ export const prerender = false;
         const horses = [];
 
         rows.forEach(row => {
-          const horse = extractHorseFromRow(row, predictors);
+          const horse = extractHorseFromRow(row, detectedPredictors, predictors);
           if (horse) {
             horses.push(horse);
           }
@@ -905,7 +905,7 @@ export const prerender = false;
       return markMap[text] || text;
     }
 
-    function extractHorseFromRow(row, predictors) {
+    function extractHorseFromRow(row, detectedPredictors, anonymizedPredictors) {
       const tds = Array.from(row.querySelectorAll('td'));
 
       let number = 0;
@@ -950,22 +950,22 @@ export const prerender = false;
         const ths = Array.from(headerRow.querySelectorAll('th'));
         const markIndices = [];
 
-        // 予想者名に該当するthのインデックスを記録
+        // 実際の予想者名（detectedPredictors）でHTML検索
         ths.forEach((th, idx) => {
           const text = th.textContent?.trim() || '';
-          predictors.forEach(predictor => {
+          detectedPredictors.forEach(predictor => {
             if (text === predictor || text.includes(predictor)) {
               markIndices.push(idx);
             }
           });
         });
 
-        // そのインデックスに対応するtdから印を抽出
+        // 印番号化した名前（anonymizedPredictors）でmarks出力
         markIndices.forEach((thIdx, predictorIdx) => {
-          if (thIdx < tds.length && predictorIdx < predictors.length) {
+          if (thIdx < tds.length && predictorIdx < anonymizedPredictors.length) {
             const td = tds[thIdx];
             const mark = extractMarkFromElement(td);
-            marks[predictors[predictorIdx]] = mark;
+            marks[anonymizedPredictors[predictorIdx]] = mark;
           }
         });
 

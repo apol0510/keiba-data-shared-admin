@@ -470,9 +470,20 @@ export const prerender = false;
       }
 
       try {
+        // レース情報を先に抽出（競馬場自動抽出のため）
+        const raceInfo = extractRaceInfo(html);
+
+        // 競馬場：自動抽出を優先、なければ手動選択を使用
+        let venue = raceInfo.venue || document.getElementById('commonVenue').value;
+
+        // 自動抽出した競馬場をselect要素に反映（ユーザー確認用）
+        if (raceInfo.venue) {
+          document.getElementById('commonVenue').value = raceInfo.venue;
+          console.log(`[parseRace] 🎯 競馬場を自動抽出: ${raceInfo.venue}`);
+        }
+
         // 共通情報取得
         const date = document.getElementById('commonDate').value;
-        const venue = document.getElementById('commonVenue').value;
 
         // 予想データ抽出
         const extracted = extractPredictions(html);
@@ -481,7 +492,6 @@ export const prerender = false;
           return;
         }
 
-        const raceInfo = extractRaceInfo(html);
         const scored = scoreAndAssign(extracted);
 
         // データ構築
@@ -1159,8 +1169,19 @@ export const prerender = false;
           });
         }
 
+        // 競馬場自動抽出（kaisaiInfoから）
+        // 例: "1回小倉6日目" → "小倉"
+        const venueList = ['東京', '中山', '京都', '阪神', '中京', '新潟', '福島', '小倉', '札幌', '函館'];
+        let venue = '';
+        for (const v of venueList) {
+          if (kaisaiInfo.includes(v)) {
+            venue = v;
+            break;
+          }
+        }
+
         console.log('[extractRaceInfo] 抽出結果:', {
-          date, kaisaiInfo, raceNo, hassoTime, raceName, raceType,
+          date, kaisaiInfo, venue, raceNo, hassoTime, raceName, raceType,
           distance, surface, courseInfo, tenkiBaba, recordTime, estimatedTime, prizes
         });
       } else {
@@ -1173,7 +1194,7 @@ export const prerender = false;
       }
 
       return {
-        date, kaisaiInfo, raceNo, hassoTime, raceName, raceType,
+        date, kaisaiInfo, venue, raceNo, hassoTime, raceName, raceType,
         distance, surface, courseInfo, tenkiBaba, recordTime, estimatedTime, prizes
       };
     }

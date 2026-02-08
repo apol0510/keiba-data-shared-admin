@@ -420,7 +420,7 @@ export const prerender = false;
 
         // 共通情報取得
         const date = document.getElementById('commonDate').value;
-        const venue = document.getElementById('commonVenue').value;
+        let commonVenue = document.getElementById('commonVenue').value;
 
         // 各レースを解析
         batchResults = [];
@@ -443,6 +443,16 @@ export const prerender = false;
 
             const raceInfo = extractRaceInfo(raceHTML);
             const scored = scoreAndAssign(extracted);
+
+            // 競馬場：自動抽出を優先、なければ手動選択を使用
+            let venue = raceInfo.venue || commonVenue;
+
+            // 最初のレースで自動抽出した競馬場をselect要素に反映（ユーザー確認用）
+            if (raceNum === 1 && raceInfo.venue) {
+              document.getElementById('commonVenue').value = raceInfo.venue;
+              commonVenue = raceInfo.venue; // 以降のレースでも使用
+              console.log(`[parseBatchRaces] 🎯 競馬場を自動抽出: ${raceInfo.venue}`);
+            }
 
             const data = {
               version: "1.0.0",
@@ -1143,10 +1153,21 @@ export const prerender = false;
             }
           });
         }
+
+        // 競馬場自動抽出（kaisaiInfoから）
+        // 例: "1回小倉6日目" → "小倉"
+        const venueList = ['東京', '中山', '京都', '阪神', '中京', '新潟', '福島', '小倉', '札幌', '函館'];
+        let venue = '';
+        for (const v of venueList) {
+          if (kaisaiInfo.includes(v)) {
+            venue = v;
+            break;
+          }
+        }
       }
 
       return {
-        date, kaisaiInfo, raceNo, hassoTime, raceName, raceType,
+        date, kaisaiInfo, venue, raceNo, hassoTime, raceName, raceType,
         distance, surface, courseInfo, tenkiBaba, recordTime, estimatedTime, prizes
       };
     }

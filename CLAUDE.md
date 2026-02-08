@@ -447,7 +447,10 @@ src/
   - 南関版と統一
 
 #### **3. 保存**
-- ✅ **保存先**: `jra/predictions/YYYY/MM/YYYY-MM-DD.json`
+- ✅ **保存先**: `jra/predictions/YYYY/MM/YYYY-MM-DD-{競馬場名}.json`
+  - **命名規則（重要）**: 複数会場対応のため、ファイル名に競馬場名を含める
+  - **例**: `2026-02-08-小倉.json`, `2026-02-08-東京.json`, `2026-02-08-京都.json`
+  - ⚠️ **旧形式（非推奨）**: `YYYY-MM-DD.json`（競馬場名なし）は混乱の原因となるため使用禁止
 - ✅ **Netlify Function**: save-predictions-jra.mjs
 - ✅ **マージ機能**: 既存データとマージ可能
 
@@ -509,7 +512,10 @@ keiba-data-shared/
     └── predictions/
         └── YYYY/
             └── MM/
-                └── YYYY-MM-DD.json
+                ├── YYYY-MM-DD-{競馬場名}.json  ← 複数会場対応
+                ├── 2026-02-08-小倉.json
+                ├── 2026-02-08-東京.json
+                └── 2026-02-08-京都.json
 ```
 
 ---
@@ -714,7 +720,7 @@ GITHUB_REPO_OWNER=apol0510
       - レース境界自動検出（`<div class='racename'>`）
       - アコーディオン形式プレビュー
     - 騎手・厩舎情報抽出 ✅
-    - 保存先: `jra/predictions/YYYY/MM/YYYY-MM-DD.json` ✅
+    - 保存先: `jra/predictions/YYYY/MM/YYYY-MM-DD-{競馬場名}.json` ✅
   - **南関予想管理アップデート** ⚡
     - 連下を1~3頭に変更（JRAと統一）✅
   - **index.astro更新**

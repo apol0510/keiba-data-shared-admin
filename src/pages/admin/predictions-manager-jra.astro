@@ -492,11 +492,18 @@ export const prerender = false;
           raceInfo: {
             date: raceInfo.date,
             track: venue,
-            raceNumber: `${raceNum}R`,
+            raceNumber: raceInfo.raceNo || `${raceNum}R`,
             raceName: raceInfo.raceName,
             raceType: raceInfo.raceType,
             distance: raceInfo.distance,
             surface: raceInfo.surface,
+            kaisaiInfo: raceInfo.kaisaiInfo,
+            hassoTime: raceInfo.hassoTime,
+            courseInfo: raceInfo.courseInfo,
+            tenkiBaba: raceInfo.tenkiBaba,
+            recordTime: raceInfo.recordTime,
+            estimatedTime: raceInfo.estimatedTime,
+            prizes: raceInfo.prizes,
           },
           horses: scored.horses.map(h => ({
             number: h.number,
@@ -548,12 +555,32 @@ export const prerender = false;
       const jsonOutput = document.getElementById(`jsonOutput${raceNum}`);
 
       // レース情報HTML生成
+      const raceInfo = data.raceInfo;
       let html = `
         <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px;">
-          <h4 style="margin-bottom: 0.5rem;">📋 レース情報</h4>
-          <p><strong>日付:</strong> ${date} ${venue}競馬 第${raceNum}R</p>
-          <p><strong>レース名:</strong> ${data.raceInfo.raceName || '-'}</p>
-          <p><strong>距離:</strong> ${data.raceInfo.surface}${data.raceInfo.distance}m</p>
+          <h4 style="margin-bottom: 0.75rem;">📋 レース情報</h4>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; font-size: 0.875rem;">
+            <p><strong>日付:</strong> ${raceInfo.date || date}</p>
+            <p><strong>開催:</strong> ${raceInfo.kaisaiInfo || '-'}</p>
+            <p><strong>レース番号:</strong> ${raceInfo.raceNumber || `${raceNum}R`}</p>
+            <p><strong>発走時刻:</strong> ${raceInfo.hassoTime || '-'}</p>
+            <p><strong>レース名:</strong> ${raceInfo.raceName || '-'}</p>
+            <p><strong>競馬場:</strong> ${venue}</p>
+            <p><strong>距離:</strong> ${raceInfo.surface || '-'}${raceInfo.distance || '-'}m</p>
+            <p><strong>コース:</strong> ${raceInfo.courseInfo || '-'}</p>
+            <p><strong>天候・馬場:</strong> ${raceInfo.tenkiBaba || '-'}</p>
+            <p><strong>条件:</strong> ${raceInfo.raceType || '-'}</p>
+          </div>
+          ${raceInfo.recordTime ? `<p style="margin-top: 0.5rem; font-size: 0.875rem;"><strong>レコード:</strong> ${raceInfo.recordTime}</p>` : ''}
+          ${raceInfo.estimatedTime ? `<p style="font-size: 0.875rem;"><strong>推定タイム:</strong> ${raceInfo.estimatedTime}</p>` : ''}
+          ${raceInfo.prizes && raceInfo.prizes.length > 0 ? `
+            <div style="margin-top: 0.75rem;">
+              <strong>賞金:</strong>
+              <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.25rem; font-size: 0.875rem;">
+                ${raceInfo.prizes.map(p => `<span>${p}</span>`).join('')}
+              </div>
+            </div>
+          ` : ''}
         </div>
       `;
 
@@ -1004,6 +1031,14 @@ export const prerender = false;
       let raceType = '';
       let distance = '';
       let surface = '';
+      let raceNo = '';
+      let hassoTime = '';
+      let kaisaiInfo = '';
+      let tenkiBaba = '';
+      let recordTime = '';
+      let estimatedTime = '';
+      let prizes = [];
+      let courseInfo = '';
 
       if (racenameDiv) {
         const text = racenameDiv.textContent || '';
@@ -1015,20 +1050,38 @@ export const prerender = false;
           date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
         }
 
+        // 開催情報（<h2>から）
+        const h2 = racenameDiv.querySelector('h2');
+        if (h2) {
+          kaisaiInfo = h2.textContent?.trim() || '';
+        }
+
+        // レース番号（<p class="raceno">から）
+        const racenoP = racenameDiv.querySelector('p.raceno');
+        if (racenoP) {
+          raceNo = racenoP.textContent?.trim() || '';
+        }
+
+        // 発走時刻（<p class="hassotime">から）
+        const hassotimeP = racenameDiv.querySelector('p.hassotime');
+        if (hassotimeP) {
+          hassoTime = hassotimeP.textContent?.trim() || '';
+        }
+
         // レース名抽出（<h1>タグから）
         const h1 = racenameDiv.querySelector('h1');
         if (h1) {
           raceName = h1.textContent?.trim() || '';
         }
 
-        // レースタイプ抽出（<p>タグから）
-        const pTags = racenameDiv.querySelectorAll('p');
-        pTags.forEach(p => {
-          const pText = p.textContent?.trim() || '';
-          if (pText.match(/特指|国際|オープン|別定|定量|馬齢|歳以上/)) {
-            raceType = pText;
+        // レースタイプ抽出（<div class="h1block">内の<p>から）
+        const h1block = racenameDiv.querySelector('div.h1block');
+        if (h1block) {
+          const pTags = h1block.querySelectorAll('p');
+          if (pTags.length > 0) {
+            raceType = pTags[0].textContent?.trim() || '';
           }
-        });
+        }
 
         // 距離抽出（<p class="racekyori">内の<button>から）
         const racekyoriP = racenameDiv.querySelector('p.racekyori');
@@ -1048,6 +1101,7 @@ export const prerender = false;
         const raceshibadaP = racenameDiv.querySelector('p.raceshibada');
         if (raceshibadaP) {
           const shibadaText = raceshibadaP.textContent?.trim() || '';
+          courseInfo = shibadaText;
           if (shibadaText.includes('芝')) {
             surface = '芝';
           } else if (shibadaText.includes('ダート')) {
@@ -1055,7 +1109,42 @@ export const prerender = false;
           }
         }
 
-        console.log('[extractRaceInfo] 抽出結果:', { date, raceName, raceType, distance, surface });
+        // 天候・馬場（<p class="tenkibaba">から）
+        const tenkibabaP = racenameDiv.querySelector('p.tenkibaba');
+        if (tenkibabaP) {
+          tenkiBaba = tenkibabaP.textContent?.trim() || '';
+        }
+
+        // レコードタイム・推定タイム（<div class="racenametime">から）
+        const racenametimeDiv = racenameDiv.querySelector('div.racenametime');
+        if (racenametimeDiv) {
+          const pTags = racenametimeDiv.querySelectorAll('p');
+          pTags.forEach(p => {
+            const pText = p.textContent?.trim() || '';
+            if (pText.startsWith('レコード')) {
+              recordTime = pText;
+            } else if (pText.startsWith('良') || pText.startsWith('重') || pText.startsWith('稍') || pText.startsWith('不')) {
+              estimatedTime += (estimatedTime ? ' / ' : '') + pText;
+            }
+          });
+        }
+
+        // 賞金（<div class="racesyoukin">から）
+        const racesyoukinDiv = racenameDiv.querySelector('div.racesyoukin');
+        if (racesyoukinDiv) {
+          const liTags = racesyoukinDiv.querySelectorAll('li');
+          liTags.forEach((li, index) => {
+            const span = li.querySelector('span');
+            if (span) {
+              prizes.push(`${index + 1}着: ${span.textContent?.trim() || ''}`);
+            }
+          });
+        }
+
+        console.log('[extractRaceInfo] 抽出結果:', {
+          date, kaisaiInfo, raceNo, hassoTime, raceName, raceType,
+          distance, surface, courseInfo, tenkiBaba, recordTime, estimatedTime, prizes
+        });
       } else {
         console.error('[extractRaceInfo] ❌ div.racename が見つかりません');
         console.error('[extractRaceInfo] 📋 貼り付けたHTMLに <div class="racename"> が含まれているか確認してください');
@@ -1065,7 +1154,10 @@ export const prerender = false;
         alert('⚠️ レース情報が見つかりません\n\n<div class="racename">から始まる部分を含めて、HTMLをコピーしてください。\n\nテーブル部分だけでは、レース名・距離・馬場情報が抽出できません。');
       }
 
-      return { date, raceName, raceType, distance, surface };
+      return {
+        date, kaisaiInfo, raceNo, hassoTime, raceName, raceType,
+        distance, surface, courseInfo, tenkiBaba, recordTime, estimatedTime, prizes
+      };
     }
 
     function scoreAndAssign(result) {

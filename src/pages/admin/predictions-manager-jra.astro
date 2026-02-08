@@ -996,8 +996,10 @@ export const prerender = false;
 
         ths.forEach((th, idx) => {
           const text = th.textContent?.trim() || '';
+          // JRAのHTMLはスペース入り（例: "騎 手"）なので、スペースを削除して比較
+          const textNoSpace = text.replace(/\s+/g, '');
           Object.entries(fieldMap).forEach(([keyword, fieldName]) => {
-            if (text.includes(keyword)) {
+            if (textNoSpace.includes(keyword)) {
               if (idx < tds.length) {
                 const td = tds[idx];
 

@@ -1,9 +1,9 @@
 ---
 /**
- * 中央競馬予想データ管理画面（12レース対応版）
+ * JRA予想データ管理画面（12レース対応版）
  * results-managerと同じ構造で各レース個別入力
  *
- * 中央競馬（JRA）の予想HTML解析専用
+ * JRA（中央競馬）の予想HTML解析専用
  */
 import BaseLayout from "../../layouts/BaseLayout.astro";
 
@@ -11,12 +11,12 @@ export const prerender = false;
 ---
 
 <BaseLayout
-  title="中央競馬 予想管理画面"
-  description="中央競馬の予想HTMLを自動解析してデータ化します"
+  title="JRA 予想管理画面"
+  description="JRAの予想HTMLを自動解析してデータ化します"
 >
   <section class="admin-section">
     <div class="container">
-      <h1 class="page-title">🎯 中央競馬 予想管理</h1>
+      <h1 class="page-title">🎯 JRA 予想管理</h1>
       <p class="page-description">
         各レースごとに個別入力できます。<br>
         <strong>※ レースごとに貼り付けて解析・保存してください</strong>
@@ -693,7 +693,7 @@ export const prerender = false;
       try {
         const { data, date, venue } = raceResults[raceNum];
 
-        const response = await fetch('/.netlify/functions/save-predictions-central', {
+        const response = await fetch('/.netlify/functions/save-predictions-jra', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

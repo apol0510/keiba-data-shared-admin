@@ -1,8 +1,8 @@
 /**
- * Netlify Function: 中央競馬予想JSONをkeiba-data-sharedリポジトリに保存
+ * Netlify Function: JRA予想JSONをkeiba-data-sharedリポジトリに保存
  *
  * 機能:
- * - 予想JSONを keiba-data-shared/central/predictions/YYYY/MM/ に保存
+ * - 予想JSONを keiba-data-shared/jra/predictions/YYYY/MM/ に保存
  * - GitHub API を使ってコミット・プッシュ
  * - 複数サイトで予想データ共有
  *
@@ -38,7 +38,7 @@ export default async (req, context) => {
     const body = await req.json();
     const { raceDate, track, raceNumber, data, forceOverwrite } = body;
 
-    console.log('[save-predictions-central] リクエスト受信:', {
+    console.log('[save-predictions-jra] リクエスト受信:', {
       raceDate,
       track,
       raceNumber,
@@ -49,7 +49,7 @@ export default async (req, context) => {
 
     // バリデーション（raceNumberはオプショナル：一括入力対応）
     if (!raceDate || !track || !data) {
-      console.error('[save-predictions-central] 必須フィールド不足:', { raceDate, track, raceNumber, hasData: !!data });
+      console.error('[save-predictions-jra] 必須フィールド不足:', { raceDate, track, raceNumber, hasData: !!data });
       return new Response(
         JSON.stringify({
           error: 'Missing required fields: raceDate, track, data',
@@ -61,7 +61,7 @@ export default async (req, context) => {
 
     // 一括入力モードかどうかを判定
     const isBatchMode = !raceNumber;
-    console.log(`[save-predictions-central] モード: ${isBatchMode ? '一括入力' : '個別入力'}`);
+    console.log(`[save-predictions-jra] モード: ${isBatchMode ? '一括入力' : '個別入力'}`);
 
     // 環境変数チェック
     const GITHUB_TOKEN = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
@@ -69,7 +69,7 @@ export default async (req, context) => {
     const GITHUB_REPO_NAME = 'keiba-data-shared';
     const GITHUB_BRANCH = 'main';
 
-    console.log('[save-predictions-central] 環境変数チェック:', {
+    console.log('[save-predictions-jra] 環境変数チェック:', {
       hasToken: !!GITHUB_TOKEN,
       tokenLength: GITHUB_TOKEN ? GITHUB_TOKEN.length : 0,
       owner: GITHUB_REPO_OWNER,
@@ -77,7 +77,7 @@ export default async (req, context) => {
     });
 
     if (!GITHUB_TOKEN) {
-      console.error('[save-predictions-central] GitHubトークンが設定されていません');
+      console.error('[save-predictions-jra] GitHubトークンが設定されていません');
       return new Response(
         JSON.stringify({
           error: 'GITHUB_TOKEN_KEIBA_DATA_SHARED or GITHUB_TOKEN not configured',
@@ -88,11 +88,11 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: central/predictions/2026/02/2026-02-08.json）
+    // ファイルパス生成（例: jra/predictions/2026/02/2026-02-08.json）
     const year = raceDate.substring(0, 4);
     const month = raceDate.substring(5, 7);
     const fileName = `${raceDate}.json`;
-    const filePath = `central/predictions/${year}/${month}/${fileName}`;
+    const filePath = `jra/predictions/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ
     const getFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}?ref=${GITHUB_BRANCH}`;
@@ -115,9 +115,9 @@ export default async (req, context) => {
       const content = Buffer.from(fileData.content, 'base64').toString('utf-8');
       existingData = JSON.parse(content);
 
-      console.log('[save-predictions-central] 既存ファイルを検出:', filePath);
+      console.log('[save-predictions-jra] 既存ファイルを検出:', filePath);
     } else if (getFileResponse.status === 404) {
-      console.log('[save-predictions-central] 新規ファイルを作成:', filePath);
+      console.log('[save-predictions-jra] 新規ファイルを作成:', filePath);
     } else {
       const errorText = await getFileResponse.text();
       return new Response(
@@ -135,7 +135,7 @@ export default async (req, context) => {
     if (forceOverwrite || !existingData) {
       // 完全上書き
       mergedData = data;
-      console.log('[save-predictions-central] 完全上書きモード');
+      console.log('[save-predictions-jra] 完全上書きモード');
     } else if (isBatchMode) {
       // 一括入力モード：既存データに全レース分をマージ
       mergedData = { ...existingData };
@@ -174,7 +174,7 @@ export default async (req, context) => {
       mergedData.raceDate = data.raceDate;
       mergedData.track = data.track;
 
-      console.log(`[save-predictions-central] 一括マージ完了: ${mergedData.races.length}レース`);
+      console.log(`[save-predictions-jra] 一括マージ完了: ${mergedData.races.length}レース`);
     } else {
       // 個別入力モード（既存の動作）
       mergedData = { ...existingData };
@@ -207,19 +207,19 @@ export default async (req, context) => {
       mergedData.totalRaces = mergedData.races.length;
       mergedData.lastUpdated = new Date().toISOString();
 
-      console.log(`[save-predictions-central] 個別マージ完了: ${mergedData.races.length}レース`);
+      console.log(`[save-predictions-jra] 個別マージ完了: ${mergedData.races.length}レース`);
     }
 
     // GitHub API: ファイルを作成/更新
     const putFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}`;
 
     const commitMessage = isBatchMode
-      ? `✨ 中央競馬予想データ一括追加: ${track} ${mergedData.totalRaces}レース ${raceDate}
+      ? `✨ JRA予想データ一括追加: ${track} ${mergedData.totalRaces}レース ${raceDate}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude <noreply@anthropic.com>`
-      : `✨ 中央競馬予想データ追加: ${track} ${raceNumber} ${raceDate}
+      : `✨ JRA予想データ追加: ${track} ${raceNumber} ${raceDate}
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -243,7 +243,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
     if (!putFileResponse.ok) {
       const errorText = await putFileResponse.text();
-      console.error('[save-predictions-central] GitHub API エラー (put file):', {
+      console.error('[save-predictions-jra] GitHub API エラー (put file):', {
         status: putFileResponse.status,
         statusText: putFileResponse.statusText,
         body: errorText
@@ -262,7 +262,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
 
     const result = await putFileResponse.json();
 
-    console.log('[save-predictions-central] 保存成功:', result.content.sha);
+    console.log('[save-predictions-jra] 保存成功:', result.content.sha);
 
     return new Response(
       JSON.stringify({
@@ -276,8 +276,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     );
 
   } catch (error) {
-    console.error('[save-predictions-central] エラー:', error);
-    console.error('[save-predictions-central] スタック:', error.stack);
+    console.error('[save-predictions-jra] エラー:', error);
+    console.error('[save-predictions-jra] スタック:', error.stack);
 
     return new Response(
       JSON.stringify({

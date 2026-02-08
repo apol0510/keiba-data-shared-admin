@@ -72,7 +72,7 @@ cd /Users/apolon/Projects/keiba-data-shared-admin
 |---------|------|------|
 | フロントエンド | Astro 5.16+ + Sass | SSR mode（server） |
 | ホスティング | Netlify | Functions含む |
-| バックエンド | Netlify Functions (Node.js 20) | 2個実装（save-results.mjs, save-predictions.mjs） |
+| バックエンド | Netlify Functions (Node.js 20) | 4個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs, save-predictions-jra.mjs） |
 | 外部API | GitHub Contents API | keiba-data-sharedへの保存 |
 
 ### **役割分担**
@@ -420,6 +420,98 @@ src/
         └── predictions.ts             // 型定義
 ```
 
+### **JRA予想管理画面（個別入力）（/admin/predictions-manager-jra）✅ 完成 NEW**
+
+**URL:** https://keiba-data-shared-admin.netlify.app/admin/predictions-manager-jra
+
+**コンセプト:** **南関版と同じ完成系（Core）を提供、JRA特有のHTML形式に対応**
+
+**実装済み機能:**
+
+#### **1. JRA特有のHTML対応**
+- ✅ **スペース入りヘッダー対応**
+  - 「騎 手」「厩 舎」などスペース入りthを正規表現で処理
+  - `text.replace(/\s+/g, '')` でスペース削除して比較
+- ✅ **予想者検出**
+  - CPU、青木行、信根隆、橋本篤、本紙など
+  - 著作権対応: 印5/印4/印3/印2/印1 に匿名化
+- ✅ **騎手・厩舎情報抽出**
+  - th位置から自動検出
+  - テーブル・カードに表示
+
+#### **2. スコアリング＆振り分け**
+- ✅ **スコア定義**
+  - ◎5点/○4点/▲3点/svg2点/穴2点/△1点
+- ✅ **振り分けロジック**
+  - 本命/対抗/単穴/連下最上位/連下(1~3頭)/補欠/無
+  - 南関版と統一
+
+#### **3. 保存**
+- ✅ **保存先**: `jra/predictions/YYYY/MM/YYYY-MM-DD.json`
+- ✅ **Netlify Function**: save-predictions-jra.mjs
+- ✅ **マージ機能**: 既存データとマージ可能
+
+**フロー:**
+```
+ユーザー → predictions-manager-jra
+  → [1] JRA予想HTML貼り付け
+  → [2] 🔍 自動抽出実行
+  → 抽出結果テーブル表示（印5/印4/印3/印2/印1・騎手・厩舎）
+  → [3] 出力プレビュー（完成系JSONを確認）
+  → [4] 🚀 保存してGit Push
+  → save-predictions-jra.mjs（Netlify Function）
+  → GitHub Contents API
+  → keiba-data-shared に自動コミット・プッシュ完了 ✅
+```
+
+### **JRA予想管理画面（一括入力）（/admin/predictions-manager-jra-batch）✅ 完成 NEW**
+
+**URL:** https://keiba-data-shared-admin.netlify.app/admin/predictions-manager-jra-batch
+
+**コンセプト:** **12レース分のHTMLを一度に処理して効率化（南関版と同じパターン）**
+
+**実装済み機能:**
+
+#### **1. 一括入力**
+- ✅ **12レース分のHTMLを一度に貼り付け**
+  - レース境界を自動検出（`<div class='racename'>`で分割）
+  - 各レースを個別に抽出・バリデーション
+
+#### **2. アコーディオン形式プレビュー**
+- ✅ **成功/失敗を明確に表示**
+  - 成功したレース: 緑色表示
+  - エラーが出たレース: 赤色表示
+  - サマリー表示（成功数/エラー数/合計）
+
+#### **3. 一括保存**
+- ✅ **12レース分を1つのJSONファイルに保存**
+  - save-predictions-jra.mjs を使用
+  - keiba-data-sharedに自動コミット・プッシュ
+  - 既存データとマージ可能
+
+**フロー:**
+```
+ユーザー → predictions-manager-jra-batch
+  → [1] 12レース分のHTML一括貼り付け
+  → [2] 🔍 12レース一括解析
+  → レース境界自動検出 → 各レース個別抽出
+  → [3] プレビュー確認（成功/失敗を明確表示）
+  → [4] 🚀 12レース一括保存してGit Push
+  → save-predictions-jra.mjs（Netlify Function）
+  → GitHub Contents API
+  → keiba-data-shared に自動コミット・プッシュ完了 ✅
+```
+
+**保存先:**
+```
+keiba-data-shared/
+└── jra/
+    └── predictions/
+        └── YYYY/
+            └── MM/
+                └── YYYY-MM-DD.json
+```
+
 ---
 
 ## 🔧 **開発コマンド** 🔧
@@ -598,13 +690,39 @@ GITHUB_REPO_OWNER=apol0510
 
 ---
 
-**📅 最終更新日**: 2026-02-06
-**🏁 Project Phase**: Phase 1-5 完了 ✅（南関＋中央競馬 完全対応）
-**🎯 Next Priority**: 運用開始 → 中央競馬データ実運用 → 各予想サイトでデータ読み込み
-**📊 進捗率**: 100%完了（Phase 1-5: 南関＋中央競馬完全実装、運用準備完了）
+**📅 最終更新日**: 2026-02-08
+**🏁 Project Phase**: Phase 1-6 完了 ✅（南関＋中央競馬 完全対応・予想管理完成）
+**🎯 Next Priority**: 運用開始 → JRA予想データ実運用 → 各予想サイトでデータ読み込み
+**📊 進捗率**: 100%完了（Phase 1-6: 南関＋JRA 結果・予想 完全実装、運用準備完了）
 
-**✨ 最新の成果（2026-02-06）**:
-  - **中央競馬対応完了** 🎌 NEW
+**✨ 最新の成果（2026-02-08）**:
+  - **JRA予想管理完全実装** 🎌 NEW
+    - predictions-manager-jra.astro 実装 ✅（個別入力）
+    - predictions-manager-jra-batch.astro 実装 ✅（一括入力）
+    - save-predictions-jra.mjs（Netlify Function）実装 ✅
+    - JRA特有のHTML対応 ✅
+      - スペース入りヘッダー対応（「騎 手」「厩 舎」）
+      - 予想者検出（CPU、青木行、信根隆、橋本篤、本紙）
+      - 予想者名の印番号化（印5/印4/印3/印2/印1）著作権対応
+    - スコアリング定義 ✅
+      - ◎5点/○4点/▲3点/svg2点/穴2点/△1点
+    - 振り分けロジック ✅
+      - 連下: 1~3頭（南関と統一）
+      - 本命/対抗/単穴/連下最上位/連下/補欠/無
+    - 一括入力機能 ✅
+      - 12レース分を一度に処理
+      - レース境界自動検出（`<div class='racename'>`）
+      - アコーディオン形式プレビュー
+    - 騎手・厩舎情報抽出 ✅
+    - 保存先: `jra/predictions/YYYY/MM/YYYY-MM-DD.json` ✅
+  - **南関予想管理アップデート** ⚡
+    - 連下を1~3頭に変更（JRAと統一）✅
+  - **index.astro更新**
+    - JRA予想管理（個別/一括）カードを追加 ✅
+    - NEWバッジ配置 ✅
+
+**✨ 過去の成果（2026-02-06）**:
+  - **中央競馬結果管理対応完了** 🎌
     - results-manager-central.astro 実装 ✅
     - save-results-central.mjs（Netlify Function）実装 ✅
     - 中央競馬データフォーマット対応 ✅
@@ -684,15 +802,31 @@ GITHUB_REPO_OWNER=apol0510
   - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - **Netlify Functions**: 3個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs）
-  - **ページ**: 5個実装（index.astro, results-manager.astro, results-manager-central.astro, predictions-manager.astro, predictions-batch.astro）
+  - **Netlify Functions**: 4個実装
+    - save-results.mjs（南関結果）
+    - save-results-central.mjs（JRA結果）
+    - save-predictions.mjs（南関予想）
+    - save-predictions-jra.mjs（JRA予想）✨NEW
+  - **ページ**: 7個実装
+    - index.astro（トップページ）
+    - results-manager.astro（南関結果・個別）
+    - results-manager-central.astro（JRA結果・個別）
+    - predictions-manager.astro（南関予想・個別）
+    - predictions-batch.astro（南関予想・一括）
+    - predictions-manager-jra.astro（JRA予想・個別）✨NEW
+    - predictions-manager-jra-batch.astro（JRA予想・一括）✨NEW
   - **参考ライブラリ**: 6個実装（extractor/normalizer/validator/exporter/site-profiles/types）
   - **結果管理**: 6種類抽出機能（レース情報/着順/払戻金/タイム/コーナー/レースコメント）
-  - **予想管理**: 完全自動化実装（個別入力＋一括入力）
-    - HTML自動抽出（印3/印2/印1/印0・著作権対応）
+  - **予想管理**: 完全自動化実装（南関＋JRA、個別入力＋一括入力）
+    - HTML自動抽出（著作権対応）
+      - 南関: 印4/印3/印2/印1
+      - JRA: 印5/印4/印3/印2/印1 ✨NEW
     - スコアリング＆自動振り分け（7分類）
+      - ◎5点/○4点/▲3点/svg2点/穴2点/△1点
+      - 連下: 1~3頭（南関・JRA統一）
     - 点数順・馬番順切り替え
     - カード形式表示
+    - 騎手・厩舎情報抽出 ✨NEW
     - GitHub自動保存（keiba-data-shared Private）
     - **一括入力対応**（12レース分×36万文字、レース境界自動検出）
   - **対応レース**: 南関競馬4競馬場（大井/船橋/川崎/浦和）+ 中央競馬10競馬場（東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館）

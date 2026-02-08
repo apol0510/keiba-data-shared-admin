@@ -813,9 +813,13 @@ export const prerender = false;
         const detectedPredictors = detectPredictors(headerRow);
         console.log('[extractPredictions] 検出した予想者:', detectedPredictors);
 
-        // 予想者名をそのまま使用（中央競馬はCPU、青木行、信根隆、橋本篤、本紙など）
-        const predictors = detectedPredictors;
-        console.log('[extractPredictions] 予想者リスト:', predictors);
+        // 著作権対応: 予想者名を印番号化（印5/印4/印3/印2/印1）
+        // 例: CPU, 青木行, 信根隆, 橋本篤, 本紙 → 印5, 印4, 印3, 印2, 印1
+        const predictors = detectedPredictors.map((_, index) =>
+          `印${detectedPredictors.length - index}`
+        );
+        console.log('[extractPredictions] 検出した予想者:', detectedPredictors);
+        console.log('[extractPredictions] 予想者リスト（印番号化）:', predictors);
 
         const rows = table.querySelectorAll('tbody tr');
         const horses = [];

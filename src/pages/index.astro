@@ -13,49 +13,55 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div class="card-icon">🏇</div>
           <h2>南関競馬 結果管理（個別）</h2>
           <p>南関競馬の結果を個別入力</p>
-          <span class="badge">南関</span>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
         <a href="/admin/results-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>南関競馬 結果管理（一括）</h2>
           <p>南関競馬の結果を一括入力</p>
-          <span class="badge">南関</span>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
         <a href="/admin/results-manager-jra" class="feature-card">
           <div class="card-icon">🎌</div>
           <h2>JRA 結果管理（個別）</h2>
           <p>中央競馬（JRA）の結果を個別入力</p>
-          <span class="badge">JRA</span>
+          <span class="badge badge-jra">JRA</span>
         </a>
 
         <a href="/admin/results-manager-jra-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>JRA 結果管理（一括）</h2>
           <p>中央競馬（JRA）12レース分を一括入力</p>
-          <span class="badge new-badge">NEW</span>
+          <div class="badge-group">
+            <span class="badge badge-jra">JRA</span>
+            <span class="badge new-badge">NEW</span>
+          </div>
         </a>
 
         <a href="/admin/predictions-manager" class="feature-card">
           <div class="card-icon">🎯</div>
           <h2>南関競馬 予想管理（個別）</h2>
           <p>レースごとに個別入力・慎重確認</p>
-          <span class="badge">南関</span>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
         <a href="/admin/predictions-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>南関競馬 予想管理（一括）</h2>
           <p>12レース分を一度に処理・効率化</p>
-          <span class="badge">南関</span>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
         <a href="/admin/predictions-manager-jra" class="feature-card">
           <div class="card-icon">🎯</div>
           <h2>JRA 予想管理（個別）</h2>
           <p>中央競馬（JRA）の予想を個別入力</p>
-          <span class="badge new-badge">NEW</span>
+          <div class="badge-group">
+            <span class="badge badge-jra">JRA</span>
+            <span class="badge new-badge">NEW</span>
+          </div>
         </a>
 
         <a href="https://github.com/apol0510/keiba-data-shared" target="_blank" class="feature-card">
@@ -168,9 +174,23 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       margin-top: var(--spacing-sm);
     }
 
+    .badge-nankan {
+      background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    }
+
+    .badge-jra {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
     .new-badge {
       background: linear-gradient(135deg, #f59e0b, #ef4444);
       animation: pulse 2s ease-in-out infinite;
+    }
+
+    .badge-group {
+      display: flex;
+      gap: var(--spacing-xs);
+      margin-top: var(--spacing-sm);
     }
 
     @keyframes pulse {

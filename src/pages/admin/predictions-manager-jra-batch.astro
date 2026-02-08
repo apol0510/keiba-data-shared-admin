@@ -1066,6 +1066,7 @@ export const prerender = false;
       let estimatedTime = '';
       let prizes = [];
       let courseInfo = '';
+      let venue = '';
 
       if (racenameDiv) {
         const text = racenameDiv.textContent || '';
@@ -1158,7 +1159,6 @@ export const prerender = false;
         // 競馬場自動抽出（kaisaiInfoから）
         // 例: "1回小倉6日目" → "小倉"
         const venueList = ['東京', '中山', '京都', '阪神', '中京', '新潟', '福島', '小倉', '札幌', '函館'];
-        let venue = '';
         for (const v of venueList) {
           if (kaisaiInfo.includes(v)) {
             venue = v;

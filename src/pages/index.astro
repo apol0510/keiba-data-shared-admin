@@ -8,14 +8,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <h1>📊 KEIBA Data Shared Admin</h1>
       <p class="lead">競馬データ共有管理画面</p>
 
+      <!-- よく使う機能（一括入力） -->
+      <h2 style="margin-top: 2rem; margin-bottom: 1rem; text-align: center;">⚡ 一括入力（推奨）</h2>
       <div class="card-grid">
-        <a href="/admin/results-manager" class="feature-card">
-          <div class="card-icon">🏇</div>
-          <h2>南関競馬 結果管理（個別）</h2>
-          <p>南関競馬の結果を個別入力</p>
-          <span class="badge badge-nankan">南関</span>
-        </a>
-
         <a href="/admin/results-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>南関競馬 結果管理（一括）</h2>
@@ -23,11 +18,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <span class="badge badge-nankan">南関</span>
         </a>
 
-        <a href="/admin/results-manager-jra" class="feature-card">
-          <div class="card-icon">🎌</div>
-          <h2>JRA 結果管理（個別）</h2>
-          <p>中央競馬（JRA）の結果を個別入力</p>
-          <span class="badge badge-jra">JRA</span>
+        <a href="/admin/predictions-batch" class="feature-card">
+          <div class="card-icon">⚡</div>
+          <h2>南関競馬 予想管理（一括）</h2>
+          <p>12レース分を一度に処理・効率化</p>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
         <a href="/admin/results-manager-jra-batch" class="feature-card">
@@ -40,27 +35,6 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           </div>
         </a>
 
-        <a href="/admin/predictions-manager" class="feature-card">
-          <div class="card-icon">🎯</div>
-          <h2>南関競馬 予想管理（個別）</h2>
-          <p>レースごとに個別入力・慎重確認</p>
-          <span class="badge badge-nankan">南関</span>
-        </a>
-
-        <a href="/admin/predictions-batch" class="feature-card">
-          <div class="card-icon">⚡</div>
-          <h2>南関競馬 予想管理（一括）</h2>
-          <p>12レース分を一度に処理・効率化</p>
-          <span class="badge badge-nankan">南関</span>
-        </a>
-
-        <a href="/admin/predictions-manager-jra" class="feature-card">
-          <div class="card-icon">🎯</div>
-          <h2>JRA 予想管理（個別）</h2>
-          <p>中央競馬（JRA）の予想を個別入力</p>
-          <span class="badge badge-jra">JRA</span>
-        </a>
-
         <a href="/admin/predictions-manager-jra-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>JRA 予想管理（一括）</h2>
@@ -70,17 +44,47 @@ import BaseLayout from '../layouts/BaseLayout.astro';
             <span class="badge new-badge">NEW</span>
           </div>
         </a>
+      </div>
 
-        <a href="https://github.com/apol0510/keiba-data-shared" target="_blank" class="feature-card">
-          <div class="card-icon">📂</div>
-          <h2>Data Repository</h2>
-          <p>データリポジトリを確認</p>
+      <!-- 個別入力（コンパクト表示） -->
+      <h2 style="margin-top: 3rem; margin-bottom: 1rem; text-align: center; font-size: 1.25rem; color: var(--text-secondary);">🎯 個別入力（必要時のみ）</h2>
+      <div class="card-grid-compact">
+        <a href="/admin/results-manager" class="feature-card-compact">
+          <div class="card-icon-compact">🏇</div>
+          <h3>南関 結果（個別）</h3>
+          <span class="badge badge-nankan">南関</span>
         </a>
 
-        <a href="https://github.com/apol0510/keiba-data-shared-admin" target="_blank" class="feature-card">
-          <div class="card-icon">⚙️</div>
-          <h2>Admin Repository</h2>
-          <p>管理画面リポジトリを確認</p>
+        <a href="/admin/predictions-manager" class="feature-card-compact">
+          <div class="card-icon-compact">🎯</div>
+          <h3>南関 予想（個別）</h3>
+          <span class="badge badge-nankan">南関</span>
+        </a>
+
+        <a href="/admin/results-manager-jra" class="feature-card-compact">
+          <div class="card-icon-compact">🎌</div>
+          <h3>JRA 結果（個別）</h3>
+          <span class="badge badge-jra">JRA</span>
+        </a>
+
+        <a href="/admin/predictions-manager-jra" class="feature-card-compact">
+          <div class="card-icon-compact">🎯</div>
+          <h3>JRA 予想（個別）</h3>
+          <span class="badge badge-jra">JRA</span>
+        </a>
+      </div>
+
+      <!-- その他リンク -->
+      <h2 style="margin-top: 3rem; margin-bottom: 1rem; text-align: center; font-size: 1.25rem; color: var(--text-secondary);">📂 リポジトリ</h2>
+      <div class="card-grid-compact">
+        <a href="https://github.com/apol0510/keiba-data-shared" target="_blank" class="feature-card-compact">
+          <div class="card-icon-compact">📂</div>
+          <h3>Data Repository</h3>
+        </a>
+
+        <a href="https://github.com/apol0510/keiba-data-shared-admin" target="_blank" class="feature-card-compact">
+          <div class="card-icon-compact">⚙️</div>
+          <h3>Admin Repository</h3>
         </a>
       </div>
 
@@ -207,6 +211,46 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       50% {
         opacity: 0.8;
       }
+    }
+
+    /* コンパクトカードグリッド */
+    .card-grid-compact {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--spacing-md);
+      margin-top: var(--spacing-xl);
+      margin-bottom: var(--spacing-2xl);
+    }
+
+    .feature-card-compact {
+      padding: var(--spacing-md);
+      background: var(--bg-secondary);
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.3s ease;
+      border: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .feature-card-compact:hover {
+      transform: translateY(-2px);
+      border-color: var(--primary-end);
+      background: var(--bg-tertiary);
+    }
+
+    .card-icon-compact {
+      font-size: 2rem;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .feature-card-compact h3 {
+      font-size: 1rem;
+      margin-bottom: var(--spacing-xs);
+    }
+
+    .feature-card-compact .badge {
+      margin-top: var(--spacing-xs);
     }
 
     .info-section {

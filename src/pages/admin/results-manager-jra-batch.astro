@@ -438,9 +438,11 @@ export const prerender = false;
         let errorCount = 0;
         let commonVenue = null; // 全レース共通の競馬場
 
-        raceHTMLs.forEach((raceHTML, index) => {
-          const raceNum = index + 1;
+        raceHTMLs.forEach((raceData, index) => {
+          const raceHTML = typeof raceData === 'string' ? raceData : raceData.text;
+          const raceNum = typeof raceData === 'string' ? (index + 1) : raceData.raceNumber;
           try {
+            console.log(`[Batch] 処理中: 第${raceNum}R (配列インデックス: ${index})`);
             // レース情報抽出
             const raceInfo = extractRaceInfo(raceHTML, raceNum);
 
@@ -568,14 +570,17 @@ export const prerender = false;
       console.log(`[splitRacesHTML] ○レースパターン検出数: ${raceMatches.length}個`);
 
       if (raceMatches.length > 0) {
-        // 各レースのテキストを抽出
+        // 各レースのテキストを抽出（レース番号も含める）
         for (let i = 0; i < raceMatches.length; i++) {
           const startIndex = raceMatches[i].index;
           const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : text.length;
           const raceText = text.substring(startIndex, endIndex);
 
           if (raceText.length > 100) {
-            races.push(raceText);
+            races.push({
+              text: raceText,
+              raceNumber: raceMatches[i].raceNum  // 実際のレース番号を保持
+            });
             console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース: ${raceText.length}文字`);
             console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース 最初の200文字:`, raceText.substring(0, 200));
           } else {

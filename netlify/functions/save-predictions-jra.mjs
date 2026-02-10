@@ -88,11 +88,27 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: jra/predictions/2026/02/2026-02-08-小倉.json）
-    // 複数競馬場対応: ファイル名に競馬場名を含める
+    // 競馬場コードマッピング（中央競馬10場）
+    const venueCodeMap = {
+      '東京': 'TKY',
+      '中山': 'NAK',
+      '京都': 'KYO',
+      '阪神': 'HAN',
+      '中京': 'CHU',
+      '新潟': 'NII',
+      '福島': 'FKU',
+      '小倉': 'KOK',
+      '札幌': 'SAP',
+      '函館': 'HKD'
+    };
+
+    const venueCode = venueCodeMap[track] || 'TKY';
+
+    // ファイルパス生成（例: jra/predictions/2026/02/2026-02-08-KOK.json）
+    // 複数競馬場対応: ファイル名に競馬場コードを含める
     const year = raceDate.substring(0, 4);
     const month = raceDate.substring(5, 7);
-    const fileName = `${raceDate}-${track}.json`;
+    const fileName = `${raceDate}-${venueCode}.json`;
     const filePath = `jra/predictions/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ

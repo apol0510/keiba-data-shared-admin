@@ -724,19 +724,31 @@ export const prerender = false;
           // タイム
           const time = parts[10] || '-';
 
-          // 着差
-          const margin = parts[11] || '-';
+          // 🔧 FIX: 人気は最後のフィールドから逆算（着差が「２ 1/2」のようにスペース区切りの場合に対応）
+          // フィールド構成: ... タイム(10) 着差(11-?) 上がり3F(?-2) コーナー通過順(?-1) 人気(last)
+          let popularity = 99;
+          let lastFurlong = '-';
+          let margin = '-';
 
-          // 上がり3F
-          const lastFurlong = parts[12] || '-';
+          const lastIdx = parts.length - 1;
 
-          // コーナー通過順（parts[13]）はスキップ
+          // 最後が数字なら人気
+          if (parts[lastIdx] && /^\d+$/.test(parts[lastIdx])) {
+            popularity = parseInt(parts[lastIdx], 10);
 
-          // 人気（parts[14]がない場合もあるので安全に取得）
-          const popularity = parts[14] ? parseInt(parts[14], 10) : 99;
+            // 上がり3Fは最後から2番目（コーナー通過順の前）
+            const last3FIdx = lastIdx - 2;
+            if (last3FIdx >= 11 && parts[last3FIdx] && /^[\d.]+$/.test(parts[last3FIdx])) {
+              lastFurlong = parts[last3FIdx];
+
+              // 着差はタイム（parts[10]）の次から上がり3Fの前まで
+              const marginParts = parts.slice(11, last3FIdx);
+              margin = marginParts.join(' ') || '-';
+            }
+          }
 
           // 🔧 DEBUG: フィールド数と内容をログ出力
-          console.log(`[extractResults] 行解析: parts.length=${parts.length}, 着順=${rank}, 馬番=${number}, 馬名=${name}, 人気=${popularity}`);
+          console.log(`[extractResults] 行解析: parts.length=${parts.length}, 着順=${rank}, 馬番=${number}, 馬名=${name}, 人気=${popularity}, 着差="${margin}"`);
 
           if (!isNaN(rank) && !isNaN(number)) {
             results.push({

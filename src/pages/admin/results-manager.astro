@@ -1018,18 +1018,57 @@ export const prerender = false;
 
         const line = lines[i];
 
-        // 🔧 FIX: 正規表現をより柔軟に変更（コーナー通過順と人気がオプショナル）
-        // 従来: 最後まで必須（\d+\s*$）
-        // 新: コーナー通過順以降をオプショナルに
-        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(\d+)kg[\s\u3000]+([+-±＋－]?\d*)[\s\u3000]+(.+?)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.*?)[\s\u3000]+([\d.]+)(?:[\s\u3000]+(.*)[\s\u3000]+(\d+))?\s*$/);
+        // 🔧 FIX: 着差が「２ 1/2」のようにスペース区切りの場合に対応
+        // パターン: 着順 枠 馬番 馬名 性齢 負担 馬体重 増減 騎手 調教師 タイム 着差 上がり3F [コーナー通過順] 人気
+        // 着差には空白が含まれる可能性があるため、最後から逆算
+
+        // まず基本パターンでマッチ（着差以降を柔軟に）
+        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(\d+)kg[\s\u3000]+([+-±＋－]?\d*)[\s\u3000]+(.+?)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.+)$/);
 
         if (match) {
           const rank = parseInt(match[1], 10);
           const number = parseInt(match[3], 10);
-          const popularity = match[14] ? parseInt(match[14], 10) : 99;
+
+          // タイム以降の部分を解析（着差 上がり3F [コーナー通過順] 人気）
+          // フィールド構成: 着差(可変長) 上がり3F コーナー通過順 人気
+          const afterTime = match[11].trim();
+          const afterTimeParts = afterTime.split(/[\s\u3000]+/).filter(p => p);
+
+          // 最後のフィールドから逆算
+          let popularity = 99;
+          let lastFurlong = '-';
+          let margin = '-';
+
+          if (afterTimeParts.length > 0) {
+            const lastIdx = afterTimeParts.length - 1;
+
+            // 最後が数字なら人気
+            if (/^\d+$/.test(afterTimeParts[lastIdx])) {
+              popularity = parseInt(afterTimeParts[lastIdx], 10);
+
+              // 上がり3Fは最後から2番目（コーナー通過順の前）
+              const last3FIdx = lastIdx - 2;
+              if (last3FIdx >= 0 && /^[\d.]+$/.test(afterTimeParts[last3FIdx])) {
+                lastFurlong = afterTimeParts[last3FIdx];
+
+                // 着差は先頭から上がり3Fの前まで
+                if (last3FIdx > 0) {
+                  margin = afterTimeParts.slice(0, last3FIdx).join(' ');
+                } else {
+                  margin = '-';
+                }
+              } else {
+                // 上がり3Fが見つからない場合（データ不整合）
+                margin = afterTimeParts.slice(0, lastIdx).join(' ');
+              }
+            } else {
+              // 最後が数字でない場合（人気がない）
+              margin = afterTimeParts.join(' ');
+            }
+          }
 
           // 🔧 DEBUG: マッチした行をログ出力
-          console.log(`[extractResults] ✅ 第${rank}着: ${number}番 ${match[4].trim()} - 人気: ${popularity}`);
+          console.log(`[extractResults] ✅ 第${rank}着: ${number}番 ${match[4].trim()} - 人気: ${popularity}, 着差: "${margin}"`);
 
           results.push({
             rank: rank,
@@ -1039,8 +1078,8 @@ export const prerender = false;
             jockey: match[8].trim(),
             trainer: match[9].trim(),
             time: match[10].trim(),
-            margin: match[11].trim() || '-',
-            lastFurlong: match[12].trim(),
+            margin: margin,
+            lastFurlong: lastFurlong,
             popularity: popularity
           });
         } else if (line.match(/^\d+[\s\u3000]+\d+[\s\u3000]+\d+[\s\u3000]+/)) {

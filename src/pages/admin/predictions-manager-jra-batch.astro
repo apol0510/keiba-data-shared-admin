@@ -669,7 +669,7 @@ export const prerender = false;
       html += createCard('rgba(16, 185, 129, 0.1)', '#10b981', '△ 連下最上位', data.horses.find(h => h.number === data.assignments.connectTop));
 
       const connectHorses = data.assignments.connect.map(num => data.horses.find(h => h.number === num)).filter(h => h);
-      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~2頭)', connectHorses);
+      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~3頭)', connectHorses);
 
       const reserveHorses = data.assignments.reserve.map(num => data.horses.find(h => h.number === num)).filter(h => h);
       html += createCard('rgba(100, 116, 139, 0.1)', '#64748b', '× 補欠 (1点以上)', reserveHorses);
@@ -1221,7 +1221,7 @@ export const prerender = false;
         } else if (index === 3) {
           assignments.connectTop = horse;
           horse.assignment = '連下最上位';
-        } else if (index >= 4 && index <= 6 && horse.totalScore > 0) {
+        } else if (index >= 4 && index <= 7 && horse.totalScore > 0) {
           assignments.connect.push(horse);
           horse.assignment = '連下';
         } else if (horse.totalScore > 0) {

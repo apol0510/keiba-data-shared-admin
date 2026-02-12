@@ -700,8 +700,9 @@ export const prerender = false;
         // 1    3    5    ブルマリンシェール    牡6    56.0    504kg    ＋11    ☆谷内貫太    佐野謙二    1:55.7    -    38.7    10-10-9-7    4
         const parts = line.split(/[\s\t]+/).filter(p => p);
 
-        // 最初が数字（着順）で、少なくとも14フィールド以上ある
-        if (parts.length >= 14 && /^\d+$/.test(parts[0])) {
+        // 🔧 FIX: 最小フィールド数を14から10に緩和（13頭対応）
+        // コーナー通過順が「-」の場合でも抽出できるようにする
+        if (parts.length >= 10 && /^\d+$/.test(parts[0])) {
           const rank = parseInt(parts[0], 10);
           const bracket = parseInt(parts[1], 10);
           const number = parseInt(parts[2], 10);
@@ -721,20 +722,23 @@ export const prerender = false;
           const trainer = parts[9];
 
           // タイム
-          const time = parts[10];
+          const time = parts[10] || '-';
 
           // 着差
           const margin = parts[11] || '-';
 
           // 上がり3F
-          const lastFurlong = parts[12];
+          const lastFurlong = parts[12] || '-';
 
           // コーナー通過順（parts[13]）はスキップ
 
-          // 人気
-          const popularity = parseInt(parts[14], 10);
+          // 人気（parts[14]がない場合もあるので安全に取得）
+          const popularity = parts[14] ? parseInt(parts[14], 10) : 99;
 
-          if (!isNaN(rank) && !isNaN(number) && !isNaN(popularity)) {
+          // 🔧 DEBUG: フィールド数と内容をログ出力
+          console.log(`[extractResults] 行解析: parts.length=${parts.length}, 着順=${rank}, 馬番=${number}, 馬名=${name}, 人気=${popularity}`);
+
+          if (!isNaN(rank) && !isNaN(number)) {
             results.push({
               rank,
               bracket,
@@ -748,8 +752,13 @@ export const prerender = false;
               popularity
             });
 
-            console.log(`[extractResults] 第${rank}着: ${number}番 ${name} (${jockey} / ${trainer})`);
+            console.log(`[extractResults] ✅ 第${rank}着: ${number}番 ${name} (${jockey} / ${trainer}) - 人気: ${popularity}`);
+          } else {
+            console.warn(`[extractResults] ⚠️ スキップ: 着順=${rank}, 馬番=${number}がNaN`);
           }
+        } else if (parts.length > 0 && /^\d+$/.test(parts[0])) {
+          // 🔧 DEBUG: 着順っぽいけどフィールド数が足りない行をログ
+          console.warn(`[extractResults] ⚠️ フィールド数不足: parts.length=${parts.length}, 行内容: ${line.substring(0, 100)}`);
         }
       }
 

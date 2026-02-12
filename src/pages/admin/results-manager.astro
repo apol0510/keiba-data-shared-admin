@@ -1003,24 +1003,53 @@ export const prerender = false;
       const results = [];
       const lines = text.split('\n');
 
-      for (let line of lines) {
-        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(\d+)kg[\s\u3000]+([+-±＋－]?\d*)[\s\u3000]+(.+?)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.*?)[\s\u3000]+([\d.]+)[\s\u3000]+(.*)[\s\u3000]+(\d+)\s*$/);
+      console.log('[extractResults] テキスト行数:', lines.length);
+
+      // 払戻金セクションの開始位置を見つける（着順データ抽出を停止するため）
+      const payoutStartIdx = lines.findIndex(l => l.includes('払戻金'));
+      console.log('[extractResults] 払戻金セクション開始:', payoutStartIdx);
+
+      for (let i = 0; i < lines.length; i++) {
+        // 払戻金セクションに到達したら着順データ抽出を終了
+        if (payoutStartIdx !== -1 && i >= payoutStartIdx) {
+          console.log('[extractResults] 払戻金セクション到達 - 抽出終了');
+          break;
+        }
+
+        const line = lines[i];
+
+        // 🔧 FIX: 正規表現をより柔軟に変更（コーナー通過順と人気がオプショナル）
+        // 従来: 最後まで必須（\d+\s*$）
+        // 新: コーナー通過順以降をオプショナルに
+        const match = line.match(/^(\d+)[\s\u3000]+(\d+)[\s\u3000]+(\d+)[\s\u3000]+(.+?)[\s\u3000]+[牡牝セ]\d+[\s\u3000]+([\d.]+)[\s\u3000]+(\d+)kg[\s\u3000]+([+-±＋－]?\d*)[\s\u3000]+(.+?)[\s\u3000]+(.+?)[\s\u3000]+([\d:.]+)[\s\u3000]+(.*?)[\s\u3000]+([\d.]+)(?:[\s\u3000]+(.*)[\s\u3000]+(\d+))?\s*$/);
 
         if (match) {
+          const rank = parseInt(match[1], 10);
+          const number = parseInt(match[3], 10);
+          const popularity = match[14] ? parseInt(match[14], 10) : 99;
+
+          // 🔧 DEBUG: マッチした行をログ出力
+          console.log(`[extractResults] ✅ 第${rank}着: ${number}番 ${match[4].trim()} - 人気: ${popularity}`);
+
           results.push({
-            rank: parseInt(match[1], 10),
+            rank: rank,
             bracket: parseInt(match[2], 10),
-            number: parseInt(match[3], 10),
+            number: number,
             name: match[4].trim(),
             jockey: match[8].trim(),
             trainer: match[9].trim(),
             time: match[10].trim(),
             margin: match[11].trim() || '-',
             lastFurlong: match[12].trim(),
-            popularity: parseInt(match[14], 10)
+            popularity: popularity
           });
+        } else if (line.match(/^\d+[\s\u3000]+\d+[\s\u3000]+\d+[\s\u3000]+/)) {
+          // 🔧 DEBUG: 着順っぽいけどマッチしなかった行をログ
+          console.warn(`[extractResults] ⚠️ マッチ失敗: ${line.substring(0, 100)}`);
         }
       }
+
+      console.log('[extractResults] 抽出した頭数:', results.length);
 
       if (results.length === 0) throw new Error('着順データが見つかりません');
       return results;

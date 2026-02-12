@@ -458,6 +458,7 @@ export const prerender = false;
               raceType: raceInfo.raceType,
               distance: raceInfo.distance,
               surface: raceInfo.surface,
+              horses: raceInfo.horses || results.length, // 🔧 FIX: 出走頭数を追加
               startTime: raceInfo.startTime,
               weather: raceInfo.weather,
               trackCondition: raceInfo.trackCondition,
@@ -1390,7 +1391,7 @@ export const prerender = false;
           <p><strong>発走:</strong> ${data.startTime || '-'}</p>
           <p><strong>レース名:</strong> ${data.raceName || '-'}</p>
           <p><strong>距離:</strong> ${data.surface}${data.distance}m</p>
-          <p><strong>出走頭数:</strong> ${data.results?.length || 0}頭</p>
+          <p><strong>出走頭数:</strong> ${data.horses || data.results?.length || 0}頭</p>
           ${data.weather ? `<p><strong>天候:</strong> ${data.weather}</p>` : ''}
           ${data.trackCondition ? `<p><strong>馬場:</strong> ${data.trackCondition}</p>` : ''}
         </div>

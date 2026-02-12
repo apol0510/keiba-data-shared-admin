@@ -772,6 +772,34 @@ GITHUB_REPO_OWNER=apol0510
 - 1着馬（着差が「-」のケース）
 - 大差（着差が「大差」のケース）
 
+---
+
+### **2026-02-12 (3): 出走頭数フィールドの追加**
+
+**問題:**
+- レース結果ページ（keiba-data-shared）で出走頭数が表示されない
+- JSONデータに `horses` フィールドが保存されていなかった（一括入力のみ）
+- 原因: results-batch.astro の `data` オブジェクトに `horses` フィールドが欠落
+
+**修正内容:**
+
+#### **1. results-batch.astro の修正**
+- `data` オブジェクトに `horses: raceInfo.horses || results.length` を追加
+- プレビュー表示でも `data.horses` を優先して表示
+
+#### **2. results-manager.astro**
+- 既に対応済み（`horses: raceInfo.horses` が含まれていた）
+
+**再発防止策:**
+- ✅ extractRaceInfo関数で抽出した全フィールドをdataオブジェクトに含める
+- ✅ プレビュー表示でhorsesフィールドを確認できるようにする
+
+**影響範囲:**
+- `/admin/results-batch` (南関・一括入力)
+
+**注意事項:**
+- 既存データ（2026年2月11日など）は再入力して「完全上書き保存」する必要があります
+
 **✨ 最新の成果（2026-02-08）**:
   - **JRA予想管理完全実装** 🎌 NEW
     - predictions-manager-jra.astro 実装 ✅（個別入力）

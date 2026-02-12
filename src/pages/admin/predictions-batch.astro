@@ -1247,13 +1247,14 @@ export const prerender = false;
         } else if (index === 3) {
           assignments.connectTop = horse;
           horse.assignment = '連下最上位';
-        } else if (index >= 4 && index <= 7 && horse.totalScore >= 2) {
-          // 🔧 FIX: 連下は5～7位（最大3頭、2点以上のみ）
-          // 連下最上位（4位）+ 連下（5～7位）= 合計最大4頭
+        } else if (index >= 4 && index <= 6 && horse.totalScore >= 2) {
+          // 🔧 FIX: 連下は5～7位（index=4,5,6で最大3頭、2点以上のみ）
+          // index=3: 連下最上位（4位）
+          // index=4,5,6: 連下（5～7位）
           assignments.connect.push(horse);
           horse.assignment = '連下';
         } else if (horse.totalScore > 0) {
-          // 8位以降または1点以下は補欠に回す
+          // index=7以降または1点以下は補欠に回す
           assignments.reserve.push(horse);
           horse.assignment = '補欠';
         } else {

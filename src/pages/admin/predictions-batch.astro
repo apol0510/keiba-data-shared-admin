@@ -638,7 +638,7 @@ export const prerender = false;
       html += createCard('rgba(16, 185, 129, 0.1)', '#10b981', '△ 連下最上位', data.horses.find(h => h.number === data.assignments.connectTop));
 
       const connectHorses = data.assignments.connect.map(num => data.horses.find(h => h.number === num)).filter(h => h);
-      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~3頭)', connectHorses);
+      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~2頭)', connectHorses);
 
       const reserveHorses = data.assignments.reserve.map(num => data.horses.find(h => h.number === num)).filter(h => h);
       html += createCard('rgba(100, 116, 139, 0.1)', '#64748b', '× 補欠 (1点以上)', reserveHorses);

@@ -553,7 +553,7 @@ export const prerender = false;
       html += createCard('rgba(59, 130, 246, 0.1)', '#3b82f6', '○ 対抗', data.horses.find(h => h.number === data.assignments.sub));
       html += createCard('rgba(245, 158, 11, 0.1)', '#f59e0b', '▲ 単穴', data.horses.find(h => h.number === data.assignments.hole));
       html += createCard('rgba(16, 185, 129, 0.1)', '#10b981', '△ 連下最上位', data.horses.find(h => h.number === data.assignments.connectTop));
-      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~3頭)', data.assignments.connect.map(num => data.horses.find(h => h.number === num)));
+      html += createCard('rgba(139, 92, 246, 0.1)', '#8b5cf6', '△ 連下 (1~2頭)', data.assignments.connect.map(num => data.horses.find(h => h.number === num)));
       html += createCard('rgba(100, 116, 139, 0.1)', '#64748b', '× 補欠 (1点以上)', data.assignments.reserve.map(num => data.horses.find(h => h.number === num)));
       html += createCard('rgba(156, 163, 175, 0.1)', '#9ca3af', '無 (0点)', data.assignments.none.map(num => data.horses.find(h => h.number === num)));
 

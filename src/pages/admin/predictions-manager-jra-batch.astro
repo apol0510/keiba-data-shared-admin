@@ -40,6 +40,9 @@ export const prerender = false;
               class="form-input"
               value={new Date().toISOString().split('T')[0]}
             />
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">
+              自動判別されます（手動変更も可）
+            </p>
           </div>
           <div class="form-group">
             <label for="commonVenue">競馬場</label>
@@ -56,6 +59,9 @@ export const prerender = false;
               <option value="札幌">札幌</option>
               <option value="函館">函館</option>
             </select>
+            <p style="font-size: 0.875rem; color: var(--text-secondary); margin-top: 0.25rem;">
+              自動判別されます（手動変更も可）
+            </p>
           </div>
         </div>
       </div>
@@ -153,10 +159,10 @@ export const prerender = false;
       <div class="card info-card">
         <h2>📖 使用方法</h2>
         <ol>
-          <li><strong>開催日・競馬場</strong>を上部で選択</li>
           <li>予想サイトから<strong>第1R〜第12R全てのHTML</strong>をコピー</li>
           <li>上のテキストエリアに貼り付け</li>
           <li>「12レース一括解析」ボタンをクリック</li>
+          <li><strong>開催日・競馬場が自動判別されます</strong>（必要なら手動変更も可能）</li>
           <li>プレビューで各レースの抽出結果を確認</li>
           <li>「12レース一括保存してGit Push」で keiba-data-shared に保存</li>
           <li>自動的に各予想サイトに反映されます 🎉</li>
@@ -165,6 +171,8 @@ export const prerender = false;
         <h3>💡 ポイント</h3>
         <ul>
           <li>12レース分を一度に処理できます（効率重視）</li>
+          <li><strong>開催日・競馬場は自動判別されます</strong>（HTMLから抽出）</li>
+          <li>自動判別された値は上部のフォームに反映されます（手動変更も可能）</li>
           <li>エラーが出たレースは赤色で表示されます</li>
           <li>慎重に確認したい場合は <a href="/admin/predictions-manager-jra" style="color: var(--primary-end);">個別入力</a> をご利用ください</li>
           <li>既存データは自動的にマージされます（上書きされません）</li>
@@ -420,7 +428,7 @@ export const prerender = false;
         }
 
         // 共通情報取得
-        const date = document.getElementById('commonDate').value;
+        let date = document.getElementById('commonDate').value;
         let commonVenue = document.getElementById('commonVenue').value;
 
         // 各レースを解析
@@ -448,11 +456,31 @@ export const prerender = false;
             // 競馬場：自動抽出を優先、なければ手動選択を使用
             let venue = raceInfo.venue || commonVenue;
 
-            // 最初のレースで自動抽出した競馬場をselect要素に反映（ユーザー確認用）
-            if (raceNum === 1 && raceInfo.venue) {
-              document.getElementById('commonVenue').value = raceInfo.venue;
-              commonVenue = raceInfo.venue; // 以降のレースでも使用
-              console.log(`[parseBatchRaces] 🎯 競馬場を自動抽出: ${raceInfo.venue}`);
+            // 開催日：自動抽出を優先、なければ手動入力を使用
+            let raceDate = date; // デフォルトは手動入力値
+            if (raceInfo.date) {
+              // "2026年2月8日" → "2026-02-08" に変換
+              const dateMatch = raceInfo.date.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+              if (dateMatch) {
+                const yyyy = dateMatch[1];
+                const mm = String(dateMatch[2]).padStart(2, '0');
+                const dd = String(dateMatch[3]).padStart(2, '0');
+                raceDate = `${yyyy}-${mm}-${dd}`;
+              }
+            }
+
+            // 最初のレースで自動抽出した情報をフォームに反映（ユーザー確認用）
+            if (raceNum === 1) {
+              if (raceInfo.venue) {
+                document.getElementById('commonVenue').value = raceInfo.venue;
+                commonVenue = raceInfo.venue; // 以降のレースでも使用
+                console.log(`[parseBatchRaces] 🎯 競馬場を自動抽出: ${raceInfo.venue}`);
+              }
+              if (raceDate !== date) {
+                document.getElementById('commonDate').value = raceDate;
+                date = raceDate; // 以降のレースでも使用
+                console.log(`[parseBatchRaces] 📅 開催日を自動抽出: ${raceDate}`);
+              }
             }
 
             const data = {
@@ -460,7 +488,7 @@ export const prerender = false;
               createdAt: new Date().toISOString(),
               lastUpdated: new Date().toISOString(),
               raceInfo: {
-                date: raceInfo.date,
+                date: raceDate, // 自動判別した日付を使用
                 track: venue,
                 raceNumber: raceInfo.raceNo || `${raceNum}R`,
                 raceName: raceInfo.raceName,
@@ -503,7 +531,7 @@ export const prerender = false;
               raceNumber: raceNum,
               success: true,
               data,
-              date,
+              date: raceDate, // 自動判別した日付を使用
               venue,
             });
             successCount++;

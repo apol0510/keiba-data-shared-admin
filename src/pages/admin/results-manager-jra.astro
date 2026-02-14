@@ -930,17 +930,37 @@ export const prerender = false;
           score += 100;
         }
 
-        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +150）
+        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +200）
         if (line.match(/[（(]G[IⅠⅡⅢ]+[）)]/)) {
-          score += 150;
+          score += 200;
         }
 
-        // 中央競馬の一般レース名（スコア: +120）
+        // ステークスを含む（スコア: +180）← 最優先
+        if (line.includes('ステークス') || line.includes('Ｓ')) {
+          score += 180;
+        }
+
+        // 特別レース名（スコア: +170）
+        if (line.includes('特別') && !line.includes('賞金')) {
+          score += 170;
+        }
+
+        // 杯・盃を含む（スコア: +160）
+        if (line.match(/杯|盃/) && !line.includes('賞金')) {
+          score += 160;
+        }
+
+        // 記念を含む（スコア: +160）
+        if (line.includes('記念') && !line.includes('賞金')) {
+          score += 160;
+        }
+
+        // 中央競馬の一般レース名（スコア: +30）← 条件表記なので低優先度
         if (line.match(/[1-4]歳|新馬|未勝利|1勝クラス|2勝クラス|3勝クラス|オープン/)) {
-          score += 120;
+          score += 30;
         }
         if (line.match(/\d+万下/)) {
-          score += 120;
+          score += 30;
         }
 
         // 地方競馬グレード（スコア: +80）
@@ -949,26 +969,6 @@ export const prerender = false;
         }
         if (line.match(/[ABC][0-3]/)) {
           score += 80;
-        }
-
-        // 特別レース名（スコア: +60）
-        if (line.includes('特別') && !line.includes('賞金')) {
-          score += 60;
-        }
-
-        // 杯・盃を含む（スコア: +50）
-        if (line.match(/杯|盃/) && !line.includes('賞金')) {
-          score += 50;
-        }
-
-        // 記念を含む（スコア: +50）
-        if (line.includes('記念') && !line.includes('賞金')) {
-          score += 50;
-        }
-
-        // ステークスを含む（スコア: +50）
-        if (line.includes('ステークス') || line.includes('Ｓ')) {
-          score += 50;
         }
 
         // 適切な文字数（10-30文字）にボーナス（スコア: +20）

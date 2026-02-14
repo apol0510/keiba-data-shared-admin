@@ -896,6 +896,72 @@ paths:
 
 ---
 
+### **2026-02-14 (2): JRA競馬場コード不一致による404エラーの再発防止**
+
+**問題:**
+- 東京の結果ページが404エラー
+- 原因: 保存側（TKY）と表示側（TOK）で競馬場コードが不一致
+- 小倉も KKU（誤）と KOK（正）が混在
+
+**根本原因:**
+- 競馬場コードの定義が複数箇所に分散していた
+  - results-manager-jra.astro: `'東京': 'TKY'`, `'小倉': 'KKU'`
+  - results-manager-jra-batch.astro: `'東京': 'TKY'`, `'小倉': 'KOK'`
+  - keiba-data-shared 表示側: `'東京': 'TOK'`, `'小倉': 'KOK'`
+- 手動で同期する必要があり、不一致が発生しやすい
+
+**修正内容:**
+
+#### **1. 共通定数ファイルの作成**
+- **ファイル:** `src/lib/constants/venue-codes.ts`
+- **内容:** JRA競馬場コードマップを一元管理
+  ```typescript
+  export const JRA_VENUE_CODE_MAP: Record<string, string> = {
+    '東京': 'TOK',  // ← 統一
+    '中山': 'NAK',
+    '京都': 'KYO',
+    '阪神': 'HAN',
+    '中京': 'CHU',
+    '新潟': 'NII',
+    '福島': 'FKU',
+    '小倉': 'KOK',  // ← 統一
+    '札幌': 'SAP',
+    '函館': 'HKD'
+  } as const;
+  ```
+
+#### **2. 各ページで共通定数をインポート**
+- results-manager-jra.astro
+- results-manager-jra-batch.astro
+- ⚠️ predictions-manager-jra.astro（今後対応）
+- ⚠️ predictions-manager-jra-batch.astro（今後対応）
+
+#### **3. 運用ガイドの作成**
+- **ファイル:** `VENUE_CODE_GUIDE.md`
+- **内容:**
+  - 競馬場コードの一元管理方針
+  - 変更時の手順
+  - 過去のバグ事例
+  - 使用箇所一覧
+
+**再発防止策:**
+- ✅ 競馬場コードを `venue-codes.ts` で一元管理
+- ✅ 個別定義を禁止（コメントで明記）
+- ✅ 変更時は keiba-data-shared の表示側も確認
+- ✅ 運用ガイドで今後の変更手順を明記
+
+**影響範囲:**
+- src/lib/constants/venue-codes.ts（新規作成）
+- src/pages/admin/results-manager-jra.astro
+- src/pages/admin/results-manager-jra-batch.astro
+- VENUE_CODE_GUIDE.md（新規作成）
+
+**検証結果:**
+- ✅ 東京の結果ページが正常に表示される
+- ✅ ファイル名が `2026-02-14-TOK.json` で統一される
+
+---
+
 **✨ 最新の成果（2026-02-08）**:
   - **JRA予想管理完全実装** 🎌 NEW
     - predictions-manager-jra.astro 実装 ✅（個別入力）

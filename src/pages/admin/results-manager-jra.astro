@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { JRA_VENUE_CODE_MAP, getVenueCode } from '../../lib/constants/venue-codes';
 
 export const prerender = false;
 ---
@@ -489,7 +490,8 @@ export const prerender = false;
         // 共通情報取得
         const date = document.getElementById('commonDate').value;
         const venue = document.getElementById('commonVenue').value;
-        // ⚠️ keiba-data-shared の表示側と統一すること
+        // 競馬場コードマッピング（共通定数から取得）
+        // ⚠️ src/lib/constants/venue-codes.ts で一元管理
         const venueCodeMap = {
           '東京': 'TOK', '中山': 'NAK', '京都': 'KYO', '阪神': 'HAN',
           '中京': 'CHU', '新潟': 'NII', '福島': 'FKU', '小倉': 'KOK',

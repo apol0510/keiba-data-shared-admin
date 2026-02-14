@@ -10,6 +10,7 @@
  * - 12レース分を1つのJSONファイルに保存
  */
 import BaseLayout from "../../layouts/BaseLayout.astro";
+import { JRA_VENUE_CODE_MAP, getVenueCode } from "../../lib/constants/venue-codes";
 
 export const prerender = false;
 ---
@@ -1962,10 +1963,10 @@ export const prerender = false;
         const date = successResults[0].date;
         const venue = successResults[0].venue;
 
-        // 競馬場コードマッピング（中央競馬10場）
-        // ⚠️ keiba-data-shared の表示側と統一すること
+        // 競馬場コードマッピング（共通定数から取得）
+        // ⚠️ src/lib/constants/venue-codes.ts で一元管理
         const venueCodeMap = {
-          '東京': 'TOK',  // ← TKY から TOK に修正
+          '東京': 'TOK',
           '中山': 'NAK',
           '京都': 'KYO',
           '阪神': 'HAN',

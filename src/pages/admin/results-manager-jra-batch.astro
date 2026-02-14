@@ -1963,8 +1963,9 @@ export const prerender = false;
         const venue = successResults[0].venue;
 
         // 競馬場コードマッピング（中央競馬10場）
+        // ⚠️ keiba-data-shared の表示側と統一すること
         const venueCodeMap = {
-          '東京': 'TKY',
+          '東京': 'TOK',  // ← TKY から TOK に修正
           '中山': 'NAK',
           '京都': 'KYO',
           '阪神': 'HAN',
@@ -1979,7 +1980,7 @@ export const prerender = false;
         const jsonData = {
           date: date,  // ✅ 正しいフィールド名
           venue: venue,  // ✅ 正しいフィールド名
-          venueCode: venueCodeMap[venue] || 'TKY',  // ✅ 競馬場コード追加
+          venueCode: venueCodeMap[venue] || 'TOK',  // ✅ 競馬場コード追加（デフォルト: 東京）
           races: successResults.map(r => r.data),
         };
 

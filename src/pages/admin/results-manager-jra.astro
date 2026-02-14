@@ -1207,12 +1207,12 @@ export const prerender = false;
       const number = parseInt(parts[idx++], 10);
 
       // 馬名（カタカナまたは英字を含む名前を探す）
-      // 性齢パターン（牡3など）や負担重量パターン（57.0など）が来るまで探す
+      // 性齢パターン（牡3、せん5など）や負担重量パターン（57.0など）が来るまで探す
       let name = '';
       while (idx < parts.length && idx < 10) { // 最大10個まで探す
         const part = parts[idx];
-        // 性齢パターン（牡3、牝3、セ3など）が来たら馬名終了
-        if (/^[牡牝セ]\d+$/.test(part)) {
+        // 性齢パターン（牡3、牝3、セ3、せん5など）が来たら馬名終了
+        if (/^([牡牝セ]|せん)\d+$/.test(part)) {
           break;
         }
         // 負担重量パターン（57.0など）が来たら馬名終了
@@ -1241,16 +1241,18 @@ export const prerender = false;
         return;
       }
 
-      // 性齢を抽出（牡3など）
+      // 性齢を抽出（牡3、牝3、セ3、せん5など）
       let sexAge = '';
-      if (idx < parts.length && /^[牡牝セ]\d+$/.test(parts[idx])) {
+      if (idx < parts.length && /^([牡牝セ]|せん)\d+$/.test(parts[idx])) {
         sexAge = parts[idx++];
+        console.log('[DEBUG processLine] 性齢検出:', sexAge);
       }
 
       // 負担重量を抽出（57.0など）
       let weight = '';
       if (idx < parts.length && /^\d+\.\d+$/.test(parts[idx])) {
         weight = parts[idx++];
+        console.log('[DEBUG processLine] 負担重量検出:', weight);
       }
 
       // 騎手名（次の項目がタイム形式 "1:25.4" になるまで、または最大3パーツまで）

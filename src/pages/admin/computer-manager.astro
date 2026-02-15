@@ -680,12 +680,15 @@
             });
           }
 
+          const computerIndexDisplay = (horse.computerIndex !== undefined && horse.computerIndex !== null) ? horse.computerIndex : '-';
+          const popularityDisplay = horse.popularity ? (horse.popularity + '位') : '-';
+
           html += `
             <tr style="background: ${bgColor}; border-bottom: 1px solid #e9ecef;">
               <td style="padding: 10px; text-align: center; font-weight: bold;">${horse.number || '-'}</td>
               <td style="padding: 10px;">${horse.name || '-'}</td>
-              <td style="padding: 10px; text-align: center; font-weight: bold; color: #FF6B6B;">${horse.computerIndex !== undefined ? horse.computerIndex : '-'}</td>
-              <td style="padding: 10px; text-align: center;">${horse.popularity ? horse.popularity + '位' : '-'}</td>
+              <td style="padding: 10px; text-align: center; font-weight: bold; color: #FF6B6B;">${computerIndexDisplay}</td>
+              <td style="padding: 10px; text-align: center;">${popularityDisplay}</td>
               ${hasEnrichedData ? `<td style="padding: 10px;">${horse.jockey || '-'}</td>` : ''}
               ${hasEnrichedData ? `<td style="padding: 10px; font-size: 0.9rem;">${horse.trainer || '-'}</td>` : ''}
               ${hasEnrichedData ? `<td style="padding: 10px; text-align: center;">${horse.weight || '-'}</td>` : ''}

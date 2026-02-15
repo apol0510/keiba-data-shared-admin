@@ -72,7 +72,7 @@ cd /Users/apolon/Projects/keiba-data-shared-admin
 |---------|------|------|
 | フロントエンド | Astro 5.16+ + Sass | SSR mode（server） |
 | ホスティング | Netlify | Functions含む |
-| バックエンド | Netlify Functions (Node.js 20) | 4個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs, save-predictions-jra.mjs） |
+| バックエンド | Netlify Functions (Node.js 20) | 7個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs, save-predictions-jra.mjs, parse-computer.mjs, preview-computer.mjs, save-computer.mjs） |
 | 外部API | GitHub Contents API | keiba-data-sharedへの保存 |
 
 ### **役割分担**
@@ -962,7 +962,38 @@ paths:
 
 ---
 
-**✨ 最新の成果（2026-02-08）**:
+**✨ 最新の成果（2026-02-15）**:
+  - **コンピ指数管理システム完全実装** 📊 NEW
+    - computer-manager.astro 実装 ✅
+    - parse-computer.mjs（パーサーAPI）実装 ✅
+    - preview-computer.mjs（プレビューAPI）実装 ✅
+    - save-computer.mjs（保存API）実装 ✅
+    - 全競馬場対応（JRA/南関/地方）✅
+    - 競馬場コード3文字統一（重複解消）✅
+      - 大井: OOI, 川崎: KAW, 船橋: FUN, 浦和: URA
+      - 東京: TOK, 中山: NAK, 阪神: HAN, 京都: KYO
+      - 小倉: KOK, 札幌: SAP, 函館: HKD, 福島: FKS
+      - 中京: CHU, 新潟: NII
+      - 門別: MON, 盛岡: MOR, 水沢: MIZ, 金沢: KNZ
+      - 笠松: KSM, 名古屋: NGY, 園田: SON, 姫路: HIM
+      - 高知: KOC, 佐賀: SAG
+    - 予想データとの自動補完 ✅
+      - 騎手・調教師・斤量・馬齢性別を自動取得
+      - プレビュー時に補完結果を表示
+      - 補完された馬数をステータス表示
+    - UX改善機能 ✅
+      - 競馬場の自動検出（データ貼り付け時）
+      - フローティング「上に戻る」ボタン
+      - プレビュー内「上に戻る」ボタン
+      - スムーズスクロール
+    - 著作権対応 ✅
+      - 「日刊コンピ指数」→「コンピ指数」
+      - 「競馬ブックで補完」→「出走情報補完」
+      - dataSource: 'computer-index'
+      - enrichedFrom: 'predictions'
+    - 保存先: `{category}/predictions/computer/YYYY/MM/YYYY-MM-DD-{venueCode}.json` ✅
+
+**✨ 過去の成果（2026-02-08）**:
   - **JRA予想管理完全実装** 🎌 NEW
     - predictions-manager-jra.astro 実装 ✅（個別入力）
     - predictions-manager-jra-batch.astro 実装 ✅（一括入力）
@@ -1069,22 +1100,33 @@ paths:
   - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - **Netlify Functions**: 4個実装
+  - **Netlify Functions**: 7個実装
     - save-results.mjs（南関結果）
     - save-results-central.mjs（JRA結果）
     - save-predictions.mjs（南関予想）
-    - save-predictions-jra.mjs（JRA予想）✨NEW
-  - **ページ**: 7個実装
+    - save-predictions-jra.mjs（JRA予想）
+    - parse-computer.mjs（コンピ指数パーサー）✨NEW
+    - preview-computer.mjs（コンピ指数プレビュー）✨NEW
+    - save-computer.mjs（コンピ指数保存）✨NEW
+  - **ページ**: 8個実装
     - index.astro（トップページ）
     - results-manager.astro（南関結果・個別）
     - results-manager-central.astro（JRA結果・個別）
     - predictions-manager.astro（南関予想・個別）
     - predictions-batch.astro（南関予想・一括）
-    - predictions-manager-jra.astro（JRA予想・個別）✨NEW
-    - predictions-manager-jra-batch.astro（JRA予想・一括）✨NEW
+    - predictions-manager-jra.astro（JRA予想・個別）
+    - predictions-manager-jra-batch.astro（JRA予想・一括）
+    - computer-manager.astro（コンピ指数管理・全競馬場）✨NEW
   - **参考ライブラリ**: 6個実装（extractor/normalizer/validator/exporter/site-profiles/types）
   - **結果管理**: 6種類抽出機能（レース情報/着順/払戻金/タイム/コーナー/レースコメント）
   - **予想管理**: 完全自動化実装（南関＋JRA、個別入力＋一括入力）
+  - **コンピ指数管理**: 完全実装（全競馬場対応）✨NEW
+    - 自動パース・プレビュー・保存
+    - 予想データとの自動補完（騎手・調教師・斤量・馬齢性別）
+    - 競馬場自動検出機能
+    - フローティング「上に戻る」ボタン
+    - 3文字競馬場コード統一（24会場対応）
+    - 著作権対応済み
     - HTML自動抽出（著作権対応）
       - 南関: 印4/印3/印2/印1
       - JRA: 印5/印4/印3/印2/印1 ✨NEW
@@ -1096,7 +1138,7 @@ paths:
     - 騎手・厩舎情報抽出 ✨NEW
     - GitHub自動保存（keiba-data-shared Private）
     - **一括入力対応**（12レース分×36万文字、レース境界自動検出）
-  - **対応レース**: 南関競馬4競馬場（大井/船橋/川崎/浦和）+ 中央競馬10競馬場（東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館）
+  - **対応レース**: 南関競馬4競馬場（大井/船橋/川崎/浦和）+ 中央競馬10競馬場（東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館）+ 地方競馬10競馬場（門別/盛岡/水沢/金沢/笠松/名古屋/園田/姫路/高知/佐賀）= 全24競馬場
   - **対応頭数**: 最大18頭
   - **対応距離**: 2周レース対応（13ハロン）
   - **対応券種**: 全9券種（単勝/複勝/枠連/馬連/枠単/馬単/ワイド/三連複/三連単）

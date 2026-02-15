@@ -269,6 +269,36 @@
       background: #f8f9fa;
       transform: translateX(-5px);
     }
+
+    /* フローティング「上に戻る」ボタン */
+    .scroll-to-top-btn {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      width: 50px;
+      height: 50px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s ease;
+      opacity: 0;
+      visibility: hidden;
+      z-index: 1000;
+    }
+
+    .scroll-to-top-btn.visible {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .scroll-to-top-btn:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
   </style>
 </head>
 <body>
@@ -408,6 +438,7 @@
         </details>
 
         <div class="button-group" style="margin-top: 25px;">
+          <button type="button" class="btn-secondary" onclick="scrollToTop()">⬆️ 上に戻る</button>
           <button type="button" class="btn-secondary" onclick="hidePreview()">キャンセル</button>
           <button type="button" class="btn-primary" onclick="confirmAndSave()">✅ この内容で保存</button>
         </div>
@@ -415,8 +446,23 @@
     </div>
   </div>
 
+  <!-- フローティング「上に戻る」ボタン -->
+  <button class="scroll-to-top-btn" id="scrollToTopBtn" onclick="scrollToTop()" title="上に戻る">
+    ⬆️
+  </button>
+
   <script is:inline>
     let parsedData = null;
+
+    // スクロール監視：一定以上スクロールしたらボタン表示
+    window.addEventListener('scroll', function() {
+      const scrollBtn = document.getElementById('scrollToTopBtn');
+      if (window.pageYOffset > 300) {
+        scrollBtn.classList.add('visible');
+      } else {
+        scrollBtn.classList.remove('visible');
+      }
+    });
 
     // 競馬場カテゴリ判定
     function getCategoryByVenue(venue) {
@@ -494,6 +540,14 @@
     function hidePreview() {
       document.getElementById('previewSection').style.display = 'none';
       parsedData = null;
+    }
+
+    // ページトップにスクロール
+    function scrollToTop() {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     }
 
     // ステータスメッセージ表示

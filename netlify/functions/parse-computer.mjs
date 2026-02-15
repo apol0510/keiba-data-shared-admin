@@ -130,7 +130,13 @@ function parseComputerData(raceDate, venue, computerData) {
     if (line.includes('賞金:')) {
       const raceNameMatch = line.match(/^(.+?)\s+賞金:/);
       if (raceNameMatch) {
-        currentRaceInfo.raceName = raceNameMatch[1].trim();
+        const type = raceNameMatch[1].trim();
+        // 既存のレース名（等級）と組み合わせる
+        if (currentRaceInfo.raceName) {
+          currentRaceInfo.raceName = `${type} ${currentRaceInfo.raceName}`;
+        } else {
+          currentRaceInfo.raceName = type;
+        }
       }
       continue;
     }

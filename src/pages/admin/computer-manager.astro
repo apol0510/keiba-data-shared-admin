@@ -657,6 +657,19 @@
 
         race.horses.forEach((horse, idx) => {
           const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
+
+          // デバッグ: 最初の馬のデータを確認
+          if (idx === 0) {
+            console.log(`[HTML生成] R${race.raceNumber} 1頭目:`, {
+              number: horse.number,
+              name: horse.name,
+              computerIndex: horse.computerIndex,
+              popularity: horse.popularity,
+              jockey: horse.jockey,
+              trainer: horse.trainer
+            });
+          }
+
           html += `
             <tr style="background: ${bgColor}; border-bottom: 1px solid #e9ecef;">
               <td style="padding: 10px; text-align: center; font-weight: bold;">${horse.number || '-'}</td>

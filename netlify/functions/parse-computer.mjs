@@ -131,12 +131,16 @@ function parseComputerData(raceDate, venue, computerData) {
       const raceNameMatch = line.match(/^(.+?)\s+賞金:/);
       if (raceNameMatch) {
         const type = raceNameMatch[1].trim();
-        // 既存のレース名（等級）と組み合わせる
-        if (currentRaceInfo.raceName) {
-          currentRaceInfo.raceName = `${type} ${currentRaceInfo.raceName}`;
-        } else {
-          currentRaceInfo.raceName = type;
+        // 「一般」は無視、それ以外（３歳など）は使用
+        if (type !== '一般') {
+          // 既存のレース名（等級）と組み合わせる
+          if (currentRaceInfo.raceName) {
+            currentRaceInfo.raceName = `${type} ${currentRaceInfo.raceName}`;
+          } else {
+            currentRaceInfo.raceName = type;
+          }
         }
+        // 「一般」の場合は既存のレース名（等級）をそのまま使う
       }
       continue;
     }

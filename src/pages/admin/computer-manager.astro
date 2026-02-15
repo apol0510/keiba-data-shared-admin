@@ -17,7 +17,7 @@
 
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #0f172a;
       min-height: 100vh;
       padding: 20px;
     }
@@ -25,14 +25,15 @@
     .container {
       max-width: 1400px;
       margin: 0 auto;
-      background: white;
+      background: #1e293b;
       border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
       overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .header {
-      background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       padding: 30px;
       text-align: center;
@@ -51,21 +52,22 @@
 
     .content {
       padding: 30px;
+      background: #1e293b;
     }
 
     .form-section {
-      background: #f8f9fa;
+      background: #334155;
       border-radius: 15px;
       padding: 25px;
       margin-bottom: 25px;
-      border: 2px solid #e9ecef;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .form-section h2 {
-      color: #495057;
+      color: #e2e8f0;
       margin-bottom: 20px;
       padding-bottom: 10px;
-      border-bottom: 3px solid #FF6B6B;
+      border-bottom: 3px solid #667eea;
       font-size: 1.5rem;
     }
 
@@ -84,22 +86,29 @@
     label {
       font-weight: 600;
       margin-bottom: 8px;
-      color: #495057;
+      color: #cbd5e1;
       font-size: 0.95rem;
     }
 
     input, select, textarea {
       padding: 12px;
-      border: 2px solid #dee2e6;
+      border: 1px solid #475569;
       border-radius: 8px;
       font-size: 1rem;
       transition: all 0.3s ease;
+      background: #1e293b;
+      color: #e2e8f0;
     }
 
     input:focus, select:focus, textarea:focus {
       outline: none;
-      border-color: #FF6B6B;
-      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+    }
+
+    option {
+      background: #1e293b;
+      color: #e2e8f0;
     }
 
     textarea {
@@ -166,38 +175,38 @@
     }
 
     .status-success {
-      background: #d4edda;
-      color: #155724;
-      border: 2px solid #c3e6cb;
+      background: rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.4);
     }
 
     .status-error {
-      background: #f8d7da;
-      color: #721c24;
-      border: 2px solid #f5c6cb;
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
     }
 
     .status-info {
-      background: #d1ecf1;
-      color: #0c5460;
-      border: 2px solid #bee5eb;
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.4);
     }
 
     .preview-section {
-      background: #f8f9fa;
+      background: #334155;
       border-radius: 15px;
       padding: 25px;
       margin-top: 25px;
-      border: 2px solid #e9ecef;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       max-height: 800px;
       overflow-y: auto;
     }
 
     .preview-section h3 {
-      color: #495057;
+      color: #e2e8f0;
       margin-bottom: 15px;
       padding-bottom: 10px;
-      border-bottom: 2px solid #dee2e6;
+      border-bottom: 2px solid #475569;
     }
 
     pre {
@@ -212,20 +221,24 @@
 
     .helper-text {
       font-size: 0.85rem;
-      color: #6c757d;
+      color: #94a3b8;
       margin-top: 5px;
     }
 
     .category-info {
-      background: #fff3cd;
-      border: 2px solid #ffc107;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.3);
       border-radius: 10px;
       padding: 15px;
       margin-bottom: 20px;
     }
 
     .category-info strong {
-      color: #856404;
+      color: #fbbf24;
+    }
+
+    .category-info span {
+      color: #cbd5e1;
     }
 
     .race-input-area {
@@ -257,17 +270,19 @@
       display: inline-block;
       margin-bottom: 20px;
       padding: 10px 20px;
-      background: white;
-      color: #667eea;
+      background: #334155;
+      color: #a5b4fc;
       text-decoration: none;
       border-radius: 8px;
       font-weight: 600;
       transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .back-link:hover {
-      background: #f8f9fa;
+      background: #475569;
       transform: translateX(-5px);
+      border-color: #667eea;
     }
 
     /* フローティング「上に戻る」ボタン */
@@ -420,7 +435,7 @@
 
       <div class="loading" id="loadingIndicator">
         <div class="spinner"></div>
-        <p style="margin-top: 15px; color: #495057;">処理中...</p>
+        <p style="margin-top: 15px; color: #cbd5e1;">処理中...</p>
       </div>
 
       <div class="preview-section" id="previewSection" style="display: none;">
@@ -431,7 +446,7 @@
 
         <!-- JSON表示（折りたたみ可能） -->
         <details style="margin-top: 20px;">
-          <summary style="cursor: pointer; padding: 10px; background: #f8f9fa; border-radius: 8px; font-weight: 600;">
+          <summary style="cursor: pointer; padding: 10px; background: #334155; border-radius: 8px; font-weight: 600; color: #cbd5e1; border: 1px solid rgba(255, 255, 255, 0.1);">
             📄 JSON形式で確認（クリックで展開）
           </summary>
           <pre id="jsonPreview" style="margin-top: 15px;"></pre>
@@ -706,8 +721,8 @@
     // プレビューHTML生成
     function generatePreviewHTML(data) {
       let html = `
-        <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
-          <h3 style="margin-bottom: 15px; color: #495057;">📋 データサマリー</h3>
+        <div style="background: #1e293b; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.1);">
+          <h3 style="margin-bottom: 15px; color: #e2e8f0;">📋 データサマリー</h3>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
             <div>
               <strong>日付:</strong> ${data.date}
@@ -733,12 +748,12 @@
         const hasEnrichedData = race.horses.some(h => h.jockey || h.trainer);
 
         html += `
-          <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #e9ecef;">
-            <h4 style="margin-bottom: 15px; color: #FF6B6B;">
+          <div style="background: #1e293b; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.1);">
+            <h4 style="margin-bottom: 15px; color: #a5b4fc;">
               🏇 ${race.raceNumber}R ${race.raceName || ''}
-              ${hasEnrichedData ? '<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; margin-left: 10px;">出走情報補完済み</span>' : ''}
+              ${hasEnrichedData ? '<span style="background: rgba(16, 185, 129, 0.2); color: #6ee7b7; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; margin-left: 10px; border: 1px solid rgba(16, 185, 129, 0.3);">出走情報補完済み</span>' : ''}
             </h4>
-            <div style="margin-bottom: 15px; color: #6c757d; font-size: 0.9rem;">
+            <div style="margin-bottom: 15px; color: #94a3b8; font-size: 0.9rem;">
               ${race.distance ? `${race.distance}m` : ''}
               ${race.surface || ''}
               ${race.track ? `(${race.track})` : ''}
@@ -746,7 +761,7 @@
             </div>
             <table style="width: 100%; border-collapse: collapse;">
               <thead>
-                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                <tr style="background: #334155; border-bottom: 2px solid #475569;">
                   <th style="padding: 10px; text-align: center;">馬番</th>
                   <th style="padding: 10px; text-align: left;">馬名</th>
                   <th style="padding: 10px; text-align: center;">指数</th>
@@ -777,17 +792,18 @@
 
           const computerIndexDisplay = (horse.computerIndex !== undefined && horse.computerIndex !== null) ? horse.computerIndex : '-';
           const popularityDisplay = horse.popularity ? (horse.popularity + '位') : '-';
+          const rowBgColor = idx % 2 === 0 ? '#1e293b' : '#334155';
 
           html += `
-            <tr style="background: ${bgColor}; border-bottom: 1px solid #e9ecef;">
-              <td style="padding: 10px; text-align: center; font-weight: bold;">${horse.number || '-'}</td>
-              <td style="padding: 10px;">${horse.name || '-'}</td>
-              <td style="padding: 10px; text-align: center; font-weight: bold; color: #FF6B6B;">${computerIndexDisplay}</td>
-              <td style="padding: 10px; text-align: center;">${popularityDisplay}</td>
-              ${hasEnrichedData ? `<td style="padding: 10px;">${horse.jockey || '-'}</td>` : ''}
-              ${hasEnrichedData ? `<td style="padding: 10px; font-size: 0.9rem;">${horse.trainer || '-'}</td>` : ''}
-              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center;">${horse.weight || '-'}</td>` : ''}
-              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center;">${horse.ageGender || '-'}</td>` : ''}
+            <tr style="background: ${rowBgColor}; border-bottom: 1px solid #475569;">
+              <td style="padding: 10px; text-align: center; font-weight: bold; color: #e2e8f0;">${horse.number || '-'}</td>
+              <td style="padding: 10px; color: #e2e8f0;">${horse.name || '-'}</td>
+              <td style="padding: 10px; text-align: center; font-weight: bold; color: #a5b4fc;">${computerIndexDisplay}</td>
+              <td style="padding: 10px; text-align: center; color: #cbd5e1;">${popularityDisplay}</td>
+              ${hasEnrichedData ? `<td style="padding: 10px; color: #cbd5e1;">${horse.jockey || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; font-size: 0.9rem; color: #cbd5e1;">${horse.trainer || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center; color: #cbd5e1;">${horse.weight || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center; color: #cbd5e1;">${horse.ageGender || '-'}</td>` : ''}
             </tr>
           `;
         });

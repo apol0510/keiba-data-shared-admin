@@ -248,17 +248,20 @@ function getCategoryByVenue(venue) {
 }
 
 /**
- * 競馬場コードを取得
+ * 競馬場コードを取得（全競馬場3文字統一）
  */
 function getVenueCode(venue) {
   const codes = {
-    '東京': 'TO', '中山': 'NA', '阪神': 'HA', '京都': 'KY',
-    '中京': 'CH', '新潟': 'NI', '小倉': 'KO', '札幌': 'SA',
-    '函館': 'HK', '福島': 'FU',
-    '大井': 'OI', '川崎': 'KA', '船橋': 'FU', '浦和': 'UR',
-    '門別': 'MO', '盛岡': 'MO', '水沢': 'MI', '金沢': 'KA',
-    '笠松': 'KS', '名古屋': 'NA', '園田': 'SO', '姫路': 'HI',
-    '高知': 'KO', '佐賀': 'SA'
+    // JRA中央競馬
+    '東京': 'TOK', '中山': 'NAK', '阪神': 'HAN', '京都': 'KYO',
+    '中京': 'CHU', '新潟': 'NII', '小倉': 'KOK', '札幌': 'SAP',
+    '函館': 'HKD', '福島': 'FKS',
+    // 南関競馬
+    '大井': 'OOI', '川崎': 'KAW', '船橋': 'FUN', '浦和': 'URA',
+    // 地方競馬
+    '門別': 'MON', '盛岡': 'MOR', '水沢': 'MIZ', '金沢': 'KNZ',
+    '笠松': 'KSM', '名古屋': 'NGY', '園田': 'SON', '姫路': 'HIM',
+    '高知': 'KOC', '佐賀': 'SAG'
   };
-  return codes[venue] || 'XX';
+  return codes[venue] || 'XXX';
 }

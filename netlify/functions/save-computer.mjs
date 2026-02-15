@@ -185,11 +185,11 @@ async function fetchKeibaBookData(date, category) {
  * GitHubに保存
  */
 async function saveToGitHub(data) {
-  const { date, category } = data;
+  const { date, category, venueCode } = data;
   const [year, month] = date.split('-');
 
-  // ファイルパス
-  const filePath = `${category}/predictions/computer/${year}/${month}/${date}.json`;
+  // ファイルパス（会場コード付き）
+  const filePath = `${category}/predictions/computer/${year}/${month}/${date}-${venueCode}.json`;
 
   // GitHub APIで保存
   const token = process.env.GITHUB_TOKEN;

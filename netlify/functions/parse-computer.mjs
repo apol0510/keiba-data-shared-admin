@@ -71,7 +71,6 @@ function parseComputerData(raceDate, venue, computerData) {
   const lines = computerData.split('\n').map(line => line.trim()).filter(line => line);
 
   const races = [];
-  let currentRace = null;
   let currentRaceNumber = null;
   let currentRaceInfo = {};
   let horses = [];
@@ -84,12 +83,13 @@ function parseComputerData(raceDate, venue, computerData) {
     const raceNumberMatch = line.match(/^(\d{1,2})R$/);
     if (raceNumberMatch) {
       // 前のレースを保存
-      if (currentRace && horses.length > 0) {
+      if (currentRaceNumber && horses.length > 0) {
         races.push({
           raceNumber: parseInt(currentRaceNumber),
           ...currentRaceInfo,
           horses: horses
         });
+        console.log(`[Parse Computer] R${currentRaceNumber} 保存完了: ${horses.length}頭`);
       }
 
       // 新しいレース開始
@@ -97,6 +97,7 @@ function parseComputerData(raceDate, venue, computerData) {
       currentRaceInfo = {};
       horses = [];
       inHorseData = false;
+      console.log(`[Parse Computer] R${currentRaceNumber} 開始`);
       continue;
     }
 
@@ -202,6 +203,11 @@ function parseComputerData(raceDate, venue, computerData) {
       horses: horses
     });
   }
+
+  console.log(`[Parse Computer] パース完了: ${races.length}レース検出`);
+  races.forEach((race, idx) => {
+    console.log(`  R${race.raceNumber}: ${race.horses.length}頭`);
+  });
 
   // カテゴリ判定
   const category = getCategoryByVenue(venue);

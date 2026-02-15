@@ -200,7 +200,7 @@ function parseComputerData(raceDate, venue, computerData) {
     venue: venue,
     venueCode: venueCode,
     category: category,
-    dataSource: 'nikkan-computer',
+    dataSource: 'computer-index',
     races: races,
     dataVersion: '1.0',
     createdAt: new Date().toISOString()

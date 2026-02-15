@@ -1,6 +1,6 @@
 /**
  * コンピ指数データパーサー（全競馬場対応）
- * 日刊コンピ指数のテキストデータをJSON形式に変換
+ * コンピ指数のテキストデータをJSON形式に変換
  */
 
 export const handler = async (event) => {
@@ -228,7 +228,7 @@ function parseComputerData(raceDate, venue, computerData) {
     venue: venue,
     venueCode: venueCode,
     category: category,
-    dataSource: 'nikkan-computer',
+    dataSource: 'computer-index',
     races: races,
     dataVersion: '1.0',
     createdAt: new Date().toISOString()

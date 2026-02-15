@@ -723,21 +723,21 @@
       let html = `
         <div style="background: #1e293b; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid rgba(255, 255, 255, 0.1);">
           <h3 style="margin-bottom: 15px; color: #e2e8f0;">📋 データサマリー</h3>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; color: #cbd5e1;">
             <div>
-              <strong>日付:</strong> ${data.date}
+              <strong style="color: #e2e8f0;">日付:</strong> ${data.date}
             </div>
             <div>
-              <strong>競馬場:</strong> ${data.venue}
+              <strong style="color: #e2e8f0;">競馬場:</strong> ${data.venue}
             </div>
             <div>
-              <strong>カテゴリ:</strong> ${data.category}
+              <strong style="color: #e2e8f0;">カテゴリ:</strong> ${data.category}
             </div>
             <div>
-              <strong>レース数:</strong> ${data.races.length}R
+              <strong style="color: #e2e8f0;">レース数:</strong> ${data.races.length}R
             </div>
             <div>
-              <strong>データソース:</strong> コンピ指数
+              <strong style="color: #e2e8f0;">データソース:</strong> コンピ指数
             </div>
           </div>
         </div>
@@ -762,22 +762,20 @@
             <table style="width: 100%; border-collapse: collapse;">
               <thead>
                 <tr style="background: #334155; border-bottom: 2px solid #475569;">
-                  <th style="padding: 10px; text-align: center;">馬番</th>
-                  <th style="padding: 10px; text-align: left;">馬名</th>
-                  <th style="padding: 10px; text-align: center;">指数</th>
-                  <th style="padding: 10px; text-align: center;">人気</th>
-                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left;">騎手</th>' : ''}
-                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left;">調教師</th>' : ''}
-                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center;">斤量</th>' : ''}
-                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center;">馬齢性</th>' : ''}
+                  <th style="padding: 10px; text-align: center; color: #e2e8f0;">馬番</th>
+                  <th style="padding: 10px; text-align: left; color: #e2e8f0;">馬名</th>
+                  <th style="padding: 10px; text-align: center; color: #e2e8f0;">指数</th>
+                  <th style="padding: 10px; text-align: center; color: #e2e8f0;">人気</th>
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left; color: #e2e8f0;">騎手</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left; color: #e2e8f0;">調教師</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center; color: #e2e8f0;">斤量</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center; color: #e2e8f0;">馬齢性</th>' : ''}
                 </tr>
               </thead>
               <tbody>
         `;
 
         race.horses.forEach((horse, idx) => {
-          const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
-
           // デバッグ: 最初の馬のデータを確認
           if (idx === 0) {
             console.log(`[HTML生成] R${race.raceNumber} 1頭目:`, {

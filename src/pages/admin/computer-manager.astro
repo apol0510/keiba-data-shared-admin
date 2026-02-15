@@ -571,6 +571,16 @@
 
         // プレビュー表示
         const previewHTML = generatePreviewHTML(parsedData);
+
+        // デバッグ: 生成されたHTMLの一部を確認（最初の500文字）
+        console.log('[生成HTML] 最初の500文字:', previewHTML.substring(0, 500));
+
+        // 1Rのテーブル部分を抽出して確認
+        const race1TableMatch = previewHTML.match(/🏇 1R[\s\S]{0,800}/);
+        if (race1TableMatch) {
+          console.log('[生成HTML] 1Rテーブル部分:', race1TableMatch[0]);
+        }
+
         document.getElementById('previewContent').innerHTML = previewHTML;
         document.getElementById('jsonPreview').textContent = JSON.stringify(parsedData, null, 2);
         document.getElementById('previewSection').style.display = 'block';

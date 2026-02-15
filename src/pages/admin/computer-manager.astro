@@ -442,10 +442,20 @@
       return codes[venue] || 'XX';
     }
 
-    // 競馬場選択時の処理
-    document.getElementById('venue').addEventListener('change', function() {
-      const venue = this.value;
-      if (venue) {
+    // 保存先パス更新
+    function updateCategoryPath() {
+      const venue = document.getElementById('venue').value;
+      const raceDate = document.getElementById('raceDate').value;
+
+      if (venue && raceDate) {
+        const category = getCategoryByVenue(venue);
+        const categoryInfo = document.getElementById('categoryInfo');
+        const categoryPath = document.getElementById('categoryPath');
+
+        const [year, month] = raceDate.split('-');
+        categoryPath.textContent = `${category}/predictions/computer/${year}/${month}/${raceDate}.json`;
+        categoryInfo.style.display = 'block';
+      } else if (venue) {
         const category = getCategoryByVenue(venue);
         const categoryInfo = document.getElementById('categoryInfo');
         const categoryPath = document.getElementById('categoryPath');
@@ -455,7 +465,13 @@
       } else {
         document.getElementById('categoryInfo').style.display = 'none';
       }
-    });
+    }
+
+    // 競馬場選択時の処理
+    document.getElementById('venue').addEventListener('change', updateCategoryPath);
+
+    // 日付選択時の処理
+    document.getElementById('raceDate').addEventListener('change', updateCategoryPath);
 
     // フォームクリア
     function clearForm() {

@@ -522,7 +522,7 @@
 
       try {
         // パーサーAPIを呼び出し
-        const response = await fetch('/api/parse-computer', {
+        const response = await fetch('/.netlify/functions/parse-computer', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -657,7 +657,7 @@
       hideStatus();
 
       try {
-        const response = await fetch('/api/save-computer', {
+        const response = await fetch('/.netlify/functions/save-computer', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

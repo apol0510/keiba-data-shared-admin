@@ -28,13 +28,19 @@ export const handler = async (event) => {
 
     console.log(`[Preview Computer] 開始: ${raceDate} ${venue}`);
 
-    // パース処理（parse-computer.mjsと同じロジック）
+    // パース処理
     const parsedData = parseComputerData(raceDate, venue, computerData);
+    console.log(`[Preview Computer] パース完了: ${parsedData.races.length}レース`);
+
+    // デバッグ: 各レースの馬数を確認
+    parsedData.races.forEach((race, idx) => {
+      console.log(`[Preview Computer] R${race.raceNumber}: ${race.horses.length}頭, 最初の馬: ${race.horses[0]?.name}, 指数: ${race.horses[0]?.computerIndex}`);
+    });
 
     // 競馬ブックデータで補完
     const enrichedData = await enrichWithKeibaBookData(parsedData);
 
-    console.log(`[Preview Computer] 完了: ${enrichedData.races.length}レース`);
+    console.log(`[Preview Computer] 補完完了: ${enrichedData.races.length}レース`);
 
     return {
       statusCode: 200,

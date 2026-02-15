@@ -1,5 +1,5 @@
 /**
- * コンピ指数データ保存API（競馬ブックデータとの自動補完機能付き）
+ * コンピ指数データ保存API（予想データとの自動補完機能付き）
  * keiba-data-sharedリポジトリに保存
  */
 
@@ -28,8 +28,8 @@ export const handler = async (event) => {
 
     console.log(`[Save Computer] 開始: ${computerData.date} ${computerData.venue}`);
 
-    // 競馬ブックデータを取得して自動補完
-    const enrichedData = await enrichWithKeibaBookData(computerData);
+    // 予想データを取得して自動補完
+    const enrichedData = await enrichWithPredictionData(computerData);
 
     // GitHubに保存
     const result = await saveToGitHub(enrichedData);
@@ -56,68 +56,68 @@ export const handler = async (event) => {
 };
 
 /**
- * 競馬ブックデータで補完
+ * 予想データで補完
  */
-async function enrichWithKeibaBookData(computerData) {
+async function enrichWithPredictionData(computerData) {
   const { date, venue, category } = computerData;
 
-  // 競馬ブックは中央と南関のみ
+  // 予想データは中央と南関のみ
   if (category !== 'jra' && category !== 'nankan') {
     console.log('[Enrich] 地方競馬のため補完スキップ');
     return computerData;
   }
 
   try {
-    // 競馬ブックデータを取得
-    const keibaBookData = await fetchKeibaBookData(date, category);
+    // 予想データを取得
+    const predictionData = await fetchPredictionData(date, category);
 
-    if (!keibaBookData) {
-      console.log('[Enrich] 競馬ブックデータなし（補完スキップ）');
+    if (!predictionData) {
+      console.log('[Enrich] 予想データなし（補完スキップ）');
       return computerData;
     }
 
-    console.log('[Enrich] 競馬ブックデータ取得成功、補完開始');
+    console.log('[Enrich] 予想データ取得成功、補完開始');
 
     // レースごとに補完
     const enrichedRaces = computerData.races.map(computerRace => {
-      // 競馬ブックから同じレース番号のデータを探す
-      let keibaBookRace = null;
+      // 予想データから同じレース番号のデータを探す
+      let predictionRace = null;
 
       if (category === 'jra') {
         // JRAの場合は会場も一致させる
-        const venueRaces = keibaBookData.venues?.find(v => v.venue === venue);
+        const venueRaces = predictionData.venues?.find(v => v.venue === venue);
         if (venueRaces) {
-          keibaBookRace = venueRaces.races.find(r =>
+          predictionRace = venueRaces.races.find(r =>
             parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
           );
         }
       } else {
         // 南関の場合
-        keibaBookRace = keibaBookData.races?.find(r =>
+        predictionRace = predictionData.races?.find(r =>
           r.raceInfo.raceNumber === `${computerRace.raceNumber}R`
         );
       }
 
-      if (!keibaBookRace) {
-        console.log(`[Enrich] R${computerRace.raceNumber}: 競馬ブックデータなし`);
+      if (!predictionRace) {
+        console.log(`[Enrich] R${computerRace.raceNumber}: 予想データなし`);
         return computerRace;
       }
 
       // 馬ごとに補完
       const enrichedHorses = computerRace.horses.map(computerHorse => {
         // 馬番で一致する馬を探す（最優先）
-        let keibaBookHorse = keibaBookRace.horses.find(h =>
+        let predictionHorse = predictionRace.horses.find(h =>
           h.number === computerHorse.number
         );
 
         // 馬番で見つからなければ馬名で探す
-        if (!keibaBookHorse) {
-          keibaBookHorse = keibaBookRace.horses.find(h =>
+        if (!predictionHorse) {
+          predictionHorse = predictionRace.horses.find(h =>
             h.name === computerHorse.name
           );
         }
 
-        if (!keibaBookHorse) {
+        if (!predictionHorse) {
           console.log(`[Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチなし`);
           return computerHorse;
         }
@@ -125,12 +125,12 @@ async function enrichWithKeibaBookData(computerData) {
         // 補完実行
         return {
           ...computerHorse,
-          jockey: keibaBookHorse.kisyu || null,
-          trainer: keibaBookHorse.kyusya || null,
-          weight: keibaBookHorse.kinryo ? parseFloat(keibaBookHorse.kinryo) : null,
-          ageGender: keibaBookHorse.seirei || null,
-          umacd: keibaBookHorse.umacd || null,
-          enrichedFrom: 'keiba-book'
+          jockey: predictionHorse.kisyu || null,
+          trainer: predictionHorse.kyusya || null,
+          weight: predictionHorse.kinryo ? parseFloat(predictionHorse.kinryo) : null,
+          ageGender: predictionHorse.seirei || null,
+          umacd: predictionHorse.umacd || null,
+          enrichedFrom: 'predictions'
         };
       });
 
@@ -154,29 +154,29 @@ async function enrichWithKeibaBookData(computerData) {
 }
 
 /**
- * 競馬ブックデータをGitHubから取得
+ * 予想データをGitHubから取得
  */
-async function fetchKeibaBookData(date, category) {
+async function fetchPredictionData(date, category) {
   const [year, month] = date.split('-');
   const fileName = `${date}.json`;
   const url = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileName}`;
 
-  console.log(`[Fetch KeibaBook] URL: ${url}`);
+  console.log(`[Fetch Prediction] URL: ${url}`);
 
   try {
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.log(`[Fetch KeibaBook] データなし: ${response.status}`);
+      console.log(`[Fetch Prediction] データなし: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    console.log(`[Fetch KeibaBook] データ取得成功`);
+    console.log(`[Fetch Prediction] データ取得成功`);
     return data;
 
   } catch (error) {
-    console.error('[Fetch KeibaBook] エラー:', error);
+    console.error('[Fetch Prediction] エラー:', error);
     return null;
   }
 }

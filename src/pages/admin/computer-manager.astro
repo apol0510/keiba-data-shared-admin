@@ -595,7 +595,7 @@
         }, 0);
 
         if (hasEnrichedData && enrichedCount > 0) {
-          showStatus(`✅ プレビュー成功！競馬ブックデータから ${enrichedCount}頭の情報を補完しました`, 'success');
+          showStatus(`✅ プレビュー成功！${enrichedCount}頭の出走情報を補完しました`, 'success');
         } else {
           showStatus('✅ プレビュー成功！内容を確認して保存してください', 'success');
         }
@@ -641,7 +641,7 @@
           <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #e9ecef;">
             <h4 style="margin-bottom: 15px; color: #FF6B6B;">
               🏇 ${race.raceNumber}R ${race.raceName || ''}
-              ${hasEnrichedData ? '<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; margin-left: 10px;">競馬ブックで補完済み</span>' : ''}
+              ${hasEnrichedData ? '<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; margin-left: 10px;">出走情報補完済み</span>' : ''}
             </h4>
             <div style="margin-bottom: 15px; color: #6c757d; font-size: 0.9rem;">
               ${race.distance ? `${race.distance}m` : ''}

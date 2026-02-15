@@ -148,45 +148,47 @@ function parseComputerData(raceDate, venue, computerData) {
 
     // 馬データ行をパース
     if (inHorseData) {
-      // 枠番の行をスキップ
-      if (line.match(/^[1-8]$/)) {
-        continue;
-      }
+      // 枠番の行（1-8の単独数字）
+      if (line.match(/^[1-8]$/) && i + 4 < lines.length) {
+        const bracket = parseInt(line);
 
-      // 馬番行
-      const horseNumberMatch = line.match(/^(\d{1,2})$/);
-      if (horseNumberMatch && i + 2 < lines.length) {
-        const number = parseInt(horseNumberMatch[1]);
-        const name = lines[i + 1].trim();
+        // 次の行が馬番（1-18の数字）
+        const numberLine = lines[i + 1].trim();
+        const numberMatch = numberLine.match(/^(\d{1,2})$/);
 
-        // 指数と人気を取得
-        let computerIndex = null;
-        let popularity = null;
+        if (numberMatch) {
+          const number = parseInt(numberMatch[1]);
 
-        // 次の数値行を探す（指数）
-        for (let j = i + 2; j < Math.min(i + 6, lines.length); j++) {
-          const indexMatch = lines[j].match(/^(\d{1,3})$/);
+          // その次が馬名
+          const name = lines[i + 2].trim();
+
+          // その次が指数
+          const indexLine = lines[i + 3].trim();
+          const indexMatch = indexLine.match(/^(\d{1,3})$/);
+
           if (indexMatch) {
-            computerIndex = parseInt(indexMatch[1]);
+            const computerIndex = parseInt(indexMatch[1]);
 
-            // その次の行で人気を取得
-            if (j + 1 < lines.length) {
-              const popMatch = lines[j + 1].match(/^(\d{1,2})位$/);
-              if (popMatch) {
-                popularity = parseInt(popMatch[1]);
-              }
+            // その次が人気
+            let popularity = null;
+            const popLine = lines[i + 4].trim();
+            const popMatch = popLine.match(/^(\d{1,2})位$/);
+
+            if (popMatch) {
+              popularity = parseInt(popMatch[1]);
             }
-            break;
-          }
-        }
 
-        if (computerIndex !== null) {
-          horses.push({
-            number,
-            name,
-            computerIndex,
-            popularity
-          });
+            horses.push({
+              bracket,
+              number,
+              name,
+              computerIndex,
+              popularity
+            });
+
+            // 5行スキップ（枠番→馬番→馬名→指数→人気）
+            i += 4;
+          }
         }
       }
     }

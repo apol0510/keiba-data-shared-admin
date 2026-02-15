@@ -1,0 +1,598 @@
+---
+// コンピ指数管理画面（全競馬場対応）
+---
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>コンピ指数管理 | keiba-data-shared-admin</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.95;
+    }
+
+    .content {
+      padding: 30px;
+    }
+
+    .form-section {
+      background: #f8f9fa;
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 25px;
+      border: 2px solid #e9ecef;
+    }
+
+    .form-section h2 {
+      color: #495057;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 3px solid #FF6B6B;
+      font-size: 1.5rem;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #495057;
+      font-size: 0.95rem;
+    }
+
+    input, select, textarea {
+      padding: 12px;
+      border: 2px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #FF6B6B;
+      box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+    }
+
+    textarea {
+      resize: vertical;
+      font-family: monospace;
+      line-height: 1.6;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      margin-top: 25px;
+    }
+
+    button {
+      padding: 15px 30px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      flex: 1;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+      color: white;
+      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(255, 107, 107, 0.6);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+    }
+
+    .status-message {
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      display: none;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-success {
+      background: #d4edda;
+      color: #155724;
+      border: 2px solid #c3e6cb;
+    }
+
+    .status-error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 2px solid #f5c6cb;
+    }
+
+    .status-info {
+      background: #d1ecf1;
+      color: #0c5460;
+      border: 2px solid #bee5eb;
+    }
+
+    .preview-section {
+      background: #f8f9fa;
+      border-radius: 15px;
+      padding: 25px;
+      margin-top: 25px;
+      border: 2px solid #e9ecef;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .preview-section h3 {
+      color: #495057;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #dee2e6;
+    }
+
+    pre {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 20px;
+      border-radius: 10px;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .helper-text {
+      font-size: 0.85rem;
+      color: #6c757d;
+      margin-top: 5px;
+    }
+
+    .category-info {
+      background: #fff3cd;
+      border: 2px solid #ffc107;
+      border-radius: 10px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+
+    .category-info strong {
+      color: #856404;
+    }
+
+    .race-input-area {
+      margin-top: 20px;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #FF6B6B;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 20px;
+      padding: 10px 20px;
+      background: white;
+      color: #667eea;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .back-link:hover {
+      background: #f8f9fa;
+      transform: translateX(-5px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📊 コンピ指数管理</h1>
+      <p>日刊コンピ指数データを入力・保存（全競馬場対応）</p>
+    </div>
+
+    <div class="content">
+      <a href="/" class="back-link">← トップページに戻る</a>
+
+      <div class="form-section">
+        <h2>📅 基本情報</h2>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="raceDate">開催日 *</label>
+            <input type="date" id="raceDate" required>
+            <span class="helper-text">コンピ指数のデータ日付</span>
+          </div>
+
+          <div class="form-group">
+            <label for="venue">競馬場 *</label>
+            <select id="venue" required>
+              <option value="">選択してください</option>
+              <optgroup label="中央競馬">
+                <option value="東京">東京</option>
+                <option value="中山">中山</option>
+                <option value="阪神">阪神</option>
+                <option value="京都">京都</option>
+                <option value="中京">中京</option>
+                <option value="新潟">新潟</option>
+                <option value="小倉">小倉</option>
+                <option value="札幌">札幌</option>
+                <option value="函館">函館</option>
+                <option value="福島">福島</option>
+              </optgroup>
+              <optgroup label="南関競馬">
+                <option value="大井">大井</option>
+                <option value="川崎">川崎</option>
+                <option value="船橋">船橋</option>
+                <option value="浦和">浦和</option>
+              </optgroup>
+              <optgroup label="地方競馬">
+                <option value="門別">門別</option>
+                <option value="盛岡">盛岡</option>
+                <option value="水沢">水沢</option>
+                <option value="金沢">金沢</option>
+                <option value="笠松">笠松</option>
+                <option value="名古屋">名古屋</option>
+                <option value="園田">園田</option>
+                <option value="姫路">姫路</option>
+                <option value="高知">高知</option>
+                <option value="佐賀">佐賀</option>
+              </optgroup>
+            </select>
+            <span class="helper-text">開催競馬場を選択</span>
+          </div>
+        </div>
+
+        <div class="category-info" id="categoryInfo" style="display: none;">
+          <strong>📁 保存先:</strong> <span id="categoryPath"></span>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <h2>🏇 コンピ指数データ入力</h2>
+
+        <div class="form-group race-input-area">
+          <label for="computerData">コンピ指数データ *</label>
+          <textarea
+            id="computerData"
+            rows="25"
+            placeholder="ここに日刊コンピ指数のデータを貼り付けてください...
+
+例:
+1R
+Ｃ３
+
+大井1R 10:55発走 / ダート1200m (右)
+
+一般 賞金:1着80万円、2着32万円、3着20万円、4着12万円、5着8万円
+枠
+馬番
+
+馬名
+
+指数
+
+人気
+2
+3
+
+ローゼンナイツ
+
+88
+
+1位
+2
+4
+
+ジャスティンプラハ
+
+74
+
+2位
+..."></textarea>
+          <span class="helper-text">日刊コンピ指数のデータをそのままコピー＆ペーストしてください</span>
+        </div>
+
+        <div class="button-group">
+          <button type="button" class="btn-secondary" onclick="clearForm()">クリア</button>
+          <button type="button" class="btn-primary" onclick="parseAndSave()">パース＆保存</button>
+        </div>
+      </div>
+
+      <div id="statusMessage" class="status-message"></div>
+
+      <div class="loading" id="loadingIndicator">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px; color: #495057;">処理中...</p>
+      </div>
+
+      <div class="preview-section" id="previewSection" style="display: none;">
+        <h3>📋 プレビュー（保存前確認）</h3>
+        <pre id="jsonPreview"></pre>
+        <div class="button-group" style="margin-top: 20px;">
+          <button type="button" class="btn-secondary" onclick="hidePreview()">キャンセル</button>
+          <button type="button" class="btn-primary" onclick="confirmAndSave()">この内容で保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let parsedData = null;
+
+    // 競馬場カテゴリ判定
+    function getCategoryByVenue(venue) {
+      const jra = ['東京', '中山', '阪神', '京都', '中京', '新潟', '小倉', '札幌', '函館', '福島'];
+      const nankan = ['大井', '川崎', '船橋', '浦和'];
+
+      if (jra.includes(venue)) return 'jra';
+      if (nankan.includes(venue)) return 'nankan';
+      return 'local';
+    }
+
+    // 競馬場コード取得
+    function getVenueCode(venue) {
+      const codes = {
+        '東京': 'TO', '中山': 'NA', '阪神': 'HA', '京都': 'KY',
+        '中京': 'CH', '新潟': 'NI', '小倉': 'KO', '札幌': 'SA',
+        '函館': 'HK', '福島': 'FU',
+        '大井': 'OI', '川崎': 'KA', '船橋': 'FU', '浦和': 'UR',
+        '門別': 'MO', '盛岡': 'MO', '水沢': 'MI', '金沢': 'KA',
+        '笠松': 'KS', '名古屋': 'NA', '園田': 'SO', '姫路': 'HI',
+        '高知': 'KO', '佐賀': 'SA'
+      };
+      return codes[venue] || 'XX';
+    }
+
+    // 競馬場選択時の処理
+    document.getElementById('venue').addEventListener('change', function() {
+      const venue = this.value;
+      if (venue) {
+        const category = getCategoryByVenue(venue);
+        const categoryInfo = document.getElementById('categoryInfo');
+        const categoryPath = document.getElementById('categoryPath');
+
+        categoryPath.textContent = `${category}/predictions/computer/YYYY/MM/YYYY-MM-DD.json`;
+        categoryInfo.style.display = 'block';
+      } else {
+        document.getElementById('categoryInfo').style.display = 'none';
+      }
+    });
+
+    // フォームクリア
+    function clearForm() {
+      if (confirm('入力内容をクリアしますか？')) {
+        document.getElementById('computerData').value = '';
+        document.getElementById('raceDate').value = '';
+        document.getElementById('venue').value = '';
+        document.getElementById('categoryInfo').style.display = 'none';
+        hidePreview();
+        hideStatus();
+      }
+    }
+
+    // プレビュー非表示
+    function hidePreview() {
+      document.getElementById('previewSection').style.display = 'none';
+      parsedData = null;
+    }
+
+    // ステータスメッセージ表示
+    function showStatus(message, type) {
+      const statusEl = document.getElementById('statusMessage');
+      statusEl.textContent = message;
+      statusEl.className = 'status-message status-' + type;
+      statusEl.style.display = 'block';
+
+      if (type === 'success' || type === 'error') {
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 5000);
+      }
+    }
+
+    function hideStatus() {
+      document.getElementById('statusMessage').style.display = 'none';
+    }
+
+    // ローディング表示
+    function showLoading() {
+      document.getElementById('loadingIndicator').style.display = 'block';
+    }
+
+    function hideLoading() {
+      document.getElementById('loadingIndicator').style.display = 'none';
+    }
+
+    // パース＆保存処理
+    async function parseAndSave() {
+      hideStatus();
+      hidePreview();
+
+      const raceDate = document.getElementById('raceDate').value;
+      const venue = document.getElementById('venue').value;
+      const computerData = document.getElementById('computerData').value.trim();
+
+      // バリデーション
+      if (!raceDate || !venue || !computerData) {
+        showStatus('⚠️ すべての必須項目を入力してください', 'error');
+        return;
+      }
+
+      showLoading();
+
+      try {
+        // パーサーAPIを呼び出し
+        const response = await fetch('/api/parse-computer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            raceDate,
+            venue,
+            computerData
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('パース処理に失敗しました: ' + response.statusText);
+        }
+
+        parsedData = await response.json();
+
+        // プレビュー表示
+        document.getElementById('jsonPreview').textContent = JSON.stringify(parsedData, null, 2);
+        document.getElementById('previewSection').style.display = 'block';
+
+        showStatus('✅ パース成功！内容を確認して保存してください', 'success');
+
+      } catch (error) {
+        console.error('Error:', error);
+        showStatus('❌ エラー: ' + error.message, 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // 保存確認＆実行
+    async function confirmAndSave() {
+      if (!parsedData) {
+        showStatus('❌ 保存するデータがありません', 'error');
+        return;
+      }
+
+      if (!confirm('この内容で保存しますか？')) {
+        return;
+      }
+
+      showLoading();
+      hideStatus();
+
+      try {
+        const response = await fetch('/api/save-computer', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(parsedData)
+        });
+
+        if (!response.ok) {
+          throw new Error('保存に失敗しました: ' + response.statusText);
+        }
+
+        const result = await response.json();
+
+        showStatus('🎉 保存成功！ファイル: ' + result.filePath, 'success');
+
+        // フォームクリア
+        setTimeout(() => {
+          if (confirm('保存が完了しました。フォームをクリアしますか？')) {
+            clearForm();
+          }
+        }, 1000);
+
+      } catch (error) {
+        console.error('Error:', error);
+        showStatus('❌ 保存エラー: ' + error.message, 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // 今日の日付を初期値にセット
+    document.addEventListener('DOMContentLoaded', () => {
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('raceDate').value = today;
+    });
+  </script>
+</body>
+</html>

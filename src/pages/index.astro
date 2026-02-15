@@ -29,18 +29,28 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div class="card-icon">⚡</div>
           <h2>JRA 結果管理（一括）</h2>
           <p>中央競馬（JRA）12レース分を一括入力</p>
-          <div class="badge-group">
-            <span class="badge badge-jra">JRA</span>
-            <span class="badge new-badge">NEW</span>
-          </div>
+          <span class="badge badge-jra">JRA</span>
         </a>
 
         <a href="/admin/predictions-manager-jra-batch" class="feature-card">
           <div class="card-icon">⚡</div>
           <h2>JRA 予想管理（一括）</h2>
           <p>中央競馬（JRA）12レース分を一括入力</p>
+          <span class="badge badge-jra">JRA</span>
+        </a>
+      </div>
+
+      <!-- コンピ指数管理（全競馬場対応） -->
+      <h2 style="margin-top: 3rem; margin-bottom: 1rem; text-align: center;">📊 コンピ指数管理</h2>
+      <div class="card-grid">
+        <a href="/admin/computer-manager" class="feature-card">
+          <div class="card-icon">📊</div>
+          <h2>コンピ指数管理（全競馬場対応）</h2>
+          <p>日刊コンピ指数データを入力・保存</p>
           <div class="badge-group">
             <span class="badge badge-jra">JRA</span>
+            <span class="badge badge-nankan">南関</span>
+            <span class="badge badge-local">地方</span>
             <span class="badge new-badge">NEW</span>
           </div>
         </a>
@@ -191,6 +201,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     .badge-jra {
       background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .badge-local {
+      background: linear-gradient(135deg, #10b981, #059669);
     }
 
     .new-badge {

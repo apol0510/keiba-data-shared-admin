@@ -356,7 +356,7 @@
                 <option value="佐賀">佐賀</option>
               </optgroup>
             </select>
-            <span class="helper-text">開催競馬場を選択</span>
+            <span class="helper-text">開催競馬場を選択（データ貼り付け時に自動検出）</span>
           </div>
         </div>
 
@@ -523,6 +523,47 @@
 
     // 日付選択時の処理
     document.getElementById('raceDate').addEventListener('change', updateCategoryPath);
+
+    // コンピ指数データから競馬場を自動検出
+    function detectVenueFromData(text) {
+      const venues = [
+        // 中央競馬
+        '東京', '中山', '阪神', '京都', '中京', '新潟', '小倉', '札幌', '函館', '福島',
+        // 南関競馬
+        '大井', '川崎', '船橋', '浦和',
+        // 地方競馬
+        '門別', '盛岡', '水沢', '金沢', '笠松', '名古屋', '園田', '姫路', '高知', '佐賀'
+      ];
+
+      // レース情報行から競馬場を検出（例: "大井1R 10:55発走"）
+      for (const venue of venues) {
+        const pattern = new RegExp(`${venue}\\d{1,2}R\\s+\\d{1,2}:\\d{2}発走`);
+        if (pattern.test(text)) {
+          return venue;
+        }
+      }
+
+      return null;
+    }
+
+    // テキストエリアに貼り付け時の自動検出
+    document.getElementById('computerData').addEventListener('input', function() {
+      const text = this.value;
+      const venueSelect = document.getElementById('venue');
+
+      // 既に選択されている場合はスキップ
+      if (venueSelect.value) {
+        return;
+      }
+
+      // データから競馬場を自動検出
+      const detectedVenue = detectVenueFromData(text);
+      if (detectedVenue) {
+        venueSelect.value = detectedVenue;
+        updateCategoryPath();
+        console.log(`[Auto Detect] 競馬場を自動検出: ${detectedVenue}`);
+      }
+    });
 
     // フォームクリア
     function clearForm() {

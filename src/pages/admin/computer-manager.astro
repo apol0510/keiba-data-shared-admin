@@ -189,7 +189,7 @@
       padding: 25px;
       margin-top: 25px;
       border: 2px solid #e9ecef;
-      max-height: 600px;
+      max-height: 800px;
       overflow-y: auto;
     }
 
@@ -382,7 +382,7 @@
 
         <div class="button-group">
           <button type="button" class="btn-secondary" onclick="clearForm()">クリア</button>
-          <button type="button" class="btn-primary" onclick="parseAndSave()">パース＆保存</button>
+          <button type="button" class="btn-primary" onclick="parseAndPreview()">パース＆プレビュー</button>
         </div>
       </div>
 
@@ -395,10 +395,21 @@
 
       <div class="preview-section" id="previewSection" style="display: none;">
         <h3>📋 プレビュー（保存前確認）</h3>
-        <pre id="jsonPreview"></pre>
-        <div class="button-group" style="margin-top: 20px;">
+
+        <!-- 人間が読みやすいプレビュー -->
+        <div id="previewContent" style="margin-bottom: 25px;"></div>
+
+        <!-- JSON表示（折りたたみ可能） -->
+        <details style="margin-top: 20px;">
+          <summary style="cursor: pointer; padding: 10px; background: #f8f9fa; border-radius: 8px; font-weight: 600;">
+            📄 JSON形式で確認（クリックで展開）
+          </summary>
+          <pre id="jsonPreview" style="margin-top: 15px;"></pre>
+        </details>
+
+        <div class="button-group" style="margin-top: 25px;">
           <button type="button" class="btn-secondary" onclick="hidePreview()">キャンセル</button>
-          <button type="button" class="btn-primary" onclick="confirmAndSave()">この内容で保存</button>
+          <button type="button" class="btn-primary" onclick="confirmAndSave()">✅ この内容で保存</button>
         </div>
       </div>
     </div>
@@ -491,8 +502,8 @@
       document.getElementById('loadingIndicator').style.display = 'none';
     }
 
-    // パース＆保存処理
-    async function parseAndSave() {
+    // パース＆プレビュー処理
+    async function parseAndPreview() {
       hideStatus();
       hidePreview();
 
@@ -507,6 +518,7 @@
       }
 
       showLoading();
+      showStatus('📊 パース処理中...', 'info');
 
       try {
         // パーサーAPIを呼び出し
@@ -529,8 +541,13 @@
         parsedData = await response.json();
 
         // プレビュー表示
+        const previewHTML = generatePreviewHTML(parsedData);
+        document.getElementById('previewContent').innerHTML = previewHTML;
         document.getElementById('jsonPreview').textContent = JSON.stringify(parsedData, null, 2);
         document.getElementById('previewSection').style.display = 'block';
+
+        // プレビューセクションまでスクロール
+        document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
         showStatus('✅ パース成功！内容を確認して保存してください', 'success');
 
@@ -540,6 +557,89 @@
       } finally {
         hideLoading();
       }
+    }
+
+    // プレビューHTML生成
+    function generatePreviewHTML(data) {
+      let html = `
+        <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+          <h3 style="margin-bottom: 15px; color: #495057;">📋 データサマリー</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+            <div>
+              <strong>日付:</strong> ${data.date}
+            </div>
+            <div>
+              <strong>競馬場:</strong> ${data.venue}
+            </div>
+            <div>
+              <strong>カテゴリ:</strong> ${data.category}
+            </div>
+            <div>
+              <strong>レース数:</strong> ${data.races.length}R
+            </div>
+            <div>
+              <strong>データソース:</strong> 日刊コンピ
+            </div>
+          </div>
+        </div>
+      `;
+
+      // レース詳細
+      data.races.forEach(race => {
+        const hasEnrichedData = race.horses.some(h => h.jockey || h.trainer);
+
+        html += `
+          <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #e9ecef;">
+            <h4 style="margin-bottom: 15px; color: #FF6B6B;">
+              🏇 ${race.raceNumber}R ${race.raceName || ''}
+              ${hasEnrichedData ? '<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 5px; font-size: 0.8rem; margin-left: 10px;">競馬ブックで補完済み</span>' : ''}
+            </h4>
+            <div style="margin-bottom: 15px; color: #6c757d; font-size: 0.9rem;">
+              ${race.distance ? `${race.distance}m` : ''}
+              ${race.surface || ''}
+              ${race.track ? `(${race.track})` : ''}
+              ${race.startTime ? `${race.startTime}発走` : ''}
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead>
+                <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                  <th style="padding: 10px; text-align: center;">馬番</th>
+                  <th style="padding: 10px; text-align: left;">馬名</th>
+                  <th style="padding: 10px; text-align: center;">指数</th>
+                  <th style="padding: 10px; text-align: center;">人気</th>
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left;">騎手</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: left;">調教師</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center;">斤量</th>' : ''}
+                  ${hasEnrichedData ? '<th style="padding: 10px; text-align: center;">馬齢性</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+        `;
+
+        race.horses.forEach((horse, idx) => {
+          const bgColor = idx % 2 === 0 ? '#ffffff' : '#f8f9fa';
+          html += `
+            <tr style="background: ${bgColor}; border-bottom: 1px solid #e9ecef;">
+              <td style="padding: 10px; text-align: center; font-weight: bold;">${horse.number}</td>
+              <td style="padding: 10px;">${horse.name}</td>
+              <td style="padding: 10px; text-align: center; font-weight: bold; color: #FF6B6B;">${horse.computerIndex}</td>
+              <td style="padding: 10px; text-align: center;">${horse.popularity}位</td>
+              ${hasEnrichedData ? `<td style="padding: 10px;">${horse.jockey || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; font-size: 0.9rem;">${horse.trainer || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center;">${horse.weight || '-'}</td>` : ''}
+              ${hasEnrichedData ? `<td style="padding: 10px; text-align: center;">${horse.ageGender || '-'}</td>` : ''}
+            </tr>
+          `;
+        });
+
+        html += `
+              </tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      return html;
     }
 
     // 保存確認＆実行

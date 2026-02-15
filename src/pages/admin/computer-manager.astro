@@ -539,11 +539,11 @@
       }
 
       showLoading();
-      showStatus('📊 パース処理中...', 'info');
+      showStatus('📊 パース処理中... 競馬ブックデータと照合します', 'info');
 
       try {
-        // パーサーAPIを呼び出し
-        const response = await fetch('/.netlify/functions/parse-computer', {
+        // プレビューAPIを呼び出し（競馬ブックデータとの補完を含む）
+        const response = await fetch('/.netlify/functions/preview-computer', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -556,7 +556,7 @@
         });
 
         if (!response.ok) {
-          throw new Error('パース処理に失敗しました: ' + response.statusText);
+          throw new Error('プレビュー処理に失敗しました: ' + response.statusText);
         }
 
         parsedData = await response.json();
@@ -570,7 +570,17 @@
         // プレビューセクションまでスクロール
         document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-        showStatus('✅ パース成功！内容を確認して保存してください', 'success');
+        // 補完の有無を確認
+        const hasEnrichedData = parsedData.enrichedAt ? true : false;
+        const enrichedCount = parsedData.races.reduce((count, race) => {
+          return count + race.horses.filter(h => h.enrichedFrom === 'keiba-book').length;
+        }, 0);
+
+        if (hasEnrichedData && enrichedCount > 0) {
+          showStatus(`✅ プレビュー成功！競馬ブックデータから ${enrichedCount}頭の情報を補完しました`, 'success');
+        } else {
+          showStatus('✅ プレビュー成功！内容を確認して保存してください', 'success');
+        }
 
       } catch (error) {
         console.error('Error:', error);

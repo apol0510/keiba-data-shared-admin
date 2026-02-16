@@ -571,22 +571,35 @@ export const prerender = false;
 
       console.log(`[splitRacesHTML] ○レースパターン検出数: ${raceMatches.length}個`);
 
-      if (raceMatches.length > 0) {
+      // レース番号の重複を除去（同じレース番号が複数ある場合、最初のものだけ残す）
+      const seenRaceNumbers = new Set();
+      const uniqueRaceMatches = raceMatches.filter(rm => {
+        if (seenRaceNumbers.has(rm.raceNum)) {
+          console.warn(`[splitRacesHTML] 重複検出: 第${rm.raceNum}レース（スキップ）`);
+          return false;
+        }
+        seenRaceNumbers.add(rm.raceNum);
+        return true;
+      });
+
+      console.log(`[splitRacesHTML] 重複除去後のレース数: ${uniqueRaceMatches.length}個`);
+
+      if (uniqueRaceMatches.length > 0) {
         // 各レースのテキストを抽出（レース番号も含める）
-        for (let i = 0; i < raceMatches.length; i++) {
-          const startIndex = raceMatches[i].index;
-          const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : text.length;
+        for (let i = 0; i < uniqueRaceMatches.length; i++) {
+          const startIndex = uniqueRaceMatches[i].index;
+          const endIndex = i < uniqueRaceMatches.length - 1 ? uniqueRaceMatches[i + 1].index : text.length;
           const raceText = text.substring(startIndex, endIndex);
 
           if (raceText.length > 100) {
             races.push({
               text: raceText,
-              raceNumber: raceMatches[i].raceNum  // 実際のレース番号を保持
+              raceNumber: uniqueRaceMatches[i].raceNum  // 実際のレース番号を保持
             });
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース: ${raceText.length}文字`);
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース 最初の200文字:`, raceText.substring(0, 200));
+            console.log(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}レース: ${raceText.length}文字`);
+            console.log(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}レース 最初の200文字:`, raceText.substring(0, 200));
           } else {
-            console.warn(`[splitRacesHTML] 第${raceMatches[i].raceNum}レース: データが短すぎる（${raceText.length}文字）`);
+            console.warn(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}レース: データが短すぎる（${raceText.length}文字）`);
           }
         }
       } else {
@@ -1741,6 +1754,15 @@ export const prerender = false;
     function generateRacePreviewHTML(result) {
       const { data } = result;
 
+      console.log(`[generateRacePreviewHTML] 第${result.raceNumber}R データ構造:`, {
+        raceName: data.raceName,
+        resultsCount: data.results?.length || 0,
+        payoutsKeys: data.payouts ? Object.keys(data.payouts) : [],
+        hasComment: !!data.comment,
+        hasTimeData: !!data.timeData,
+        hasCornerData: !!data.cornerData
+      });
+
       // コース情報を組み立て（距離・surface・track）
       let courseInfo = '';
       if (data.distance) {
@@ -1899,6 +1921,15 @@ export const prerender = false;
 
         html += '</div>';
         html += '</div>';
+      }
+
+      // データが何もない場合の警告メッセージ
+      if (!data.results?.length && !data.payouts && !data.timeData && !data.cornerData && !data.comment) {
+        html += `
+          <div style="padding: 1rem; background: var(--warning-bg, #fff3cd); border: 1px solid var(--warning-border, #ffc107); border-radius: 8px; margin-top: 1rem;">
+            <p style="margin: 0; color: var(--warning-text, #856404);">⚠️ このレースのデータが正しく抽出できていない可能性があります。元データを確認してください。</p>
+          </div>
+        `;
       }
 
       return html;

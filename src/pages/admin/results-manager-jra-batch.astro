@@ -554,8 +554,9 @@ export const prerender = false;
       console.log(`[splitRacesHTML] 最初の500文字:`, text.substring(0, 500));
 
       // 中央競馬の結果はプレーンテキスト形式（HTMLタグなし）
-      // パターン: 「第1レース」「第2レース」...「第12レース」または「メイン 第11レース」のような形式
-      const racePattern = /第(\d{1,2})レース/g;
+      // パターン: 「1レース」「2レース」...「12レース」または「第1レース」「第2レース」のような形式（両方対応）
+      // (?:第)? は「第」がオプショナル（あってもなくてもOK）
+      const racePattern = /(?:第)?(\d{1,2})レース/g;
 
       const raceMatches = [];
       let match;

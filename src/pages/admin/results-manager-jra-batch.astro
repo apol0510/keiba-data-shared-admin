@@ -469,11 +469,43 @@ export const prerender = false;
               }
             }
 
-            // 結果データ抽出
-            const results = extractResults(raceHTML);
-            const payouts = extractPayouts(raceHTML);
-            const timeData = extractTimeData(raceHTML);
-            const cornerData = extractCornerData(raceHTML);
+            // 結果データ抽出（個別エラーハンドリング）
+            let results = [];
+            let payouts = {};
+            let timeData = {};
+            let cornerData = [];
+
+            try {
+              results = extractResults(raceHTML);
+              console.log(`[Batch] 第${raceNum}R: 着順データ抽出成功（${results.length}頭）`);
+            } catch (err) {
+              console.error(`[Batch] 第${raceNum}R: 着順データ抽出エラー:`, err);
+              throw new Error(`着順データ抽出失敗: ${err.message}`);
+            }
+
+            try {
+              payouts = extractPayouts(raceHTML);
+              console.log(`[Batch] 第${raceNum}R: 払戻金抽出成功`);
+            } catch (err) {
+              console.warn(`[Batch] 第${raceNum}R: 払戻金抽出エラー（スキップ）:`, err);
+              payouts = {};
+            }
+
+            try {
+              timeData = extractTimeData(raceHTML);
+              console.log(`[Batch] 第${raceNum}R: タイムデータ抽出成功`);
+            } catch (err) {
+              console.warn(`[Batch] 第${raceNum}R: タイムデータ抽出エラー（スキップ）:`, err);
+              timeData = {};
+            }
+
+            try {
+              cornerData = extractCornerData(raceHTML);
+              console.log(`[Batch] 第${raceNum}R: コーナー通過順抽出成功`);
+            } catch (err) {
+              console.warn(`[Batch] 第${raceNum}R: コーナー通過順抽出エラー（スキップ）:`, err);
+              cornerData = [];
+            }
 
             // レースオブジェクトを構築（generateRaceCommentary用）
             const race = {
@@ -556,14 +588,20 @@ export const prerender = false;
       // 中央競馬の結果はプレーンテキスト形式（HTMLタグなし）
       // パターン: 「1レース」「2レース」...「12レース」または「第1レース」「第2レース」のような形式（両方対応）
       // (?:第)? は「第」がオプショナル（あってもなくてもOK）
-      const racePattern = /(?:第)?(\d{1,2})レース/g;
+      // (?:^|[^\d]) は前方が数字でないことを確認（11レース→1レース誤検出を防止）
+      const racePattern = /(?:^|[^\d])(?:第)?(\d{1,2})レース/gm;
 
       const raceMatches = [];
       let match;
 
       while ((match = racePattern.exec(text)) !== null) {
+        // match.index は境界文字を含む位置なので、実際のレース番号の開始位置を調整
+        const actualIndex = match[0].match(/(?:第)?(\d{1,2})レース/) ?
+          match.index + match[0].indexOf(match[0].match(/(?:第)?(\d{1,2})レース/)[0]) :
+          match.index;
+
         raceMatches.push({
-          index: match.index,
+          index: actualIndex,
           raceNum: parseInt(match[1], 10),
           fullMatch: match[0]
         });

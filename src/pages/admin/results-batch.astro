@@ -530,19 +530,32 @@ export const prerender = false;
 
       console.log(`[splitRacesHTML] ○R○年パターン検出数: ${raceMatches.length}個`);
 
-      if (raceMatches.length > 0) {
+      // レース番号の重複を除去（念のため）
+      const seenRaceNumbers = new Set();
+      const uniqueRaceMatches = raceMatches.filter(rm => {
+        if (seenRaceNumbers.has(rm.raceNum)) {
+          console.warn(`[splitRacesHTML] 重複検出: 第${rm.raceNum}R（スキップ）`);
+          return false;
+        }
+        seenRaceNumbers.add(rm.raceNum);
+        return true;
+      });
+
+      console.log(`[splitRacesHTML] 重複除去後のレース数: ${uniqueRaceMatches.length}個`);
+
+      if (uniqueRaceMatches.length > 0) {
         // 各レースのテキストを抽出
-        for (let i = 0; i < raceMatches.length; i++) {
-          const startIndex = raceMatches[i].index;
-          const endIndex = i < raceMatches.length - 1 ? raceMatches[i + 1].index : text.length;
+        for (let i = 0; i < uniqueRaceMatches.length; i++) {
+          const startIndex = uniqueRaceMatches[i].index;
+          const endIndex = i < uniqueRaceMatches.length - 1 ? uniqueRaceMatches[i + 1].index : text.length;
           const raceText = text.substring(startIndex, endIndex);
 
           if (raceText.length > 100) {
             races.push(raceText);
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: ${raceText.length}文字`);
-            console.log(`[splitRacesHTML] 第${raceMatches[i].raceNum}R 最初の200文字:`, raceText.substring(0, 200));
+            console.log(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}R: ${raceText.length}文字`);
+            console.log(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}R 最初の200文字:`, raceText.substring(0, 200));
           } else {
-            console.warn(`[splitRacesHTML] 第${raceMatches[i].raceNum}R: データが短すぎる（${raceText.length}文字）`);
+            console.warn(`[splitRacesHTML] 第${uniqueRaceMatches[i].raceNum}R: データが短すぎる（${raceText.length}文字）`);
           }
         }
       } else {

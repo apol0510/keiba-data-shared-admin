@@ -76,8 +76,8 @@ function parseComputerData(raceDate, venue, computerData) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // レース番号検出
-    const raceNumberMatch = line.match(/^(\d{1,2})R$/);
+    // レース番号検出（例: "1R", "12R", "1R ３歳三組", "5R ジンチョウゲ特別"）
+    const raceNumberMatch = line.match(/^(\d{1,2})R(?:\s+(.+))?$/);
     if (raceNumberMatch) {
       if (currentRaceNumber && horses.length > 0) {
         races.push({
@@ -89,6 +89,10 @@ function parseComputerData(raceDate, venue, computerData) {
 
       currentRaceNumber = raceNumberMatch[1];
       currentRaceInfo = {};
+      // レース番号と同じ行にレース名がある場合は取得
+      if (raceNumberMatch[2]) {
+        currentRaceInfo.raceName = raceNumberMatch[2].trim();
+      }
       horses = [];
       inHorseData = false;
       continue;
@@ -117,15 +121,15 @@ function parseComputerData(raceDate, venue, computerData) {
       continue;
     }
 
-    // レース名・賞金情報
+    // レース名・賞金情報（例: "一般 賞金:1着80万円..."、"３歳 賞金:..."）
     if (line.includes('賞金:')) {
       const raceNameMatch = line.match(/^(.+?)\s+賞金:/);
       if (raceNameMatch) {
         const type = raceNameMatch[1].trim();
+        // 「一般」は無視
         if (type !== '一般') {
-          if (currentRaceInfo.raceName) {
-            currentRaceInfo.raceName = `${type} ${currentRaceInfo.raceName}`;
-          } else {
+          // 既存のレース名（1R行で取得済み）がある場合は上書きしない
+          if (!currentRaceInfo.raceName) {
             currentRaceInfo.raceName = type;
           }
         }
@@ -133,7 +137,7 @@ function parseComputerData(raceDate, venue, computerData) {
       continue;
     }
 
-    // レース名のみ
+    // レース名のみ（例: "Ｃ３", "如月賞"）※既にレース名がある場合はスキップ
     if (!currentRaceInfo.raceName && line.length > 0 && line.length < 20 && !line.includes('馬') && !line.includes('指数')) {
       currentRaceInfo.raceName = line;
       continue;

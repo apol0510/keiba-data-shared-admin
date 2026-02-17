@@ -59,7 +59,7 @@ export const handler = async (event) => {
  * 予想データで補完
  */
 async function enrichWithPredictionData(computerData) {
-  const { date, venue, category } = computerData;
+  const { date, venue, venueCode, category } = computerData;
 
   // 予想データは中央と南関のみ
   if (category !== 'jra' && category !== 'nankan') {
@@ -69,7 +69,7 @@ async function enrichWithPredictionData(computerData) {
 
   try {
     // 予想データを取得
-    const predictionData = await fetchPredictionData(date, category);
+    const predictionData = await fetchPredictionData(date, category, venueCode);
 
     if (!predictionData) {
       console.log('[Enrich] 予想データなし（補完スキップ）');
@@ -84,13 +84,10 @@ async function enrichWithPredictionData(computerData) {
       let predictionRace = null;
 
       if (category === 'jra') {
-        // JRAの場合は会場も一致させる
-        const venueRaces = predictionData.venues?.find(v => v.venue === venue);
-        if (venueRaces) {
-          predictionRace = venueRaces.races.find(r =>
-            parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
-          );
-        }
+        // JRA予想はトップレベルに races 配列（venueCodeごとのファイル）
+        predictionRace = predictionData.races?.find(r =>
+          parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
+        );
       } else {
         // 南関の場合
         predictionRace = predictionData.races?.find(r =>
@@ -155,10 +152,12 @@ async function enrichWithPredictionData(computerData) {
 
 /**
  * 予想データをGitHubから取得
+ * JRAは venueCode 付きファイル名（例: 2026-02-17-KOK.json）
+ * 南関は日付のみのファイル名（例: 2026-02-17.json）
  */
-async function fetchPredictionData(date, category) {
+async function fetchPredictionData(date, category, venueCode) {
   const [year, month] = date.split('-');
-  const fileName = `${date}.json`;
+  const fileName = category === 'jra' ? `${date}-${venueCode}.json` : `${date}.json`;
   const url = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileName}`;
 
   console.log(`[Fetch Prediction] URL: ${url}`);

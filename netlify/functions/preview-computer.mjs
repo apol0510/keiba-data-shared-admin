@@ -215,7 +215,7 @@ function parseComputerData(raceDate, venue, computerData) {
  * 予想データで補完（save-computer.mjsと同じ）
  */
 async function enrichWithPredictionData(computerData) {
-  const { date, venue, category } = computerData;
+  const { date, venue, venueCode, category } = computerData;
 
   if (category !== 'jra' && category !== 'nankan') {
     console.log('[Preview Enrich] 地方競馬のため補完スキップ');
@@ -223,7 +223,7 @@ async function enrichWithPredictionData(computerData) {
   }
 
   try {
-    const predictionData = await fetchPredictionData(date, category);
+    const predictionData = await fetchPredictionData(date, category, venueCode);
 
     if (!predictionData) {
       console.log('[Preview Enrich] 予想データなし（補完スキップ）');
@@ -236,12 +236,10 @@ async function enrichWithPredictionData(computerData) {
       let predictionRace = null;
 
       if (category === 'jra') {
-        const venueRaces = predictionData.venues?.find(v => v.venue === venue);
-        if (venueRaces) {
-          predictionRace = venueRaces.races.find(r =>
-            parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
-          );
-        }
+        // JRA予想はトップレベルに races 配列（venueCodeごとのファイル）
+        predictionRace = predictionData.races?.find(r =>
+          parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
+        );
       } else {
         predictionRace = predictionData.races?.find(r =>
           r.raceInfo.raceNumber === `${computerRace.raceNumber}R`
@@ -301,10 +299,12 @@ async function enrichWithPredictionData(computerData) {
 
 /**
  * 予想データをGitHubから取得
+ * JRAは venueCode 付きファイル名（例: 2026-02-17-KOK.json）
+ * 南関は日付のみのファイル名（例: 2026-02-17.json）
  */
-async function fetchPredictionData(date, category) {
+async function fetchPredictionData(date, category, venueCode) {
   const [year, month] = date.split('-');
-  const fileName = `${date}.json`;
+  const fileName = category === 'jra' ? `${date}-${venueCode}.json` : `${date}.json`;
   const url = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileName}`;
 
   console.log(`[Preview Fetch Prediction] URL: ${url}`);

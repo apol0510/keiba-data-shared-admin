@@ -589,21 +589,28 @@
       const venueSelect = document.getElementById('venue');
       const dateInput = document.getElementById('raceDate');
 
-      // 日付の自動検出（既に入力されている場合はスキップ）
-      if (!dateInput.value) {
-        const detectedDate = detectDateFromData(text);
-        if (detectedDate) {
-          dateInput.value = detectedDate;
-          console.log(`[Auto Detect] 日付を自動検出: ${detectedDate}`);
+      // データが空なら何もしない
+      if (!text.trim()) {
+        return;
+      }
+
+      // 日付の自動検出（毎回実行、上書き）
+      const detectedDate = detectDateFromData(text);
+      if (detectedDate) {
+        const previousDate = dateInput.value;
+        dateInput.value = detectedDate;
+        if (previousDate !== detectedDate) {
+          console.log(`[Auto Detect] 日付を自動検出: ${previousDate || '(空)'} → ${detectedDate}`);
         }
       }
 
-      // 競馬場の自動検出（既に選択されている場合はスキップ）
-      if (!venueSelect.value) {
-        const detectedVenue = detectVenueFromData(text);
-        if (detectedVenue) {
-          venueSelect.value = detectedVenue;
-          console.log(`[Auto Detect] 競馬場を自動検出: ${detectedVenue}`);
+      // 競馬場の自動検出（毎回実行、上書き）
+      const detectedVenue = detectVenueFromData(text);
+      if (detectedVenue) {
+        const previousVenue = venueSelect.value;
+        venueSelect.value = detectedVenue;
+        if (previousVenue !== detectedVenue) {
+          console.log(`[Auto Detect] 競馬場を自動検出: ${previousVenue || '(空)'} → ${detectedVenue}`);
         }
       }
 
@@ -878,14 +885,17 @@
 
         const result = await response.json();
 
-        showStatus('🎉 保存成功！ファイル: ' + result.filePath, 'success');
+        showStatus('🎉 保存成功！ファイル: ' + result.filePath + ' - 次のデータを入力できます', 'success');
 
-        // フォームクリア
+        // フォームを自動クリア（次の入力に備える）
         setTimeout(() => {
-          if (confirm('保存が完了しました。フォームをクリアしますか？')) {
-            clearForm();
-          }
-        }, 1000);
+          document.getElementById('computerData').value = '';
+          document.getElementById('raceDate').value = '';
+          document.getElementById('venue').value = '';
+          document.getElementById('categoryInfo').style.display = 'none';
+          hidePreview();
+          console.log('[Auto Clear] フォームをクリアしました。次のデータを貼り付けてください。');
+        }, 1500);
 
       } catch (error) {
         console.error('Error:', error);
@@ -895,11 +905,8 @@
       }
     }
 
-    // 今日の日付を初期値にセット
-    document.addEventListener('DOMContentLoaded', () => {
-      const today = new Date().toISOString().split('T')[0];
-      document.getElementById('raceDate').value = today;
-    });
+    // 初期値は設定しない（自動検出に任せる）
+    // DOMContentLoaded時の処理は不要
   </script>
 </body>
 </html>

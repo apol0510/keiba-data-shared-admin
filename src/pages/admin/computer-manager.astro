@@ -573,11 +573,24 @@
         '門別', '帯広', '盛岡', '水沢', '金沢', '笠松', '名古屋', '園田', '姫路', '高知', '佐賀'
       ];
 
+      // 特別な省略形マッピング
+      const abbreviations = {
+        '名古': '名古屋'  // 「名古1R」→「名古屋」
+      };
+
       // レース情報行から競馬場を検出（例: "大井1R 10:55発走"）
       for (const venue of venues) {
         const pattern = new RegExp(`${venue}\\d{1,2}R\\s+\\d{1,2}:\\d{2}発走`);
         if (pattern.test(text)) {
           return venue;
+        }
+      }
+
+      // 省略形をチェック
+      for (const [abbr, fullName] of Object.entries(abbreviations)) {
+        const pattern = new RegExp(`${abbr}\\d{1,2}R\\s+\\d{1,2}:\\d{2}発走`);
+        if (pattern.test(text)) {
+          return fullName;
         }
       }
 

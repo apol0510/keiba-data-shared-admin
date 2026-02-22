@@ -260,7 +260,7 @@ function getVenueCode(venue) {
     // 南関競馬
     '大井': 'OOI', '川崎': 'KAW', '船橋': 'FUN', '浦和': 'URA',
     // 地方競馬
-    '門別': 'MON', '盛岡': 'MOR', '水沢': 'MIZ', '金沢': 'KNZ',
+    '門別': 'MON', '帯広': 'OBI', '盛岡': 'MOR', '水沢': 'MIZ', '金沢': 'KNZ',
     '笠松': 'KSM', '名古屋': 'NGY', '園田': 'SON', '姫路': 'HIM',
     '高知': 'KOC', '佐賀': 'SAG'
   };

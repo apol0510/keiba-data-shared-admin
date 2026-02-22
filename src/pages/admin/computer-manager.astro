@@ -589,29 +589,36 @@
       const venueSelect = document.getElementById('venue');
       const dateInput = document.getElementById('raceDate');
 
+      console.log('[Auto Detect] 関数が呼ばれました');
+      console.log('[Auto Detect] データ長:', text.length);
+      console.log('[Auto Detect] データの最初の200文字:', text.substring(0, 200));
+
       // データが空なら何もしない
       if (!text.trim()) {
+        console.log('[Auto Detect] データが空のため処理をスキップ');
         return;
       }
 
       // 日付の自動検出（毎回実行、上書き）
       const detectedDate = detectDateFromData(text);
+      console.log('[Auto Detect] 日付検出結果:', detectedDate);
       if (detectedDate) {
         const previousDate = dateInput.value;
         dateInput.value = detectedDate;
-        if (previousDate !== detectedDate) {
-          console.log(`[Auto Detect] 日付を自動検出: ${previousDate || '(空)'} → ${detectedDate}`);
-        }
+        console.log(`[Auto Detect] 日付を自動検出: ${previousDate || '(空)'} → ${detectedDate}`);
+      } else {
+        console.log('[Auto Detect] 日付が検出できませんでした');
       }
 
       // 競馬場の自動検出（毎回実行、上書き）
       const detectedVenue = detectVenueFromData(text);
+      console.log('[Auto Detect] 競馬場検出結果:', detectedVenue);
       if (detectedVenue) {
         const previousVenue = venueSelect.value;
         venueSelect.value = detectedVenue;
-        if (previousVenue !== detectedVenue) {
-          console.log(`[Auto Detect] 競馬場を自動検出: ${previousVenue || '(空)'} → ${detectedVenue}`);
-        }
+        console.log(`[Auto Detect] 競馬場を自動検出: ${previousVenue || '(空)'} → ${detectedVenue}`);
+      } else {
+        console.log('[Auto Detect] 競馬場が検出できませんでした');
       }
 
       // 両方検出できたら保存先パスを更新

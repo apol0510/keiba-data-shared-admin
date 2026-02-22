@@ -583,9 +583,9 @@
       return null;
     }
 
-    // テキストエリアに貼り付け時の自動検出
-    document.getElementById('computerData').addEventListener('input', function() {
-      const text = this.value;
+    // 自動検出処理（共通関数）
+    function autoDetectFields() {
+      const text = document.getElementById('computerData').value;
       const venueSelect = document.getElementById('venue');
       const dateInput = document.getElementById('raceDate');
 
@@ -618,6 +618,15 @@
       if (dateInput.value && venueSelect.value) {
         updateCategoryPath();
       }
+    }
+
+    // テキストエリアに貼り付け時の自動検出（inputイベント）
+    document.getElementById('computerData').addEventListener('input', autoDetectFields);
+
+    // テキストエリアに貼り付け時の自動検出（pasteイベント - より確実）
+    document.getElementById('computerData').addEventListener('paste', function(e) {
+      // pasteイベントは実際のテキストが反映される前に発火するため、少し待つ
+      setTimeout(autoDetectFields, 100);
     });
 
     // フォームクリア

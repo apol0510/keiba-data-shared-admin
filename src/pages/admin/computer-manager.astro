@@ -539,6 +539,28 @@
     // 日付選択時の処理
     document.getElementById('raceDate').addEventListener('change', updateCategoryPath);
 
+    // コンピ指数データから日付を自動検出（例: "2026年2月22日 高知"）
+    function detectDateFromData(text) {
+      // パターン1: "2026年2月22日"
+      const pattern1 = /(\d{4})年(\d{1,2})月(\d{1,2})日/;
+      const match1 = text.match(pattern1);
+      if (match1) {
+        const year = match1[1];
+        const month = match1[2].padStart(2, '0');
+        const day = match1[3].padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+
+      // パターン2: "2026-02-22"（既にハイフン形式の場合）
+      const pattern2 = /(\d{4})-(\d{2})-(\d{2})/;
+      const match2 = text.match(pattern2);
+      if (match2) {
+        return match2[0];
+      }
+
+      return null;
+    }
+
     // コンピ指数データから競馬場を自動検出
     function detectVenueFromData(text) {
       const venues = [
@@ -565,18 +587,29 @@
     document.getElementById('computerData').addEventListener('input', function() {
       const text = this.value;
       const venueSelect = document.getElementById('venue');
+      const dateInput = document.getElementById('raceDate');
 
-      // 既に選択されている場合はスキップ
-      if (venueSelect.value) {
-        return;
+      // 日付の自動検出（既に入力されている場合はスキップ）
+      if (!dateInput.value) {
+        const detectedDate = detectDateFromData(text);
+        if (detectedDate) {
+          dateInput.value = detectedDate;
+          console.log(`[Auto Detect] 日付を自動検出: ${detectedDate}`);
+        }
       }
 
-      // データから競馬場を自動検出
-      const detectedVenue = detectVenueFromData(text);
-      if (detectedVenue) {
-        venueSelect.value = detectedVenue;
+      // 競馬場の自動検出（既に選択されている場合はスキップ）
+      if (!venueSelect.value) {
+        const detectedVenue = detectVenueFromData(text);
+        if (detectedVenue) {
+          venueSelect.value = detectedVenue;
+          console.log(`[Auto Detect] 競馬場を自動検出: ${detectedVenue}`);
+        }
+      }
+
+      // 両方検出できたら保存先パスを更新
+      if (dateInput.value && venueSelect.value) {
         updateCategoryPath();
-        console.log(`[Auto Detect] 競馬場を自動検出: ${detectedVenue}`);
       }
     });
 

@@ -749,10 +749,70 @@ NETLIFY_BUILD_HOOK_URL=https://api.netlify.com/build_hooks/xxxxx
 
 ---
 
-**📅 最終更新日**: 2026-02-12
-**🏁 Project Phase**: Phase 1-6 完了 ✅（南関＋中央競馬 完全対応・予想管理完成）
-**🎯 Next Priority**: 運用開始 → JRA予想データ実運用 → 各予想サイトでデータ読み込み
-**📊 進捗率**: 100%完了（Phase 1-6: 南関＋JRA 結果・予想 完全実装、運用準備完了）
+**📅 最終更新日**: 2026-02-28
+**🏁 Project Phase**: Phase 1-7 完了 ✅（南関＋中央競馬 完全対応・予想管理完成・自動判定実装）
+**🎯 Next Priority**: 運用開始 → データ保存の完全自動化運用
+**📊 進捗率**: 100%完了（Phase 1-7: 南関＋JRA 結果・予想 完全実装、keiba-intelligence自動判定連携完了）
+
+---
+
+## 🚀 **Phase 7: keiba-intelligence自動判定連携（2026-02-28完了 ✅）**
+
+### **実装内容**
+
+#### **1. repository_dispatch連携の実装**
+- **save-results-jra.mjs**: JRA結果保存後、keiba-intelligenceに自動通知
+- **save-results.mjs**: 南関結果保存後、keiba-intelligenceに自動通知
+- **GitHub API経由でrepository_dispatchイベントを送信**
+
+#### **2. keiba-intelligenceワークフロー更新**
+- **import-results-jra-daily.yml**: `repository_dispatch: [jra-results-updated]` 追加
+- **import-results-nankan-daily.yml**: `repository_dispatch: [nankan-results-updated]` 追加
+
+#### **3. 環境変数の追加**
+- **KEIBA_INTELLIGENCE_TOKEN**: keiba-intelligenceリポジトリへのアクセストークン
+- Netlify環境変数に設定済み
+
+#### **4. データ確認手順の改善**
+- **CLAUDE.md**: セッション開始時に `git pull` を必ず実行する手順を追加
+- **package.json**: `npm run dev` でkeiba-data-sharedを自動同期
+
+### **効果**
+
+**以前のフロー:**
+```
+results-manager-jra-batch で保存
+  ↓
+23:30の定期実行まで待つ（最大24時間）
+  ↓
+手動でGitHub Actions実行
+```
+
+**現在のフロー:**
+```
+results-manager-jra-batch で保存
+  ↓
+即座にrepository_dispatch送信 ✅
+  ↓
+GitHub Actionsが自動起動 ✅
+  ↓
+数分で的中判定完了 ✅
+```
+
+### **再発防止策**
+
+#### **問題: Claudeがデータを見つけられない**
+- **原因**: ローカルのkeiba-data-sharedが古く、`git pull` していなかった
+- **解決策**:
+  1. データ確認前に必ず `git -C /Users/apolon/Projects/keiba-data-shared pull origin main` を実行
+  2. `npm run dev` で自動的にkeiba-data-sharedを同期
+  3. CLAUDE.mdに手順0として明記
+
+#### **問題: 自動判定が実行されない**
+- **原因**: repository_dispatch連携が未実装
+- **解決策**: 結果保存後、即座にkeiba-intelligenceに通知を送信
+
+---
 
 ## 🐛 **バグ修正履歴** 🐛
 
@@ -1198,6 +1258,75 @@ paths:
   - **ドキュメント**: README.md、CLAUDE.md
   - **本番URL**: https://keiba-data-shared-admin.netlify.app
   - **運用方針**: GitHub Private・共有データレイヤー（非公開・自動化両立）
+
+---
+
+### **2026-02-28 (1): Claudeがデータを見つけられない問題の根本解決**
+
+**問題:**
+- Claudeが「2/28のデータが見つかりません」と報告
+- 実際にはkeiba-data-sharedに2/28のデータが保存されていた
+- 原因: ローカルの `/Users/apolon/Projects/keiba-data-shared` が古く、GitHubリモートと同期していなかった
+
+**修正内容:**
+
+#### **1. CLAUDE.mdにデータ確認手順を追加**
+```bash
+# 0. 【最重要】keiba-data-sharedを最新に同期（これを忘れると古いデータしか見えない）
+git -C /Users/apolon/Projects/keiba-data-shared pull origin main
+```
+
+#### **2. package.jsonに自動同期スクリプト追加**
+```json
+"sync:data": "git -C /Users/apolon/Projects/keiba-data-shared pull origin main --quiet || echo 'keiba-data-shared sync skipped'"
+```
+- `npm run dev` 実行時に自動的にkeiba-data-sharedを同期
+
+**再発防止策:**
+- ✅ データ確認前に必ず `git pull` を実行
+- ✅ CLAUDE.mdに手順0として最優先で記載
+- ✅ ローカルではなくリモートが常に最新であることを明記
+
+**影響範囲:**
+- CLAUDE.md（データ確認時の標準手順を追加）
+- package.json（自動同期スクリプト追加）
+
+---
+
+### **2026-02-28 (2): keiba-intelligence自動判定が実行されない問題の解決**
+
+**問題:**
+- keiba-data-sharedに結果データが保存されているのに、keiba-intelligenceで自動判定が実行されない
+- 23:30の定期実行まで待つ必要があった（最大24時間）
+
+**根本原因:**
+- save-results-jra.mjs がGitHubにプッシュした後、keiba-intelligenceに通知を送る仕組みがなかった
+
+**修正内容:**
+
+#### **1. save-results-jra.mjs / save-results.mjs の修正**
+- GitHub repository_dispatch APIを呼び出し
+- keiba-intelligenceに `jra-results-updated` / `nankan-results-updated` イベントを送信
+- 環境変数 `KEIBA_INTELLIGENCE_TOKEN` を使用
+
+#### **2. keiba-intelligenceワークフローの修正**
+- import-results-jra-daily.yml に `repository_dispatch: [jra-results-updated]` を追加
+- import-results-nankan-daily.yml に `repository_dispatch: [nankan-results-updated]` を追加
+
+#### **3. Netlify環境変数の追加**
+- `KEIBA_INTELLIGENCE_TOKEN`: keiba-intelligenceリポジトリへのアクセストークン
+
+**再発防止策:**
+- ✅ 結果保存後、即座にkeiba-intelligenceに通知
+- ✅ GitHub Actionsが自動的に起動
+- ✅ 数分で的中判定が完了
+
+**影響範囲:**
+- netlify/functions/save-results-jra.mjs
+- netlify/functions/save-results.mjs
+- keiba-intelligence/.github/workflows/import-results-jra-daily.yml
+- keiba-intelligence/.github/workflows/import-results-nankan-daily.yml
+- CLAUDE.md（環境変数ドキュメント更新）
 
 ---
 

@@ -360,13 +360,55 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       console.warn('⚠️ NETLIFY_BUILD_HOOK_URLが設定されていません。ビルドは自動トリガーされません。');
     }
 
+    // keiba-intelligenceへの自動判定トリガー（repository_dispatch）
+    // 非同期で実行（await しない）- 結果を待たずにすぐにレスポンスを返す
+    let intelligenceTriggered = false;
+    const KEIBA_INTELLIGENCE_TOKEN = process.env.KEIBA_INTELLIGENCE_TOKEN || GITHUB_TOKEN;
+
+    if (KEIBA_INTELLIGENCE_TOKEN) {
+      const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
+      fetch(dispatchUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event_type: 'nankan-results-updated',
+          client_payload: {
+            date: date,
+            venue: venue,
+            venueCode: venueCode
+          }
+        })
+      }).then((response) => {
+        if (response.ok) {
+          console.log(`✅ keiba-intelligenceに自動判定トリガーを送信しました (date: ${date})`);
+        } else {
+          console.error(`❌ keiba-intelligence トリガー送信失敗: ${response.status}`);
+        }
+      }).catch((dispatchError) => {
+        console.error('❌ keiba-intelligence トリガー送信エラー:', dispatchError);
+      });
+      intelligenceTriggered = true;
+    } else {
+      console.warn('⚠️ KEIBA_INTELLIGENCE_TOKENが設定されていません。keiba-intelligenceの自動判定はトリガーされません。');
+    }
+
     // 成功レスポンス
+    let message = `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`;
+    if (buildTriggered) {
+      message += ` 公開サイトのビルドを開始しました。2-3分後に https://keiba-data-shared.netlify.app/ に反映されます。`;
+    }
+    if (intelligenceTriggered) {
+      message += ` keiba-intelligenceで自動判定を開始しました。`;
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        message: buildTriggered
-          ? `${fileName} を keiba-data-shared に保存し、公開サイトのビルドを開始しました。2-3分後に https://keiba-data-shared.netlify.app/ に反映されます！`
-          : `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`,
+        message: message,
         fileName,
         filePath,
         repoUrl: `https://github.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}`,
@@ -375,7 +417,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         rawUrl: `https://raw.githubusercontent.com/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/${GITHUB_BRANCH}/${filePath}`,
         archiveCommitUrl: archiveCommitUrl,
         archiveSaved: !!archiveCommitUrl,
-        buildTriggered: buildTriggered
+        buildTriggered: buildTriggered,
+        intelligenceTriggered: intelligenceTriggered
       }),
       { status: 200, headers }
     );

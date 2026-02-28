@@ -41,6 +41,42 @@ git remote -v
 cd /Users/apolon/Projects/keiba-data-shared-admin
 ```
 
+### **データ確認時の標準手順（重要）**
+
+**❌ 絶対にやってはいけないこと:**
+- 「データが見つかりません」と即座に報告すること
+- 手動実行を提案すること
+- 毎回同じエラーを繰り返すこと
+- **git pull せずにローカルファイルを確認すること** ← 最重要
+
+**✅ 正しい手順（必ず実行）:**
+
+```bash
+# 0. 【最重要】keiba-data-sharedを最新に同期（これを忘れると古いデータしか見えない）
+git -C /Users/apolon/Projects/keiba-data-shared pull origin main
+
+# 1. keiba-data-sharedの存在確認
+ls -la /Users/apolon/Projects/keiba-data-shared
+
+# 2. 該当日付のデータ確認（例: 2026年2月28日のJRA結果）
+ls -la /Users/apolon/Projects/keiba-data-shared/jra/results/2026/02/
+
+# 3. ファイル内容確認（JSONが存在する場合）
+cat /Users/apolon/Projects/keiba-data-shared/jra/results/2026/02/2026-02-28-*.json
+
+# 4. 最新のデータ確認（最近5件）
+ls -lt /Users/apolon/Projects/keiba-data-shared/jra/results/2026/02/ | head -6
+
+# 5. データが本当に存在しない場合のみ、その旨を報告
+```
+
+**重要な注意事項:**
+- **keiba-data-sharedはリモート（GitHub）が常に最新**
+- ローカルは古い可能性が高いため、**必ず最初に `git pull` を実行**
+- 南関データは `nankan/results/`, `nankan/predictions/`
+- JRAデータは `jra/results/`, `jra/predictions/`
+- コンピ指数は `{category}/predictions/computer/`
+
 ### **厳格な制約事項**
 
 #### **✅ 許可される操作**
@@ -48,9 +84,16 @@ cd /Users/apolon/Projects/keiba-data-shared-admin
 - すべてのサブディレクトリ（src/, netlify/, public/）
 - README.md、CLAUDE.md、package.json
 
+#### **✅ 例外的にアクセス許可される操作（データ参照専用）**
+- **keiba-data-shared リポジトリへの読み取り専用アクセス**
+  - **パス**: `/Users/apolon/Projects/keiba-data-shared`
+  - **目的**: 保存済みデータの確認、自動化の検証
+  - **制約**: 読み取り専用（ls, cat, grep等）、書き込み禁止
+
 #### **❌ 絶対禁止の操作**
-- 他のプロジェクトディレクトリへの一切のアクセス
+- keiba-data-shared 以外のプロジェクトディレクトリへのアクセス
 - 親ディレクトリ `/Users/apolon/Projects/` の直接走査・検索
+- keiba-data-shared への直接書き込み（GitHub API経由のみ許可）
 
 ---
 
@@ -577,13 +620,23 @@ git log --oneline
 # 用途: keiba-data-sharedリポジトリへのコミット・プッシュ
 GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
+# keiba-intelligence自動判定トリガー用トークン（オプショナル、推奨）
+# 用途: 結果保存後にkeiba-intelligenceで自動的に的中判定を実行
+# 権限: repo権限 + keiba-intelligenceリポジトリへのアクセス
+KEIBA_INTELLIGENCE_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 # リポジトリオーナー（オプショナル、デフォルト: apol0510）
 GITHUB_REPO_OWNER=apol0510
+
+# Netlify Build Hook URL（オプショナル）
+# 用途: keiba-data-sharedの公開サイトを自動ビルド
+NETLIFY_BUILD_HOOK_URL=https://api.netlify.com/build_hooks/xxxxx
 ```
 
 **重要な注意事項:**
-- `GITHUB_TOKEN` は **repo 権限**が必要
-- keiba-data-shared リポジトリへの書き込み権限が必要
+- `GITHUB_TOKEN_KEIBA_DATA_SHARED` は **repo 権限**が必要
+- `KEIBA_INTELLIGENCE_TOKEN` を設定すると、結果保存後に自動的にkeiba-intelligenceで的中判定が実行される（推奨）
+- トークン未設定でも基本機能は動作するが、自動判定は実行されない
 
 ---
 

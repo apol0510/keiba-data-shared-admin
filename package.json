@@ -4,12 +4,13 @@
   "version": "1.0.0",
   "description": "KEIBA Data Shared Admin - 競馬データ共有管理画面",
   "scripts": {
-    "dev": "astro dev",
+    "dev": "npm run sync:data && astro dev",
     "start": "astro dev",
     "build": "astro build",
     "check": "astro check",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "sync:data": "git -C /Users/apolon/Projects/keiba-data-shared pull origin main --quiet || echo 'keiba-data-shared sync skipped'"
   },
   "dependencies": {
     "@astrojs/netlify": "^6.0.0",

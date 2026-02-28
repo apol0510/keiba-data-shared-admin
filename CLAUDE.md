@@ -1330,6 +1330,51 @@ git -C /Users/apolon/Projects/keiba-data-shared pull origin main
 
 ---
 
+### **2026-03-01 (1): JRA予想統合ワークフロー：コンピ指数ファイル除外**
+
+**問題:**
+- keiba-data-sharedのGitHub Actions「Merge JRA Prediction Files」でエラー発生
+- コンピ指数ファイル（`jra/predictions/computer/2026/03/2026-03-01-KOK.json`）を検出
+- 統合スクリプトが通常の予想ファイルパス（`jra/predictions/2026/03/`）を探してエラー
+
+**根本原因:**
+- コンピ指数は `jra/predictions/computer/` に保存される
+- 統合スクリプトは `jra/predictions/YYYY/MM/` を前提としている
+- ワークフローがコンピ指数ファイルも検出対象にしていた
+
+**修正内容:**
+
+#### **1. keiba-data-shared/.github/workflows/merge-jra-predictions.yml の修正**
+```yaml
+# paths設定にコンピ指数の除外を追加
+paths:
+  - 'jra/predictions/**/*.json'
+  - '!jra/predictions/computer/**'  # ← 追加
+```
+
+```bash
+# CHANGED_FILESの取得時にcomputerディレクトリを除外
+CHANGED_FILES=$(git diff --name-only HEAD^ HEAD | grep 'jra/predictions/.*\.json' | grep -v 'jra/predictions/computer/' || true)
+
+# VENUE_FILESの正規表現を厳密化（computerパスにマッチしないように）
+VENUE_FILES=$(echo "$CHANGED_FILES" | grep -E 'jra/predictions/[0-9]{4}/[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Z]{3}\.json' || true)
+```
+
+**再発防止策:**
+- ✅ コンピ指数保存時にワークフローがトリガーされない
+- ✅ 通常の予想ファイルのみ統合処理が実行される
+- ✅ パス構造の違いによるエラーを防止
+
+**影響範囲:**
+- keiba-data-shared/.github/workflows/merge-jra-predictions.yml
+
+**エラー例:**
+```
+❌ ディレクトリが見つかりません: /home/runner/work/keiba-data-shared/keiba-data-shared/jra/predictions/2026/03
+```
+
+---
+
 ### **2026-02-16 (1): JRA一括入力レース番号検出の堅牢性強化**
 
 **問題:**

@@ -1330,6 +1330,58 @@ git -C /Users/apolon/Projects/keiba-data-shared pull origin main
 
 ---
 
+### **2026-03-02 (1): タイムゾーンずれによる自動判定失敗の修正**
+
+**問題:**
+- 3/1の結果データがkeiba-data-sharedに保存されているのに、keiba-intelligenceで自動判定が実行されない
+- repository_dispatchは送信されているが、ワークフローが翌日の日付をチェックしてしまう
+
+**根本原因:**
+- save-results-jra.mjs が3/1のデータを保存して `client_payload.date=2026-03-01` を送信
+- しかし、ワークフロー実行時にはJSTで既に3/2になっていた
+- import-results-jra-daily.yml が `TZ=Asia/Tokyo date` を使用し、3/2のデータを探してしまった
+- 3/1のデータは見逃され、アーカイブに反映されなかった
+
+**修正内容:**
+
+#### **1. import-results-jra-daily.yml の修正**
+- `Get current date (JST)` ステップで `client_payload.date` を優先使用
+- repository_dispatchで日付が指定されている場合は、その日付を使用
+- 定期実行（schedule）の場合は従来通りJST今日の日付を使用
+
+#### **2. import-results-nankan-daily.yml の修正**
+- 同様に `client_payload.date` を優先使用
+
+**修正後のフロー:**
+```
+save-results-jra.mjs が 3/1 の結果を保存
+  ↓
+repository_dispatch送信: client_payload.date=2026-03-01
+  ↓
+keiba-intelligence ワークフロー起動
+  ↓
+client_payload.date を優先使用（タイムゾーンに関係なく正しい日付）
+  ↓
+2026-03-01.json を正しくインポート ✅
+```
+
+**再発防止策:**
+- ✅ repository_dispatchで送信された日付を優先使用
+- ✅ タイムゾーンのずれに影響されない
+- ✅ 定期実行も引き続き動作する
+
+**影響範囲:**
+- keiba-intelligence/.github/workflows/import-results-jra-daily.yml
+- keiba-intelligence/.github/workflows/import-results-nankan-daily.yml
+
+**手動実行コマンド（過去のデータをインポートする場合）:**
+```bash
+cd /Users/apolon/Projects/keiba-intelligence
+gh workflow run import-results-jra.yml -f date=2026-03-01
+```
+
+---
+
 ### **2026-03-01 (1): JRA予想統合ワークフロー：コンピ指数ファイル除外**
 
 **問題:**

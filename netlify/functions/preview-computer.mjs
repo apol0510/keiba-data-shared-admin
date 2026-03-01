@@ -231,6 +231,7 @@ async function enrichWithPredictionData(computerData) {
     }
 
     console.log('[Preview Enrich] 予想データ取得成功、補完開始');
+    debugPredictionData(predictionData, category);
 
     const enrichedRaces = computerData.races.map(computerRace => {
       let predictionRace = null;
@@ -266,6 +267,13 @@ async function enrichWithPredictionData(computerData) {
           console.log(`[Preview Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチなし`);
           return computerHorse;
         }
+
+        console.log(`[Preview Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチ成功`, {
+          kisyu: predictionHorse.kisyu,
+          kyusya: predictionHorse.kyusya,
+          kinryo: predictionHorse.kinryo,
+          seirei: predictionHorse.seirei
+        });
 
         return {
           ...computerHorse,
@@ -324,6 +332,39 @@ async function fetchPredictionData(date, category, venueCode) {
   } catch (error) {
     console.error('[Preview Fetch Prediction] エラー:', error);
     return null;
+  }
+}
+
+/**
+ * デバッグ用：予想データの構造を確認
+ */
+function debugPredictionData(predictionData, category) {
+  if (!predictionData) {
+    console.log('[Debug] 予想データなし');
+    return;
+  }
+
+  console.log('[Debug] 予想データ構造確認:');
+  console.log('[Debug] - トップレベルキー:', Object.keys(predictionData));
+  console.log('[Debug] - racesの有無:', predictionData.races ? 'あり' : 'なし');
+
+  if (predictionData.races && predictionData.races.length > 0) {
+    const firstRace = predictionData.races[0];
+    console.log('[Debug] - 1レース目のキー:', Object.keys(firstRace));
+    console.log('[Debug] - 1レース目のレース番号:', firstRace.raceInfo?.raceNumber || firstRace.raceNumber || '不明');
+
+    if (firstRace.horses && firstRace.horses.length > 0) {
+      const firstHorse = firstRace.horses[0];
+      console.log('[Debug] - 1頭目のキー:', Object.keys(firstHorse));
+      console.log('[Debug] - 1頭目のフィールド:', {
+        number: firstHorse.number,
+        name: firstHorse.name,
+        kisyu: firstHorse.kisyu,
+        kyusya: firstHorse.kyusya,
+        kinryo: firstHorse.kinryo,
+        seirei: firstHorse.seirei
+      });
+    }
   }
 }
 

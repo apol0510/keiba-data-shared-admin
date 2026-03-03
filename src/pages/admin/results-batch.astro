@@ -620,6 +620,13 @@ export const prerender = false;
             continue; // この行はスキップ
           }
 
+          // 🔧 FIX: 「準重賞」「ＪＲＡ交流」などの付帯情報行を除外
+          // 実際のレース名（カタカナ主体、3文字以上）を優先
+          const isSupplementaryInfo = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般|サラブレッド系|指定|別定|馬齢|定量|ハンデ)[\s\u3000]/);
+          if (isSupplementaryInfo) {
+            continue; // この行はスキップ
+          }
+
           if (trimmedLine.match(/特別|賞|杯|盃/)) {
             raceName = trimmedLine;
             console.log('[extractRaceInfo] 一般レース名抽出:', raceName);

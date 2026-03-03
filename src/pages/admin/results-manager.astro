@@ -886,7 +886,8 @@ export const prerender = false;
           line.includes('着') && line.includes('枠') && line.includes('馬番') ||  // ヘッダー行
           /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line) ||  // データ行（着順データ）
           line.length > 40 ||  // 長すぎる行は不適切
-          line.length < 2      // 短すぎる行も不適切
+          line.length < 2 ||   // 短すぎる行も不適切
+          /^(準重賞|重賞|ＪＲＡ交流|特別競走|一般|指定|別定|馬齢|定量|ハンデ)[\s\u3000]/.test(line)  // 🔧 FIX: 付帯情報行を除外
         ) {
           return -1000;
         }
@@ -927,6 +928,12 @@ export const prerender = false;
         // 記念を含む（スコア: +50）
         if (line.includes('記念') && !line.includes('賞金')) {
           score += 50;
+        }
+
+        // 🔧 FIX: 「賞」を含む（スコア: +40）
+        // 例: ブルートシュタインチャレンジ、雷鶏賞、進撃賞など
+        if (line.match(/賞/) && !line.includes('賞金')) {
+          score += 40;
         }
 
         // 適切な文字数（10-30文字）にボーナス（スコア: +20）

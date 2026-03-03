@@ -936,6 +936,13 @@ export const prerender = false;
           score += 40;
         }
 
+        // 🔧 NEW: カタカナ主体のレース名（スコア: +50）
+        // 例: ブルートシュタインチャレンジ（「賞」「杯」を含まない準重賞レース名）
+        const katakanaCount = (line.match(/[ァ-ヴ]/g) || []).length;
+        if (katakanaCount >= 5 && line.length >= 5 && line.length <= 30) {
+          score += 50;
+        }
+
         // 適切な文字数（10-30文字）にボーナス（スコア: +20）
         if (line.length >= 10 && line.length <= 30) {
           score += 20;

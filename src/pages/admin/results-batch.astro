@@ -635,7 +635,34 @@ export const prerender = false;
         }
       }
 
-      // 優先順位4: クラス名（「３歳」「２歳」など）
+      // 🔧 NEW: 優先順位4: カタカナ主体のレース名（例: ブルートシュタインチャレンジ）
+      // 「賞」「杯」「特別」を含まない準重賞レース名に対応
+      if (!raceName) {
+        for (let line of targetLines) {
+          const trimmedLine = line.trim();
+          // 払戻金・賞金関連のキーワードを含む行はスキップ
+          const isPayoutRelated = trimmedLine.match(/単勝|複勝|馬連|馬単|枠連|枠単|ワイド|三連|組番|払戻|人気|円|賞金|番組ポイント|サラブレッド系|アラブ系|普通競走/);
+          if (isPayoutRelated) {
+            continue;
+          }
+
+          // 付帯情報行を除外
+          const isSupplementaryInfo = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般|サラブレッド系|指定|別定|馬齢|定量|ハンデ)[\s\u3000]/);
+          if (isSupplementaryInfo) {
+            continue;
+          }
+
+          // カタカナが5文字以上含まれ、適切な長さ（5-30文字）の行を抽出
+          const katakanaCount = (trimmedLine.match(/[ァ-ヴ]/g) || []).length;
+          if (katakanaCount >= 5 && trimmedLine.length >= 5 && trimmedLine.length <= 30) {
+            raceName = trimmedLine;
+            console.log('[extractRaceInfo] カタカナレース名抽出:', raceName);
+            break;
+          }
+        }
+      }
+
+      // 優先順位5: クラス名（「３歳」「２歳」など）
       // 特別名がない一般レースの場合
       if (!raceName) {
         for (let line of targetLines) {

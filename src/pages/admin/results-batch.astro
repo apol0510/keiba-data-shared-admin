@@ -609,34 +609,9 @@ export const prerender = false;
         }
       }
 
-      // 優先順位3: 「特別」「賞」「杯」
-      // ⚠️ 払戻金キーワード（「単勝」「複勝」「馬連」など）と賞金キーワードを除外
-      if (!raceName) {
-        for (let line of targetLines) {
-          const trimmedLine = line.trim();
-          // 払戻金・賞金関連のキーワードを含む行はスキップ
-          const isPayoutRelated = trimmedLine.match(/単勝|複勝|馬連|馬単|枠連|枠単|ワイド|三連|組番|払戻|人気|円|賞金|番組ポイント/);
-          if (isPayoutRelated) {
-            continue; // この行はスキップ
-          }
-
-          // 🔧 FIX: 「準重賞」「ＪＲＡ交流」などの付帯情報行を除外
-          // 実際のレース名（カタカナ主体、3文字以上）を優先
-          const isSupplementaryInfo = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般|サラブレッド系|指定|別定|馬齢|定量|ハンデ)[\s\u3000]/);
-          if (isSupplementaryInfo) {
-            continue; // この行はスキップ
-          }
-
-          if (trimmedLine.match(/特別|賞|杯|盃/)) {
-            raceName = trimmedLine;
-            console.log('[extractRaceInfo] 一般レース名抽出:', raceName);
-            break;
-          }
-        }
-      }
-
-      // 🔧 NEW: 優先順位4: カタカナ主体のレース名（例: ブルートシュタインチャレンジ）
-      // 「賞」「杯」「特別」を含まない準重賞レース名に対応
+      // 🔧 優先順位3（変更）: カタカナ主体のレース名
+      // 「スプリングヒロインカップ」や「ブルートシュタインチャレンジ」など
+      // 括弧付き（例: スプリングヒロインカップ（エンプレス杯ＴＲ））にも対応
       if (!raceName) {
         for (let line of targetLines) {
           const trimmedLine = line.trim();
@@ -652,11 +627,49 @@ export const prerender = false;
             continue;
           }
 
-          // カタカナが5文字以上含まれ、適切な長さ（5-30文字）の行を抽出
+          // 付帯情報の単独行も除外（例: 「準重賞」のみの行）
+          const isSupplementaryInfoOnly = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般競走|サラブレッド系|指定|別定|馬齢|定量|ハンデ)$/);
+          if (isSupplementaryInfoOnly) {
+            continue;
+          }
+
+          // カタカナが5文字以上含まれ、適切な長さ（5-50文字）の行を抽出
           const katakanaCount = (trimmedLine.match(/[ァ-ヴ]/g) || []).length;
-          if (katakanaCount >= 5 && trimmedLine.length >= 5 && trimmedLine.length <= 30) {
+          if (katakanaCount >= 5 && trimmedLine.length >= 5 && trimmedLine.length <= 50) {
             raceName = trimmedLine;
             console.log('[extractRaceInfo] カタカナレース名抽出:', raceName);
+            break;
+          }
+        }
+      }
+
+      // 🔧 優先順位4（変更）: 「特別」「賞」「杯」
+      // ⚠️ 払戻金キーワード（「単勝」「複勝」「馬連」など）と賞金キーワードを除外
+      if (!raceName) {
+        for (let line of targetLines) {
+          const trimmedLine = line.trim();
+          // 払戻金・賞金関連のキーワードを含む行はスキップ
+          const isPayoutRelated = trimmedLine.match(/単勝|複勝|馬連|馬単|枠連|枠単|ワイド|三連|組番|払戻|人気|円|賞金|番組ポイント/);
+          if (isPayoutRelated) {
+            continue; // この行はスキップ
+          }
+
+          // 「準重賞」「ＪＲＡ交流」などの付帯情報行を除外
+          const isSupplementaryInfo = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般|サラブレッド系|指定|別定|馬齢|定量|ハンデ)[\s\u3000]/);
+          if (isSupplementaryInfo) {
+            continue; // この行はスキップ
+          }
+
+          // 付帯情報の単独行も除外（例: 「準重賞」のみの行）
+          const isSupplementaryInfoOnly = trimmedLine.match(/^(準重賞|重賞|ＪＲＡ交流|特別競走|一般競走|サラブレッド系|指定|別定|馬齢|定量|ハンデ)$/);
+          if (isSupplementaryInfoOnly) {
+            console.log('[extractRaceInfo] 付帯情報単独行をスキップ:', trimmedLine);
+            continue; // この行はスキップ
+          }
+
+          if (trimmedLine.match(/特別|賞|杯|盃/)) {
+            raceName = trimmedLine;
+            console.log('[extractRaceInfo] 一般レース名抽出:', raceName);
             break;
           }
         }

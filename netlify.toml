@@ -5,6 +5,12 @@
 [build.environment]
   NODE_VERSION = "20"
 
+# 管理画面を非公開化（Basic認証）
+[context.production]
+  [context.production.environment]
+    BASIC_AUTH_USERNAME = "mako"
+    BASIC_AUTH_PASSWORD = "keiba2026admin"
+
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"

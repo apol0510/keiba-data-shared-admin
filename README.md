@@ -52,7 +52,22 @@ GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxxxxxxxxxxxxxxx
 
 # リポジトリオーナー（デフォルト: apol0510）
 GITHUB_REPO_OWNER=apol0510
+
+# X (旧Twitter) API認証情報（自動投稿機能用）
+X_API_KEY=your_api_key_here
+X_API_SECRET=your_api_secret_here
+X_ACCESS_TOKEN=your_access_token_here
+X_ACCESS_TOKEN_SECRET=your_access_token_secret_here
 ```
+
+**X API認証情報の取得方法:**
+
+1. [X Developer Portal](https://developer.x.com/) にアクセス
+2. プロジェクト作成 → アプリ作成
+3. アプリ権限を「Read and Write」に設定
+4. API Key & Secret（Consumer Key/Secret）を取得
+5. 「Keys and tokens」タブでAccess Token & Secretを生成
+6. 上記4つの値をNetlify環境変数に設定
 
 ## 📦 デプロイ
 

@@ -416,14 +416,62 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         '浦和': '🏆'
       };
 
-      const resultUrl = `https://data.keiba-intelligence.jp/nankan/results/${year}/${month}/${date.substring(8, 10)}/${venueCode.toLowerCase()}/`;
+      // 競馬場コードを小文字に変換（URLパスに使用）
+      const venueSlugMap = {
+        'OI': 'ooi',
+        'KA': 'kawasaki',
+        'FU': 'funabashi',
+        'UR': 'urawa'
+      };
+      const venueSlug = venueSlugMap[venueCode] || venueCode.toLowerCase();
 
-      const tweetText = `${venueEmoji[venue] || '📊'} ${date.replace(/-/g, '/')} ${venue}競馬の結果を公開
+      let tweetText;
+      let resultUrl;
+
+      if (isBatchMode || totalRaces > 1) {
+        // 一括保存時（全レース）
+        resultUrl = `https://data.keiba-intelligence.jp/nankan/results/${year}/${month}/${date.substring(8, 10)}/${venueSlug}/`;
+        tweetText = `${venueEmoji[venue] || '📊'} ${date.replace(/-/g, '/')} ${venue}競馬の結果を公開
 
 全${totalRaces}レース・払戻金・コーナー通過順を掲載
 ${resultUrl}
 
 #南関競馬 #${venue}競馬 #競馬結果`;
+      } else {
+        // 個別レース保存時
+        const race = parsedData.races[0];
+        const raceNumber = race.raceNumber;
+        const raceName = race.raceName || '';
+        const winner = race.results?.[0];
+
+        resultUrl = `https://data.keiba-intelligence.jp/nankan/results/${year}/${month}/${date.substring(8, 10)}/${venueSlug}/${raceNumber}/`;
+
+        // レース名が空または不適切な場合は省略
+        const raceNamePart = raceName && raceName.length >= 2 && raceName.length <= 40 && !raceName.includes('賞金') ? `${raceName}\n` : '';
+
+        if (winner) {
+          // 三連単配当情報
+          const sanrentanInfo = race.payouts?.sanrentan?.[0];
+          const sanrentanText = sanrentanInfo ? `\n三連単 ${sanrentanInfo.combination} ${sanrentanInfo.payout.toLocaleString()}円` : '';
+
+          tweetText = `${venueEmoji[venue] || '📊'} ${date.replace(/-/g, '/')} ${venue}競馬 第${raceNumber}R
+${raceNamePart}
+1着 ${winner.number}番${winner.name}（${winner.jockey}）${sanrentanText}
+
+詳細・払戻金はこちら
+${resultUrl}
+
+#南関競馬 #${venue}競馬 #競馬結果`;
+        } else {
+          tweetText = `${venueEmoji[venue] || '📊'} ${date.replace(/-/g, '/')} ${venue}競馬 第${raceNumber}R
+${raceNamePart}
+結果を公開しました
+
+${resultUrl}
+
+#南関競馬 #${venue}競馬 #競馬結果`;
+        }
+      }
 
       fetch(postToXUrl, {
         method: 'POST',
@@ -436,7 +484,7 @@ ${resultUrl}
         })
       }).then((response) => {
         if (response.ok) {
-          console.log(`✅ Xに投稿しました: ${venue}競馬 (${date})`);
+          console.log(`✅ Xに投稿しました: ${venue}競馬 第${parsedData.races.map(r => r.raceNumber).join(',')}R (${date})`);
         } else {
           console.error(`❌ X投稿失敗: ${response.status}`);
         }

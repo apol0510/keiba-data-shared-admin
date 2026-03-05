@@ -396,13 +396,68 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       console.warn('⚠️ KEIBA_INTELLIGENCE_TOKENが設定されていません。keiba-intelligenceの自動判定はトリガーされません。');
     }
 
+    // X（旧Twitter）への自動投稿
+    // 非同期で実行（await しない）- 結果を待たずにすぐにレスポンスを返す
+    let xPosted = false;
+    const X_API_KEY = process.env.X_API_KEY;
+    const X_API_SECRET = process.env.X_API_SECRET;
+    const X_ACCESS_TOKEN = process.env.X_ACCESS_TOKEN;
+    const X_ACCESS_TOKEN_SECRET = process.env.X_ACCESS_TOKEN_SECRET;
+
+    if (X_API_KEY && X_API_SECRET && X_ACCESS_TOKEN && X_ACCESS_TOKEN_SECRET) {
+      // X投稿用のNetlify Functionを呼び出し
+      const postToXUrl = `${process.env.URL || 'https://keiba-data-shared-admin.netlify.app'}/.netlify/functions/post-to-x`;
+
+      // 投稿テキスト生成
+      const venueEmoji = {
+        '大井': '🏇',
+        '川崎': '🐴',
+        '船橋': '🎠',
+        '浦和': '🏆'
+      };
+
+      const resultUrl = `https://data.keiba-intelligence.jp/nankan/results/${year}/${month}/${date.substring(8, 10)}/${venueCode.toLowerCase()}/`;
+
+      const tweetText = `${venueEmoji[venue] || '📊'} ${date.replace(/-/g, '/')} ${venue}競馬の結果を公開
+
+全${totalRaces}レース・払戻金・コーナー通過順を掲載
+${resultUrl}
+
+#南関競馬 #${venue}競馬 #競馬結果`;
+
+      fetch(postToXUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: tweetText,
+          date: date,
+          venue: venue,
+          totalRaces: totalRaces
+        })
+      }).then((response) => {
+        if (response.ok) {
+          console.log(`✅ Xに投稿しました: ${venue}競馬 (${date})`);
+        } else {
+          console.error(`❌ X投稿失敗: ${response.status}`);
+        }
+      }).catch((xError) => {
+        console.error('❌ X投稿エラー:', xError);
+      });
+      xPosted = true;
+    } else {
+      console.warn('⚠️ X API認証情報が設定されていません。自動投稿はスキップされます。');
+    }
+
     // 成功レスポンス
     let message = `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`;
     if (buildTriggered) {
-      message += ` 公開サイトのビルドを開始しました。2-3分後に https://keiba-data-shared.netlify.app/ に反映されます。`;
+      message += ` 公開サイトのビルドを開始しました。2-3分後に https://data.keiba-intelligence.jp/ に反映されます。`;
     }
     if (intelligenceTriggered) {
       message += ` keiba-intelligenceで自動判定を開始しました。`;
+    }
+    if (xPosted) {
+      message += ` Xに結果を投稿しました。`;
     }
 
     return new Response(
@@ -418,7 +473,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
         archiveCommitUrl: archiveCommitUrl,
         archiveSaved: !!archiveCommitUrl,
         buildTriggered: buildTriggered,
-        intelligenceTriggered: intelligenceTriggered
+        intelligenceTriggered: intelligenceTriggered,
+        xPosted: xPosted
       }),
       { status: 200, headers }
     );

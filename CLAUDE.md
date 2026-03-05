@@ -115,7 +115,7 @@ ls -lt /Users/apolon/Projects/keiba-data-shared/jra/results/2026/02/ | head -6
 |---------|------|------|
 | フロントエンド | Astro 5.16+ + Sass | SSR mode（server） |
 | ホスティング | Netlify | Functions含む |
-| バックエンド | Netlify Functions (Node.js 20) | 7個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs, save-predictions-jra.mjs, parse-computer.mjs, preview-computer.mjs, save-computer.mjs） |
+| バックエンド | Netlify Functions (Node.js 20) | 8個実装（save-results.mjs, save-results-central.mjs, save-predictions.mjs, save-predictions-jra.mjs, parse-computer.mjs, preview-computer.mjs, save-computer.mjs, post-to-x.mjs） |
 | 外部API | GitHub Contents API | keiba-data-sharedへの保存 |
 
 ### **役割分担**
@@ -631,12 +631,21 @@ GITHUB_REPO_OWNER=apol0510
 # Netlify Build Hook URL（オプショナル）
 # 用途: keiba-data-sharedの公開サイトを自動ビルド
 NETLIFY_BUILD_HOOK_URL=https://api.netlify.com/build_hooks/xxxxx
+
+# X（旧Twitter）API認証情報（オプショナル、推奨）
+# 用途: 南関競馬結果保存時に自動投稿
+# 取得方法: https://developer.x.com/en/portal/dashboard
+X_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxx
+X_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+X_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+X_ACCESS_TOKEN_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **重要な注意事項:**
 - `GITHUB_TOKEN_KEIBA_DATA_SHARED` は **repo 権限**が必要
 - `KEIBA_INTELLIGENCE_TOKEN` を設定すると、結果保存後に自動的にkeiba-intelligenceで的中判定が実行される（推奨）
-- トークン未設定でも基本機能は動作するが、自動判定は実行されない
+- `X_API_KEY` 等を設定すると、結果保存後に自動的にXに投稿される（推奨）
+- トークン未設定でも基本機能は動作するが、自動判定・自動投稿は実行されない
 
 ---
 
@@ -1270,14 +1279,15 @@ paths:
   - Netlifyデプロイ完了 ✅
 
 **🎉 累積成果**:
-  - **Netlify Functions**: 7個実装
-    - save-results.mjs（南関結果）
+  - **Netlify Functions**: 8個実装
+    - save-results.mjs（南関結果 + X自動投稿）✨UPDATE
     - save-results-central.mjs（JRA結果）
     - save-predictions.mjs（南関予想）
     - save-predictions-jra.mjs（JRA予想）
-    - parse-computer.mjs（コンピ指数パーサー）✨NEW
-    - preview-computer.mjs（コンピ指数プレビュー）✨NEW
-    - save-computer.mjs（コンピ指数保存）✨NEW
+    - parse-computer.mjs（コンピ指数パーサー）
+    - preview-computer.mjs（コンピ指数プレビュー）
+    - save-computer.mjs（コンピ指数保存）
+    - post-to-x.mjs（X投稿API）✨NEW
   - **ページ**: 8個実装
     - index.astro（トップページ）
     - results-manager.astro（南関結果・個別）

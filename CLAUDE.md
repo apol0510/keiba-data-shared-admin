@@ -1499,6 +1499,63 @@ git reset --hard origin/main  # ← 成功
 
 ---
 
+### **2026-03-07 (1): 複数会場開催日のアーカイブ反映問題の解決**
+
+**問題:**
+- 2026-03-07の中山結果がアーカイブに反映されない
+- 阪神のみ表示され、中山が欠落
+- 原因: 最初に阪神だけ保存 → その後中山を保存しても「Already processed」判定でスキップ
+
+**根本原因:**
+- ワークフローの判定ロジックが日付の存在のみをチェック（`grep -q "\"date\": \"$DATE\"`）
+- 会場数を確認していなかった
+- keiba-data-sharedには阪神+中山の統合データがあるのに、アーカイブは阪神のみで止まっていた
+
+**修正内容:**
+
+#### **1. import-results-jra-daily.yml の会場数チェックロジック追加**
+```yaml
+# keiba-data-sharedの会場数を取得
+EXPECTED_VENUES=$(cat /tmp/results.json | node -e "...")
+echo "   Expected venues: $EXPECTED_VENUES"
+
+# アーカイブの会場数を取得
+ARCHIVED_VENUES=$(node -e "const data = ...; const entry = data.find(e => e.date === '$DATE'); console.log(entry ? entry.venues.length : 0);")
+echo "   Archived venues: $ARCHIVED_VENUES"
+
+# 会場数が一致するかチェック
+if [ "$ARCHIVED_VENUES" -ge "$EXPECTED_VENUES" ]; then
+  echo "⏭️  Already processed with all venues: $DATE"
+  echo "has_missing=false" >> $GITHUB_OUTPUT
+else
+  echo "📥 Missing venues detected (archived: $ARCHIVED_VENUES, expected: $EXPECTED_VENUES)"
+  echo "   Reimporting to include all venues"
+  echo "has_missing=true" >> $GITHUB_OUTPUT
+fi
+```
+
+#### **2. 即時対応（手動修正）**
+- archiveResultsJra.jsonから2026-03-07のエントリーを削除
+- ワークフローを手動で再実行（`gh workflow run import-results-jra.yml -f date=2026-03-07`）
+- 阪神+中山の統合データが正常にアーカイブに反映された
+
+**再発防止策:**
+- ✅ keiba-data-sharedの会場数とアーカイブの会場数を比較
+- ✅ 会場数が不足している場合は自動的に再インポート
+- ✅ 複数会場の開催日に一部の会場だけ先に保存しても問題なし
+- ✅ 残りの会場を保存すると自動的に再インポートされる
+- ✅ 手動でのアーカイブ削除・ワークフロー再実行が不要
+
+**影響範囲:**
+- keiba-intelligence/.github/workflows/import-results-jra-daily.yml
+
+**検証結果:**
+- ✅ アーカイブに阪神+中山の両方が反映（全24レース）
+- ✅ `"venues": ["中山", "阪神"]`
+- ✅ 今後、同様のケースでも自動的に再インポートされる
+
+---
+
 **修正内容:**
 
 #### **1. import-results-jra-daily.yml の修正**

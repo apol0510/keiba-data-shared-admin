@@ -653,7 +653,17 @@ export const prerender = false;
     // TODO: 中央競馬特有のフォーマット対応が必要な場合は個別に調整
 
     function extractRaceInfo(text, raceNumber) {
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      // HTMLタグを除去（より厳密に）
+      const cleanText = text
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')  // scriptタグを除去
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')    // styleタグを除去
+        .replace(/<[^>]+>/g, '')                            // すべてのHTMLタグを除去
+        .replace(/&nbsp;/g, ' ')                            // 特殊文字を変換
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&');
+
+      const lines = cleanText.split('\n').map(l => l.trim()).filter(l => l);
 
       console.log('[extractRaceInfo] レース番号:', raceNumber);
       console.log('[extractRaceInfo] テキスト行数:', lines.length);
@@ -701,9 +711,9 @@ export const prerender = false;
           line.includes('アラブ系') ||
           line.includes('発走時刻') ||
           line.includes('天候:') ||
-          line.includes('天候') ||
+          line.includes('天候') && !line.match(/第\d+回/) ||  // 「天候」は除外だが、レース名に含まれる場合は許可
           line.includes('馬場:') ||
-          line.includes('馬場') ||
+          line.includes('馬場') && !line.match(/第\d+回/) ||  // 「馬場」も同様
           line.includes('本賞金') ||
           line.includes('オッズ') ||
           line.includes('コース：') ||
@@ -716,20 +726,20 @@ export const prerender = false;
           line.includes('番') && line.includes('馬名') && line.includes('性齢') ||  // ヘッダー行
           line.includes('重量') && line.includes('騎手') ||  // ヘッダー行
           /^\d+[\s\u3000]+\d+[\s\u3000]+\d+/.test(line) ||  // データ行（着順データ）
-          line.length > 40 ||  // 長すぎる行は不適切
+          line.length > 60 ||  // 60文字以上は不適切（重賞レース名は40-50文字程度）
           line.length < 2      // 短すぎる行も不適切
         ) {
           return -1000;
         }
 
-        // 重賞レース（スコア: +100）
+        // 重賞レース（スコア: +250）← 第○回は重賞レース名のため優先
         if (line.match(/第\d+回/) && !line.match(/競馬|月|日|年/)) {
-          score += 100;
+          score += 250;
         }
 
-        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +200）
+        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +300）← 最優先
         if (line.match(/[（(]G[IⅠⅡⅢ]+[）)]/)) {
-          score += 200;
+          score += 300;
         }
 
         // ステークスを含む（スコア: +180）← 最優先
@@ -753,11 +763,16 @@ export const prerender = false;
         }
 
         // 中央競馬の一般レース名（スコア: +30）← 条件表記なので低優先度
-        if (line.match(/[1-4]歳|新馬|未勝利|1勝クラス|2勝クラス|3勝クラス|オープン/)) {
+        // 「オープン」単体は条件なのでレース名候補から除外
+        if (line.match(/[1-4]歳|新馬|未勝利|1勝クラス|2勝クラス|3勝クラス/) && line.length >= 5) {
           score += 30;
         }
         if (line.match(/\d+万下/)) {
           score += 30;
+        }
+        // 「オープン」単体は条件行として扱う（レース名にしない）
+        if (line === 'オープン' || line === '（オープン）' || line === '(オープン)') {
+          return -1000;
         }
 
         // 地方競馬グレード（スコア: +80）
@@ -768,8 +783,9 @@ export const prerender = false;
           score += 80;
         }
 
-        // 適切な文字数（10-30文字）にボーナス（スコア: +20）
-        if (line.length >= 10 && line.length <= 30) {
+        // 適切な文字数（10-50文字）にボーナス（スコア: +20）
+        // 重賞レース名は長くなる傾向があるため範囲を拡大
+        if (line.length >= 10 && line.length <= 50) {
           score += 20;
         }
 
@@ -867,11 +883,12 @@ export const prerender = false;
       }
 
       // 距離抽出（中央競馬: 「1,400メートル」のようにカンマ区切り）
-      const distanceMatch = text.match(/コース[：:]\s*(\d{1}),?(\d{3})メートル/) ||
-                           text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
+      const distanceMatch = cleanText.match(/コース[：:]\s*(\d{1}),?(\d{3})メートル/) ||
+                           cleanText.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
       const distance = distanceMatch ? parseInt(distanceMatch[1] + distanceMatch[2], 10) : null;
 
-      const surface = text.includes('ダート') || text.includes('ダ') ? 'ダート' : '芝';
+      // 芝/ダート判定（cleanTextを使用）
+      const surface = cleanText.includes('ダート') || cleanText.match(/[（(]ダート/) ? 'ダート' : '芝';
 
       // コースの方向を抽出（全角中点「・」の後）
       const trackMatch = text.match(/[・･](外|内|右|左)[）)]/) ||

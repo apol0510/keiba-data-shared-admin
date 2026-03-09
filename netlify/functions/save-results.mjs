@@ -71,14 +71,14 @@ export default async (req, context) => {
 
       date = raceDate;
       venue = track;
-      // 正しい競馬場コード
+      // 正しい競馬場コード（importResults.jsと統一）
       const venueCodeMap = {
-        '大井': 'OI',
-        '川崎': 'KA',
-        '船橋': 'FU',
-        '浦和': 'UR'
+        '大井': 'OOI',
+        '川崎': 'KAW',
+        '船橋': 'FUN',
+        '浦和': 'URA'
       };
-      venueCode = venueCodeMap[track] || 'OI';
+      venueCode = venueCodeMap[track] || 'OOI';
       parsedData = data;
 
     } else if (isIndividualMode) {
@@ -132,10 +132,11 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: nankan/results/2026/01/2026-01-23.json）
+    // ファイルパス生成
+    // 2会場同時開催対応: 会場別ファイル名（例: 2026-03-09-OOI.json）
     const year = date.substring(0, 4);
     const month = date.substring(5, 7);
-    const fileName = `${date}.json`;
+    const fileName = `${date}-${venueCode}.json`;  // 会場コード追加
     const filePath = `nankan/results/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ

@@ -111,17 +111,10 @@ async function enrichWithPredictionData(computerData) {
 
     console.log('[Enrich] 予想データ取得成功、補完開始');
 
-    // 南関の場合、予想データのtopレベルのtrackと一致確認
+    // 【修正】南関の場合、トップレベルチェックは不要（race単位で照合）
+    // 理由: date.json には複数会場が含まれる場合がある（tracks配列）
+    // 会場一致確認はrace単位で実施（line 142-146）
     const { venue } = computerData;
-    if (category === 'nankan') {
-      const predictionTrack = predictionData.track;
-      if (predictionTrack !== venue) {
-        console.log(`[Enrich] 会場不一致: 予想データ=${predictionTrack}, コンピ指数=${venue}`);
-        console.log('[Enrich] 補完スキップ（会場が異なるため）');
-        return computerData;
-      }
-      console.log(`[Enrich] 会場一致確認: ${venue}`);
-    }
 
     // レースごとに補完
     const enrichedRaces = computerData.races.map(computerRace => {

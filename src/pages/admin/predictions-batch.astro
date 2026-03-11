@@ -1191,16 +1191,34 @@ export const prerender = false;
       const doc = parser.parseFromString(html, 'text/html');
       const racenameDiv = doc.querySelector('div.racename') || doc.querySelector('div[class*="racename"]');
 
-      if (!racenameDiv) return '';
+      if (!racenameDiv) {
+        console.warn('[extractVenueFromHTML] racenameDiv が見つかりません');
+        return '';
+      }
 
       const text = racenameDiv.textContent || '';
+      console.log('[extractVenueFromHTML] テキスト:', text.substring(0, 200));
 
-      // 南関4場を検出
-      if (text.includes('大井競馬') || text.includes('大井 ')) return '大井';
-      if (text.includes('船橋競馬') || text.includes('船橋 ')) return '船橋';
-      if (text.includes('川崎競馬') || text.includes('川崎 ')) return '川崎';
-      if (text.includes('浦和競馬') || text.includes('浦和 ')) return '浦和';
+      // 南関4場を検出（より柔軟なパターン）
+      // 「大井」「船橋」「川崎」「浦和」という文字列が含まれているかチェック
+      if (text.includes('大井')) {
+        console.log('[extractVenueFromHTML] 検出: 大井');
+        return '大井';
+      }
+      if (text.includes('船橋')) {
+        console.log('[extractVenueFromHTML] 検出: 船橋');
+        return '船橋';
+      }
+      if (text.includes('川崎')) {
+        console.log('[extractVenueFromHTML] 検出: 川崎');
+        return '川崎';
+      }
+      if (text.includes('浦和')) {
+        console.log('[extractVenueFromHTML] 検出: 浦和');
+        return '浦和';
+      }
 
+      console.warn('[extractVenueFromHTML] 競馬場が検出できませんでした');
       return '';
     }
 

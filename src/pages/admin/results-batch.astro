@@ -30,6 +30,14 @@ export const prerender = false;
       <!-- 共通情報入力 -->
       <div class="card common-info-card">
         <h2>📅 開催情報（全レース共通）</h2>
+        <div style="padding: var(--spacing-md); background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 4px; margin-bottom: var(--spacing-lg);">
+          <strong style="color: #10b981;">✅ 自動検出機能</strong>
+          <ul style="margin: var(--spacing-sm) 0 0 var(--spacing-lg); color: var(--text-secondary);">
+            <li>解析時にテキストから日付・競馬場を自動検出します</li>
+            <li>入力フォームの値は自動的に上書きされます</li>
+            <li>保存前のプレビューで日付・競馬場を確認してください</li>
+          </ul>
+        </div>
         <div class="common-info-grid">
           <div class="form-group">
             <label for="commonDate">開催日</label>
@@ -39,6 +47,9 @@ export const prerender = false;
               class="form-input"
               value={new Date().toISOString().split('T')[0]}
             />
+            <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+              ※ テキストから自動検出された場合は上書きされます
+            </small>
           </div>
           <div class="form-group">
             <label for="commonVenue">競馬場</label>
@@ -48,6 +59,9 @@ export const prerender = false;
               <option value="川崎">川崎</option>
               <option value="浦和">浦和</option>
             </select>
+            <small style="color: var(--text-secondary); display: block; margin-top: 0.25rem;">
+              ※ テキストから自動検出された場合は上書きされます
+            </small>
           </div>
         </div>
       </div>
@@ -413,9 +427,55 @@ export const prerender = false;
           return;
         }
 
+        // 【新規】テキストから日付・競馬場を自動抽出
+        const firstRaceText = raceHTMLs[0];
+        const detectedDate = extractDateFromText(firstRaceText); // "2026年3月12日"
+        const detectedVenue = extractVenueFromText(firstRaceText); // "船橋" or "大井" etc
+
+        console.log(`[parseBatchRaces] 自動検出: 日付=${detectedDate}, 競馬場=${detectedVenue}`);
+
         // 共通情報取得
-        const date = document.getElementById('commonDate').value;
-        const venue = document.getElementById('commonVenue').value;
+        const commonDate = document.getElementById('commonDate').value;
+        const commonVenue = document.getElementById('commonVenue').value;
+
+        // 【新規】日付・競馬場の一致チェック
+        let finalDate = commonDate;
+        let finalVenue = commonVenue;
+        let hasDateMismatch = false;
+        let hasVenueMismatch = false;
+
+        // 日付チェック（YYYY-MM-DD形式に変換して比較）
+        if (detectedDate) {
+          const detectedDateISO = convertJapaneseDateToISO(detectedDate);
+          if (detectedDateISO && detectedDateISO !== commonDate) {
+            hasDateMismatch = true;
+            console.warn(`[parseBatchRaces] 日付不一致: 入力フォーム=${commonDate}, テキスト=${detectedDateISO}`);
+          }
+        }
+
+        // 競馬場チェック
+        if (detectedVenue && detectedVenue !== commonVenue) {
+          hasVenueMismatch = true;
+          console.warn(`[parseBatchRaces] 競馬場不一致: 入力フォーム=${commonVenue}, テキスト=${detectedVenue}`);
+        }
+
+        // 【修正】不一致がある場合、自動的にテキストの情報を使用（確認ダイアログなし）
+        if (hasDateMismatch || hasVenueMismatch) {
+          // テキストの情報を自動的に使用
+          if (hasDateMismatch) {
+            finalDate = convertJapaneseDateToISO(detectedDate);
+            document.getElementById('commonDate').value = finalDate;
+            console.log(`[parseBatchRaces] 日付をテキストから自動設定: ${finalDate} (フォーム: ${commonDate})`);
+          }
+          if (hasVenueMismatch) {
+            finalVenue = detectedVenue;
+            document.getElementById('commonVenue').value = finalVenue;
+            console.log(`[parseBatchRaces] 競馬場をテキストから自動設定: ${finalVenue} (フォーム: ${commonVenue})`);
+          }
+        }
+
+        const date = finalDate;
+        const venue = finalVenue;
 
         // 各レースを解析
         batchResults = [];
@@ -1704,6 +1764,73 @@ export const prerender = false;
         btn.disabled = false;
         btn.textContent = '🚀 12レース一括保存してGit Push';
       }
+    }
+
+    /**
+     * テキストから日付を自動抽出
+     * @param {string} text - レーステキスト
+     * @returns {string} 日付（"2026年3月12日" 形式、または空文字列）
+     */
+    function extractDateFromText(text) {
+      // 「2026年3月12日」のような日付を検出
+      const dateMatch = text.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (dateMatch) {
+        const date = `${dateMatch[1]}年${dateMatch[2]}月${dateMatch[3]}日`;
+        console.log('[extractDateFromText] 検出:', date);
+        return date;
+      }
+      console.warn('[extractDateFromText] 日付が検出できませんでした');
+      return '';
+    }
+
+    /**
+     * テキストから競馬場名を自動抽出
+     * @param {string} text - レーステキスト
+     * @returns {string} 競馬場名（"大井", "船橋", "川崎", "浦和" or ""）
+     */
+    function extractVenueFromText(text) {
+      // テキストの最初の500文字から競馬場名を検出
+      const sample = text.substring(0, 500);
+      console.log('[extractVenueFromText] テキストサンプル:', sample);
+
+      // 南関4場を検出（より柔軟なパターン）
+      if (sample.includes('大井')) {
+        console.log('[extractVenueFromText] 検出: 大井');
+        return '大井';
+      }
+      if (sample.includes('船橋')) {
+        console.log('[extractVenueFromText] 検出: 船橋');
+        return '船橋';
+      }
+      if (sample.includes('川崎')) {
+        console.log('[extractVenueFromText] 検出: 川崎');
+        return '川崎';
+      }
+      if (sample.includes('浦和')) {
+        console.log('[extractVenueFromText] 検出: 浦和');
+        return '浦和';
+      }
+
+      console.warn('[extractVenueFromText] 競馬場が検出できませんでした');
+      return '';
+    }
+
+    /**
+     * 和暦日付をISO形式(YYYY-MM-DD)に変換
+     * @param {string} japaneseDate - "2026年3月12日" 形式
+     * @returns {string} "2026-03-12" 形式、または空文字列
+     */
+    function convertJapaneseDateToISO(japaneseDate) {
+      if (!japaneseDate) return '';
+
+      const match = japaneseDate.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (!match) return '';
+
+      const year = match[1];
+      const month = match[2].padStart(2, '0');
+      const day = match[3].padStart(2, '0');
+
+      return `${year}-${month}-${day}`;
     }
   </script>
 </BaseLayout>

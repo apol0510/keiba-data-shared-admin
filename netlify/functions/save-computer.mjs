@@ -78,6 +78,18 @@ async function enrichWithPredictionData(computerData) {
 
     console.log('[Enrich] 予想データ取得成功、補完開始');
 
+    // 南関の場合、予想データのtopレベルのtrackと一致確認
+    const { venue } = computerData;
+    if (category === 'nankan') {
+      const predictionTrack = predictionData.track;
+      if (predictionTrack !== venue) {
+        console.log(`[Enrich] 会場不一致: 予想データ=${predictionTrack}, コンピ指数=${venue}`);
+        console.log('[Enrich] 補完スキップ（会場が異なるため）');
+        return computerData;
+      }
+      console.log(`[Enrich] 会場一致確認: ${venue}`);
+    }
+
     // レースごとに補完
     const enrichedRaces = computerData.races.map(computerRace => {
       // 予想データから同じレース番号のデータを探す
@@ -89,9 +101,10 @@ async function enrichWithPredictionData(computerData) {
           parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
         );
       } else {
-        // 南関の場合
+        // 南関：raceNumberとtrackで照合
         predictionRace = predictionData.races?.find(r =>
-          r.raceInfo.raceNumber === `${computerRace.raceNumber}R`
+          r.raceInfo.raceNumber === `${computerRace.raceNumber}R` &&
+          r.raceInfo.track === venue
         );
       }
 

@@ -233,6 +233,17 @@ async function enrichWithPredictionData(computerData) {
     console.log('[Preview Enrich] 予想データ取得成功、補完開始');
     debugPredictionData(predictionData, category);
 
+    // 南関の場合、予想データのtopレベルのtrackと一致確認
+    if (category === 'nankan') {
+      const predictionTrack = predictionData.track;
+      if (predictionTrack !== venue) {
+        console.log(`[Preview Enrich] 会場不一致: 予想データ=${predictionTrack}, コンピ指数=${venue}`);
+        console.log('[Preview Enrich] 補完スキップ（会場が異なるため）');
+        return computerData;
+      }
+      console.log(`[Preview Enrich] 会場一致確認: ${venue}`);
+    }
+
     const enrichedRaces = computerData.races.map(computerRace => {
       let predictionRace = null;
 
@@ -242,15 +253,23 @@ async function enrichWithPredictionData(computerData) {
           parseInt(r.raceInfo.raceNumber) === computerRace.raceNumber
         );
       } else {
+        // 南関：raceNumberとtrackで照合
         predictionRace = predictionData.races?.find(r =>
-          r.raceInfo.raceNumber === `${computerRace.raceNumber}R`
+          r.raceInfo.raceNumber === `${computerRace.raceNumber}R` &&
+          r.raceInfo.track === venue
         );
       }
 
       if (!predictionRace) {
-        console.log(`[Preview Enrich] R${computerRace.raceNumber}: 予想データなし`);
+        console.log(`[Preview Enrich] R${computerRace.raceNumber}: 予想データなし（会場またはレース番号不一致）`);
         return computerRace;
       }
+
+      console.log(`[Preview Enrich] R${computerRace.raceNumber}: 予想レース特定`, {
+        predictionTrack: predictionRace.raceInfo?.track,
+        predictionRaceNumber: predictionRace.raceInfo?.raceNumber,
+        expectedVenue: venue
+      });
 
       const enrichedHorses = computerRace.horses.map(computerHorse => {
         let predictionHorse = predictionRace.horses.find(h =>
@@ -269,6 +288,7 @@ async function enrichWithPredictionData(computerData) {
         }
 
         console.log(`[Preview Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチ成功`, {
+          matchedBy: predictionHorse.number === computerHorse.number ? 'number' : 'name',
           kisyu: predictionHorse.kisyu,
           kyusya: predictionHorse.kyusya,
           kinryo: predictionHorse.kinryo,

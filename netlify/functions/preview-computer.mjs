@@ -266,12 +266,27 @@ async function enrichWithPredictionData(computerData) {
     console.log('[Preview Enrich] 予想データ取得成功、補完開始');
     debugPredictionData(predictionData, category);
 
+    // 【デバッグ】予想データ構造を詳細確認
+    console.log('[Preview Enrich DEBUG] predictionData.track:', predictionData.track);
+    console.log('[Preview Enrich DEBUG] predictionData.tracks:', predictionData.tracks);
+    console.log('[Preview Enrich DEBUG] predictionData.races.length:', predictionData.races?.length);
+    if (predictionData.races && predictionData.races.length > 0) {
+      console.log('[Preview Enrich DEBUG] races[0].raceInfo:', JSON.stringify(predictionData.races[0].raceInfo));
+      console.log('[Preview Enrich DEBUG] races[0].horses[0]:', JSON.stringify(predictionData.races[0].horses?.[0]));
+    }
+
     // 【修正】南関の場合、トップレベルチェックは不要（race単位で照合）
     // 理由: date.json には複数会場が含まれる場合がある（tracks配列）
     // 会場一致確認はrace単位で実施（line 294-298）
 
-    const enrichedRaces = computerData.races.map(computerRace => {
+    const enrichedRaces = computerData.races.map((computerRace, raceIdx) => {
       let predictionRace = null;
+
+      // 【デバッグ】1Rのみ詳細ログ
+      if (raceIdx === 0) {
+        console.log('[Preview Enrich DEBUG] computerRace.raceNumber:', computerRace.raceNumber, 'type:', typeof computerRace.raceNumber);
+        console.log('[Preview Enrich DEBUG] venue:', venue);
+      }
 
       if (category === 'jra') {
         // JRA予想はトップレベルに races 配列（venueCodeごとのファイル）
@@ -280,13 +295,25 @@ async function enrichWithPredictionData(computerData) {
         );
       } else {
         // 【修正】南関：raceNumberとtrackで照合（track必須）
-        predictionRace = predictionData.races?.find(r => {
+        predictionRace = predictionData.races?.find((r, idx) => {
           const raceNum = parseInt(r.raceInfo.raceNumber) || parseInt(r.raceInfo.raceNumber.replace('R', ''));
           const predictionVenue = r.raceInfo.track || r.raceInfo.venue;
 
+          // 【デバッグ】1Rのみ詳細ログ
+          if (raceIdx === 0 && idx < 3) {
+            console.log(`[Preview Enrich DEBUG] predictionRace[${idx}]:`, {
+              raceNumber: r.raceInfo.raceNumber,
+              raceNum: raceNum,
+              track: predictionVenue,
+              match: raceNum === computerRace.raceNumber && predictionVenue === venue
+            });
+          }
+
           // 会場が一致しない場合は照合しない（異会場マージ禁止）
           if (predictionVenue !== venue) {
-            console.log(`[Preview Enrich] R${computerRace.raceNumber}: 会場不一致（予想=${predictionVenue}, コンピ=${venue}）スキップ`);
+            if (raceIdx === 0 && idx < 3) {
+              console.log(`[Preview Enrich] R${computerRace.raceNumber}: 会場不一致（予想=${predictionVenue}, コンピ=${venue}）スキップ`);
+            }
             return false;
           }
 
@@ -305,9 +332,24 @@ async function enrichWithPredictionData(computerData) {
         expectedVenue: venue
       });
 
-      const enrichedHorses = computerRace.horses.map(computerHorse => {
+      // 【デバッグ】1Rのみ詳細ログ
+      if (raceIdx === 0) {
+        console.log('[Preview Enrich DEBUG] predictionRace.horses.length:', predictionRace.horses?.length);
+        if (predictionRace.horses && predictionRace.horses.length > 0) {
+          console.log('[Preview Enrich DEBUG] predictionRace.horses[0]:', JSON.stringify(predictionRace.horses[0]));
+          console.log('[Preview Enrich DEBUG] フィールド名確認:', Object.keys(predictionRace.horses[0]));
+        }
+        console.log('[Preview Enrich DEBUG] computerRace.horses[0]:', {
+          number: computerRace.horses[0]?.number,
+          name: computerRace.horses[0]?.name,
+          numberType: typeof computerRace.horses[0]?.number
+        });
+      }
+
+      const enrichedHorses = computerRace.horses.map((computerHorse, horseIdx) => {
+        // 【修正】型を正規化して照合（number / string / "1R" 吸収）
         let predictionHorse = predictionRace.horses.find(h =>
-          h.number === computerHorse.number
+          String(h.number) === String(computerHorse.number)
         );
 
         if (!predictionHorse) {
@@ -316,8 +358,25 @@ async function enrichWithPredictionData(computerData) {
           );
         }
 
+        // 【デバッグ】1Rの1頭目のみ詳細ログ
+        if (raceIdx === 0 && horseIdx === 0) {
+          console.log('[Preview Enrich DEBUG] 1R 1頭目の照合結果:', {
+            computerNumber: computerHorse.number,
+            computerName: computerHorse.name,
+            predictionHorseFound: !!predictionHorse,
+            predictionHorse: predictionHorse ? {
+              number: predictionHorse.number,
+              name: predictionHorse.name,
+              kisyu: predictionHorse.kisyu,
+              kyusya: predictionHorse.kyusya
+            } : null
+          });
+        }
+
         if (!predictionHorse) {
-          console.log(`[Preview Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチなし`);
+          if (raceIdx === 0 && horseIdx === 0) {
+            console.log(`[Preview Enrich] R${computerRace.raceNumber} ${computerHorse.number}番 ${computerHorse.name}: マッチなし`);
+          }
           return computerHorse;
         }
 

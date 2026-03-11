@@ -132,16 +132,9 @@ export const prerender = false;
               type="button"
               id="saveAllBtn"
               class="btn btn-success btn-large"
-              onclick="saveAllRacesToGit(false)"
+              onclick="saveAllRacesToGit()"
             >
               🚀 12レース一括保存してGit Push
-            </button>
-            <button
-              type="button"
-              class="btn btn-warning"
-              onclick="if(confirm('この日付の既存データを完全に上書きします。よろしいですか？')) saveAllRacesToGit(true)"
-            >
-              🔥 完全上書き保存
             </button>
           </div>
           <div id="saveStatus" class="save-status" style="display: none;"></div>
@@ -815,21 +808,19 @@ export const prerender = false;
       });
     }
 
-    // 一括保存
-    async function saveAllRacesToGit(forceOverwrite = false) {
+    // 一括保存（常にマージモード）
+    async function saveAllRacesToGit() {
       const successResults = batchResults.filter(r => r.success);
       if (successResults.length === 0) {
         alert('保存できるデータがありません');
         return;
       }
 
-      // 【新規】保存前の最終確認（日付・競馬場を明示）
+      // 【修正】保存前の最終確認（日付・競馬場を明示、マージモード固定）
       const date = successResults[0].date;
       const venue = successResults[0].venue;
 
-      const confirmMsg = forceOverwrite
-        ? `⚠️  以下の内容で完全上書き保存します:\n\n📅 日付: ${date}\n🏇 競馬場: ${venue}\n📊 レース数: ${successResults.length}\n\n既存データは完全に削除されます。本当によろしいですか？`
-        : `以下の内容で保存します:\n\n📅 日付: ${date}\n🏇 競馬場: ${venue}\n📊 レース数: ${successResults.length}\n\nよろしいですか？`;
+      const confirmMsg = `以下の内容で保存します:\n\n📅 日付: ${date}\n🏇 競馬場: ${venue}\n📊 レース数: ${successResults.length}\n\n※ 既存の他会場データがある場合は自動的にマージされます\n\nよろしいですか？`;
 
       if (!confirm(confirmMsg)) {
         return;
@@ -843,9 +834,7 @@ export const prerender = false;
 
       statusDiv.style.display = 'block';
       statusDiv.className = 'save-status loading';
-      statusDiv.textContent = forceOverwrite
-        ? `🔥 ${successResults.length}レース分を完全上書き中...`
-        : `🚀 ${successResults.length}レース分を保存中...`;
+      statusDiv.textContent = `🚀 ${successResults.length}レース分を保存中...`;
 
       try {
 
@@ -866,7 +855,7 @@ export const prerender = false;
             raceDate: date,
             track: venue,
             data: jsonData,
-            forceOverwrite: forceOverwrite
+            forceOverwrite: false  // 常にマージモード
           })
         });
 

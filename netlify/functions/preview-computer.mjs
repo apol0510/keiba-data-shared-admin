@@ -214,6 +214,10 @@ function parseComputerData(raceDate, venue, computerData) {
 /**
  * 会場混入検査（fail fast）
  * trainer/jockeyに異会場の所属記号が含まれていないかチェック
+ *
+ * 【注意】南関競馬では他場所属の調教師が出走することがある
+ * 例: 船橋レースに浦和所属の調教師が出走
+ * このため、エラーではなく警告ログのみに変更
  */
 function validateVenueMix(horse, expectedVenue, raceNumber) {
   const venueMarks = {
@@ -237,9 +241,10 @@ function validateVenueMix(horse, expectedVenue, raceNumber) {
     if (venueName === expectedVenue) continue; // 同じ会場はスキップ
 
     if (trainer.includes(mark) || jockey.includes(mark)) {
-      const errorMsg = `[Preview Venue Mix ERROR] R${raceNumber} ${horse.number}番 ${horse.name}: 会場混入検出！ 期待=${expectedVenue}${expectedMark}, trainer=${trainer}, jockey=${jockey}`;
-      console.error(errorMsg);
-      throw new Error(errorMsg); // fail fast
+      // 【修正】エラーではなく警告ログに変更（他場所属の調教師が出走することがあるため）
+      const warnMsg = `[Preview Venue Mix WARNING] R${raceNumber} ${horse.number}番 ${horse.name}: 他場所属検出 期待=${expectedVenue}${expectedMark}, trainer=${trainer}, jockey=${jockey}`;
+      console.warn(warnMsg);
+      // throw new Error は削除（fail fastを無効化）
     }
   }
 }

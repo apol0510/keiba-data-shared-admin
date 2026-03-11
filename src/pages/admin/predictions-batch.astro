@@ -31,12 +31,12 @@ export const prerender = false;
       <!-- 共通情報入力 -->
       <div class="card common-info-card">
         <h2>📅 開催情報（全レース共通）</h2>
-        <div style="padding: var(--spacing-md); background: rgba(245, 158, 11, 0.1); border-left: 4px solid #f59e0b; border-radius: 4px; margin-bottom: var(--spacing-lg);">
-          <strong style="color: #f59e0b;">⚠️  重要な注意事項</strong>
+        <div style="padding: var(--spacing-md); background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; border-radius: 4px; margin-bottom: var(--spacing-lg);">
+          <strong style="color: #10b981;">✅ 自動検出機能</strong>
           <ul style="margin: var(--spacing-sm) 0 0 var(--spacing-lg); color: var(--text-secondary);">
             <li>解析時にHTMLから日付・競馬場を自動検出します</li>
-            <li>入力フォームとHTMLの情報が異なる場合、確認ダイアログが表示されます</li>
-            <li>保存前に必ず日付・競馬場を確認してください</li>
+            <li>入力フォームの値は自動的に上書きされます</li>
+            <li>保存前のプレビューで日付・競馬場を確認してください</li>
           </ul>
         </div>
         <div class="common-info-grid">
@@ -451,50 +451,18 @@ export const prerender = false;
           console.warn(`[parseBatchRaces] 競馬場不一致: 入力フォーム=${commonVenue}, HTML=${detectedVenue}`);
         }
 
-        // 不一致がある場合、確認ダイアログ表示
+        // 【修正】不一致がある場合、自動的にHTMLの情報を使用（確認ダイアログなし）
         if (hasDateMismatch || hasVenueMismatch) {
-          const mismatchMsg = [];
+          // HTMLの情報を自動的に使用
           if (hasDateMismatch) {
-            const detectedDateISO = convertJapaneseDateToISO(detectedDate);
-            mismatchMsg.push(`📅 日付: フォーム=${commonDate} ⇔ HTML=${detectedDateISO} (${detectedDate})`);
+            finalDate = convertJapaneseDateToISO(detectedDate);
+            document.getElementById('commonDate').value = finalDate;
+            console.log(`[parseBatchRaces] 日付をHTMLから自動設定: ${finalDate} (フォーム: ${commonDate})`);
           }
           if (hasVenueMismatch) {
-            mismatchMsg.push(`🏇 競馬場: フォーム=${commonVenue} ⇔ HTML=${detectedVenue}`);
-          }
-
-          const userChoice = confirm(
-            `⚠️  入力フォームとHTMLの情報が一致しません！\n\n` +
-            mismatchMsg.join('\n') +
-            `\n\n【どちらを使用しますか？】\n` +
-            `✅ OK: HTMLから自動検出した情報を使用\n` +
-            `❌ キャンセル: 入力フォームの情報を使用`
-          );
-
-          if (userChoice) {
-            // HTMLの情報を使用
-            if (hasDateMismatch) {
-              finalDate = convertJapaneseDateToISO(detectedDate);
-              document.getElementById('commonDate').value = finalDate;
-              console.log(`[parseBatchRaces] 日付をHTMLから自動設定: ${finalDate}`);
-            }
-            if (hasVenueMismatch) {
-              finalVenue = detectedVenue;
-              document.getElementById('commonVenue').value = finalVenue;
-              console.log(`[parseBatchRaces] 競馬場をHTMLから自動設定: ${finalVenue}`);
-            }
-          } else {
-            // フォームの情報を使用（ユーザーに再確認）
-            const confirmUseForm = confirm(
-              `入力フォームの情報で続行します:\n` +
-              `📅 日付: ${commonDate}\n` +
-              `🏇 競馬場: ${commonVenue}\n\n` +
-              `本当にこの情報で保存しますか？`
-            );
-            if (!confirmUseForm) {
-              statusDiv.className = 'parse-status error';
-              statusDiv.textContent = '❌ ユーザーによりキャンセルされました';
-              return;
-            }
+            finalVenue = detectedVenue;
+            document.getElementById('commonVenue').value = finalVenue;
+            console.log(`[parseBatchRaces] 競馬場をHTMLから自動設定: ${finalVenue} (フォーム: ${commonVenue})`);
           }
         }
 

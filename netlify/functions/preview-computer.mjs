@@ -300,29 +300,40 @@ async function enrichWithPredictionData(computerData) {
         );
       } else {
         // 【修正】南関：raceNumberとtrackで照合（track必須）
+        console.log(`[Preview Enrich DEBUG] 南関照合開始 - R${computerRace.raceNumber}, venue="${venue}"`);
+        console.log(`[Preview Enrich DEBUG] predictionData.races.length: ${predictionData.races?.length}`);
+
         predictionRace = predictionData.races?.find((r, idx) => {
           const raceNum = parseInt(r.raceInfo.raceNumber) || parseInt(r.raceInfo.raceNumber.replace('R', ''));
           const predictionVenue = r.raceInfo.track || r.raceInfo.venue;
 
-          // 【デバッグ】1Rのみ詳細ログ
-          if (raceIdx === 0 && idx < 3) {
+          // 【デバッグ】全レースの詳細ログ（最初の5レースのみ）
+          if (raceIdx === 0 && idx < 5) {
             console.log(`[Preview Enrich DEBUG] predictionRace[${idx}]:`, {
-              raceNumber: r.raceInfo.raceNumber,
-              raceNum: raceNum,
+              rawRaceNumber: r.raceInfo.raceNumber,
+              parsedRaceNum: raceNum,
               track: predictionVenue,
-              match: raceNum === computerRace.raceNumber && predictionVenue === venue
+              computerRaceNum: computerRace.raceNumber,
+              expectedVenue: venue,
+              numberMatch: raceNum === computerRace.raceNumber,
+              venueMatch: predictionVenue === venue,
+              bothMatch: raceNum === computerRace.raceNumber && predictionVenue === venue
             });
           }
 
           // 会場が一致しない場合は照合しない（異会場マージ禁止）
           if (predictionVenue !== venue) {
             if (raceIdx === 0 && idx < 3) {
-              console.log(`[Preview Enrich] R${computerRace.raceNumber}: 会場不一致（予想=${predictionVenue}, コンピ=${venue}）スキップ`);
+              console.log(`[Preview Enrich] R${computerRace.raceNumber}: 会場不一致（予想="${predictionVenue}", コンピ="${venue}"）スキップ`);
             }
             return false;
           }
 
-          return raceNum === computerRace.raceNumber;
+          const matched = raceNum === computerRace.raceNumber;
+          if (raceIdx === 0 && matched) {
+            console.log(`[Preview Enrich DEBUG] ✅ 1Rマッチ成功: raceNum=${raceNum}, computerRace.raceNumber=${computerRace.raceNumber}`);
+          }
+          return matched;
         });
       }
 
@@ -439,6 +450,8 @@ async function enrichWithPredictionData(computerData) {
 async function fetchPredictionData(date, category, venueCode) {
   const [year, month] = date.split('-');
 
+  console.log(`[Preview Fetch Prediction DEBUG] 入力: date="${date}", category="${category}", venueCode="${venueCode}"`);
+
   // 優先: 会場コード付きファイル名
   const fileNameWithVenue = `${date}-${venueCode}.json`;
   const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithVenue}`;
@@ -450,9 +463,12 @@ async function fetchPredictionData(date, category, venueCode) {
 
     if (response.ok) {
       const data = await response.json();
-      console.log(`[Preview Fetch Prediction] データ取得成功（会場コード付き）: ${fileNameWithVenue}`);
+      console.log(`[Preview Fetch Prediction] ✅ データ取得成功（会場コード付き）: ${fileNameWithVenue}`);
+      console.log(`[Preview Fetch Prediction DEBUG] data.track="${data.track}", data.races.length=${data.races?.length}`);
       return data;
     }
+
+    console.log(`[Preview Fetch Prediction] 会場コード付きファイル404: ${fileNameWithVenue} (status=${response.status})`);
 
     // 南関の場合、フォールバック: date.json を試行
     if (category === 'nankan') {
@@ -465,13 +481,16 @@ async function fetchPredictionData(date, category, venueCode) {
 
       if (fallbackResponse.ok) {
         const data = await fallbackResponse.json();
-        console.log(`[Preview Fetch Prediction] データ取得成功（フォールバック）: ${fileNameWithoutVenue}`);
+        console.log(`[Preview Fetch Prediction] ✅ データ取得成功（フォールバック）: ${fileNameWithoutVenue}`);
         console.log(`[Preview Fetch Prediction] ⚠️ 注意: 会場コードなしファイル使用、race単位で会場一致確認必須`);
+        console.log(`[Preview Fetch Prediction DEBUG] data.track="${data.track}", data.races.length=${data.races?.length}`);
         return data;
       }
+
+      console.log(`[Preview Fetch Prediction] フォールバックも404: ${fileNameWithoutVenue} (status=${fallbackResponse.status})`);
     }
 
-    console.log(`[Preview Fetch Prediction] データなし: ${response.status}`);
+    console.log(`[Preview Fetch Prediction] ❌ データなし: ${response.status}`);
     return null;
 
   } catch (error) {

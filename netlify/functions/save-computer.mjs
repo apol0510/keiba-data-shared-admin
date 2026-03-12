@@ -128,17 +128,37 @@ async function enrichWithPredictionData(computerData) {
         );
       } else {
         // 【修正】南関：raceNumberとtrackで照合（track必須）
-        predictionRace = predictionData.races?.find(r => {
+        console.log(`[Enrich DEBUG] 南関照合開始 - R${computerRace.raceNumber}, venue="${venue}"`);
+        console.log(`[Enrich DEBUG] predictionData.races.length: ${predictionData.races?.length}`);
+
+        predictionRace = predictionData.races?.find((r, idx) => {
           const raceNum = parseInt(r.raceInfo.raceNumber) || parseInt(r.raceInfo.raceNumber.replace('R', ''));
           const predictionVenue = r.raceInfo.track || r.raceInfo.venue;
 
+          // 【デバッグ】最初の3レースの詳細ログ
+          if (idx < 3) {
+            console.log(`[Enrich DEBUG] predictionRace[${idx}]:`, {
+              rawRaceNumber: r.raceInfo.raceNumber,
+              parsedRaceNum: raceNum,
+              track: predictionVenue,
+              computerRaceNum: computerRace.raceNumber,
+              expectedVenue: venue,
+              numberMatch: raceNum === computerRace.raceNumber,
+              venueMatch: predictionVenue === venue
+            });
+          }
+
           // 会場が一致しない場合は照合しない（異会場マージ禁止）
           if (predictionVenue !== venue) {
-            console.log(`[Enrich] R${computerRace.raceNumber}: 会場不一致（予想=${predictionVenue}, コンピ=${venue}）スキップ`);
+            console.log(`[Enrich] R${computerRace.raceNumber}: 会場不一致（予想="${predictionVenue}", コンピ="${venue}"）スキップ`);
             return false;
           }
 
-          return raceNum === computerRace.raceNumber;
+          const matched = raceNum === computerRace.raceNumber;
+          if (matched) {
+            console.log(`[Enrich DEBUG] ✅ マッチ成功: R${computerRace.raceNumber}, raceNum=${raceNum}`);
+          }
+          return matched;
         });
       }
 
@@ -213,6 +233,8 @@ async function enrichWithPredictionData(computerData) {
 async function fetchPredictionData(date, category, venueCode) {
   const [year, month] = date.split('-');
 
+  console.log(`[Fetch Prediction DEBUG] 入力: date="${date}", category="${category}", venueCode="${venueCode}"`);
+
   // 優先: 会場コード付きファイル名
   const fileNameWithVenue = `${date}-${venueCode}.json`;
   const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithVenue}`;
@@ -224,9 +246,12 @@ async function fetchPredictionData(date, category, venueCode) {
 
     if (response.ok) {
       const data = await response.json();
-      console.log(`[Fetch Prediction] データ取得成功（会場コード付き）: ${fileNameWithVenue}`);
+      console.log(`[Fetch Prediction] ✅ データ取得成功（会場コード付き）: ${fileNameWithVenue}`);
+      console.log(`[Fetch Prediction DEBUG] data.track="${data.track}", data.races.length=${data.races?.length}`);
       return data;
     }
+
+    console.log(`[Fetch Prediction] 会場コード付きファイル404: ${fileNameWithVenue} (status=${response.status})`);
 
     // 南関の場合、フォールバック: date.json を試行
     if (category === 'nankan') {
@@ -239,13 +264,16 @@ async function fetchPredictionData(date, category, venueCode) {
 
       if (fallbackResponse.ok) {
         const data = await fallbackResponse.json();
-        console.log(`[Fetch Prediction] データ取得成功（フォールバック）: ${fileNameWithoutVenue}`);
+        console.log(`[Fetch Prediction] ✅ データ取得成功（フォールバック）: ${fileNameWithoutVenue}`);
         console.log(`[Fetch Prediction] ⚠️ 注意: 会場コードなしファイル使用、race単位で会場一致確認必須`);
+        console.log(`[Fetch Prediction DEBUG] data.track="${data.track}", data.races.length=${data.races?.length}`);
         return data;
       }
+
+      console.log(`[Fetch Prediction] フォールバックも404: ${fileNameWithoutVenue} (status=${fallbackResponse.status})`);
     }
 
-    console.log(`[Fetch Prediction] データなし: ${response.status}`);
+    console.log(`[Fetch Prediction] ❌ データなし: ${response.status}`);
     return null;
 
   } catch (error) {

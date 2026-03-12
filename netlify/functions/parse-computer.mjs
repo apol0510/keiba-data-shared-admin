@@ -224,6 +224,8 @@ function parseComputerData(raceDate, venue, computerData) {
   const category = getCategoryByVenue(venue);
   const venueCode = getVenueCode(venue);
 
+  console.log(`[Parse Computer DEBUG] venue="${venue}", category="${category}", venueCode="${venueCode}"`);
+
   return {
     date: raceDate,
     venue: venue,

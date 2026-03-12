@@ -42,6 +42,12 @@ export const handler = async (event) => {
 
     console.log(`[Preview Computer] 補完完了: ${enrichedData.races.length}レース`);
 
+    // 【デバッグ】レスポンス直前の 1R 1頭目確認
+    if (enrichedData.races && enrichedData.races[0] && enrichedData.races[0].horses && enrichedData.races[0].horses[0]) {
+      console.log('[Preview Computer] ━━━ レスポンス直前 1R 1頭目 ━━━');
+      console.log(JSON.stringify(enrichedData.races[0].horses[0], null, 2));
+    }
+
     return {
       statusCode: 200,
       headers,
@@ -363,6 +369,12 @@ async function enrichWithPredictionData(computerData) {
       }
 
       const enrichedHorses = computerRace.horses.map((computerHorse, horseIdx) => {
+        // 【デバッグ】1R 1頭目の補完前データ
+        if (raceIdx === 0 && horseIdx === 0) {
+          console.log('[Preview Enrich] ━━━ 1R 1頭目 補完前 ━━━');
+          console.log(JSON.stringify(computerHorse, null, 2));
+        }
+
         // 【修正】型を正規化して照合（number / string / "1R" 吸収）
         let predictionHorse = predictionRace.horses.find(h =>
           String(h.number) === String(computerHorse.number)
@@ -414,6 +426,12 @@ async function enrichWithPredictionData(computerData) {
           enrichedFrom: 'predictions'
         };
 
+        // 【デバッグ】1R 1頭目の補完後データ
+        if (raceIdx === 0 && horseIdx === 0) {
+          console.log('[Preview Enrich] ━━━ 1R 1頭目 補完後 ━━━');
+          console.log(JSON.stringify(enrichedHorse, null, 2));
+        }
+
         // 【新規】会場混入検査（南関のみ）
         if (category === 'nankan') {
           validateVenueMix(enrichedHorse, venue, computerRace.raceNumber);
@@ -428,11 +446,19 @@ async function enrichWithPredictionData(computerData) {
       };
     });
 
-    return {
+    const enrichedResult = {
       ...computerData,
       races: enrichedRaces,
       enrichedAt: new Date().toISOString()
     };
+
+    // 【デバッグ】補完関数の戻り値確認（1R 1頭目）
+    if (enrichedResult.races && enrichedResult.races[0] && enrichedResult.races[0].horses && enrichedResult.races[0].horses[0]) {
+      console.log('[Preview Enrich] ━━━ enrichWithPredictionData 戻り値 1R 1頭目 ━━━');
+      console.log(JSON.stringify(enrichedResult.races[0].horses[0], null, 2));
+    }
+
+    return enrichedResult;
 
   } catch (error) {
     console.error('[Preview Enrich] 補完エラー:', error);
@@ -452,9 +478,9 @@ async function fetchPredictionData(date, category, venueCode) {
 
   console.log(`[Preview Fetch Prediction DEBUG] 入力: date="${date}", category="${category}", venueCode="${venueCode}"`);
 
-  // 優先: 会場コード付きファイル名
+  // 優先: 会場コード付きファイル名（computer ディレクトリ配下）
   const fileNameWithVenue = `${date}-${venueCode}.json`;
-  const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithVenue}`;
+  const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${year}/${month}/${fileNameWithVenue}`;
 
   console.log(`[Preview Fetch Prediction] 優先URL: ${urlWithVenue}`);
 
@@ -470,10 +496,10 @@ async function fetchPredictionData(date, category, venueCode) {
 
     console.log(`[Preview Fetch Prediction] 会場コード付きファイル404: ${fileNameWithVenue} (status=${response.status})`);
 
-    // 南関の場合、フォールバック: date.json を試行
+    // 南関の場合、フォールバック: date.json を試行（computer ディレクトリ配下）
     if (category === 'nankan') {
       const fileNameWithoutVenue = `${date}.json`;
-      const urlWithoutVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithoutVenue}`;
+      const urlWithoutVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${year}/${month}/${fileNameWithoutVenue}`;
 
       console.log(`[Preview Fetch Prediction] フォールバックURL: ${urlWithoutVenue}`);
 

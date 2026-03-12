@@ -88,11 +88,20 @@ export default async (req, context) => {
       );
     }
 
-    // ファイルパス生成（例: nankan/predictions/2026/01/2026-01-30.json）
+    // 会場コードマッピング（結果システムと統一）
+    const venueCodeMap = {
+      '大井': 'OOI',
+      '川崎': 'KAW',
+      '船橋': 'FUN',
+      '浦和': 'URA'
+    };
+    const venueCode = venueCodeMap[track] || track;
+
+    // ファイルパス生成（会場別ファイル: nankan/predictions/computer/YYYY/MM/2026-01-30-OOI.json）
     const year = raceDate.substring(0, 4);
     const month = raceDate.substring(5, 7);
-    const fileName = `${raceDate}.json`;
-    const filePath = `nankan/predictions/${year}/${month}/${fileName}`;
+    const fileName = `${raceDate}-${venueCode}.json`;
+    const filePath = `nankan/predictions/computer/${year}/${month}/${fileName}`;
 
     // GitHub API: 既存ファイルを取得してマージ
     const getFileUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${filePath}?ref=${GITHUB_BRANCH}`;

@@ -478,9 +478,9 @@ async function fetchPredictionData(date, category, venueCode) {
 
   console.log(`[Preview Fetch Prediction DEBUG] 入力: date="${date}", category="${category}", venueCode="${venueCode}"`);
 
-  // 優先: 会場コード付きファイル名（computer ディレクトリ配下）
+  // 優先: 会場コード付きファイル名（予想データディレクトリ）
   const fileNameWithVenue = `${date}-${venueCode}.json`;
-  const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${year}/${month}/${fileNameWithVenue}`;
+  const urlWithVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithVenue}`;
 
   console.log(`[Preview Fetch Prediction] 優先URL: ${urlWithVenue}`);
 
@@ -496,10 +496,10 @@ async function fetchPredictionData(date, category, venueCode) {
 
     console.log(`[Preview Fetch Prediction] 会場コード付きファイル404: ${fileNameWithVenue} (status=${response.status})`);
 
-    // 南関の場合、フォールバック: date.json を試行（computer ディレクトリ配下）
+    // 南関の場合、フォールバック: date.json を試行（予想データディレクトリ）
     if (category === 'nankan') {
       const fileNameWithoutVenue = `${date}.json`;
-      const urlWithoutVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${year}/${month}/${fileNameWithoutVenue}`;
+      const urlWithoutVenue = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/${year}/${month}/${fileNameWithoutVenue}`;
 
       console.log(`[Preview Fetch Prediction] フォールバックURL: ${urlWithoutVenue}`);
 

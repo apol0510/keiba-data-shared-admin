@@ -885,10 +885,17 @@
           const popularityDisplay = horse.popularity ? (horse.popularity + '位') : '-';
           const rowBgColor = idx % 2 === 0 ? '#1e293b' : '#334155';
 
+          // 馬名の前に付いている「地」「外」などを括弧で囲む
+          // 例: 地ソリッドベーシス → (地)ソリッドベーシス
+          let horseName = horse.name || '-';
+          if (horseName !== '-') {
+            horseName = horseName.replace(/^(地|外|抽|父|市)/, '($1)');
+          }
+
           html += `
             <tr style="background: ${rowBgColor}; border-bottom: 1px solid #475569;">
               <td style="padding: 10px; text-align: center; font-weight: bold; color: #e2e8f0;">${horse.number || '-'}</td>
-              <td style="padding: 10px; color: #e2e8f0;">${horse.name || '-'}</td>
+              <td style="padding: 10px; color: #e2e8f0;">${horseName}</td>
               <td style="padding: 10px; text-align: center; font-weight: bold; color: #a5b4fc;">${computerIndexDisplay}</td>
               <td style="padding: 10px; text-align: center; color: #cbd5e1;">${popularityDisplay}</td>
               ${hasEnrichedData ? `<td style="padding: 10px; color: #cbd5e1;">${horse.jockey || '-'}</td>` : ''}

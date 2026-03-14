@@ -172,7 +172,10 @@ function parseComputerData(raceDate, venue, computerData) {
           const number = parseInt(numberMatch[1]);
 
           // その次が馬名
-          const name = lines[i + 2].trim();
+          let name = lines[i + 2].trim();
+          // 馬名の前に付いている「地」「外」などを括弧で囲む
+          // 例: 地ソリッドベーシス → (地)ソリッドベーシス
+          name = name.replace(/^(地|外|抽|父|市)/, '($1)');
 
           // その次が指数
           const indexLine = lines[i + 3].trim();

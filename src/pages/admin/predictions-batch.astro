@@ -385,15 +385,38 @@ export const prerender = false;
     // グローバル変数
     let batchResults = [];
 
+    // 【共通処理】区切り線除去
+    // スタッフ運用で混入する区切り線（==========   1R   ↓   ==========）を除去
+    function removeSeparatorLines(input) {
+      if (!input || typeof input !== 'string') {
+        return input;
+      }
+
+      const lines = input.split('\n');
+      const SEPARATOR_LINE_PATTERN = /^[\s\u3000]*={3,}.*={3,}[\s\u3000]*$/;
+
+      const cleanedLines = lines.filter(line => !SEPARATOR_LINE_PATTERN.test(line));
+      const removedCount = lines.length - cleanedLines.length;
+
+      if (removedCount > 0) {
+        console.log(`[InputCleaner] 除去された区切り線: ${removedCount}行`);
+      }
+
+      return cleanedLines.join('\n');
+    }
+
     // 一括解析メイン関数
     function parseBatchRaces() {
       const textarea = document.getElementById('batchInput');
-      const html = textarea.value;
+      let html = textarea.value;
 
       if (!html.trim()) {
         alert('12レース分のHTMLを入力してください');
         return;
       }
+
+      // 【区切り線除去処理】
+      html = removeSeparatorLines(html);
 
       const statusDiv = document.getElementById('parseStatus');
       statusDiv.style.display = 'block';

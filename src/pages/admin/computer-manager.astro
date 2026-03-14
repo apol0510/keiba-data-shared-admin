@@ -470,6 +470,26 @@
   <script is:inline>
     let parsedData = null;
 
+    // 【共通処理】区切り線除去
+    // スタッフ運用で混入する区切り線（==========   1R   ↓   ==========）を除去
+    function removeSeparatorLines(input) {
+      if (!input || typeof input !== 'string') {
+        return input;
+      }
+
+      const lines = input.split('\n');
+      const SEPARATOR_LINE_PATTERN = /^[\s\u3000]*={3,}.*={3,}[\s\u3000]*$/;
+
+      const cleanedLines = lines.filter(line => !SEPARATOR_LINE_PATTERN.test(line));
+      const removedCount = lines.length - cleanedLines.length;
+
+      if (removedCount > 0) {
+        console.log(`[InputCleaner] 除去された区切り線: ${removedCount}行`);
+      }
+
+      return cleanedLines.join('\n');
+    }
+
     // スクロール監視：一定以上スクロールしたらボタン表示
     window.addEventListener('scroll', function() {
       const scrollBtn = document.getElementById('scrollToTopBtn');
@@ -710,13 +730,16 @@
 
       const raceDate = document.getElementById('raceDate').value;
       const venue = document.getElementById('venue').value;
-      const computerData = document.getElementById('computerData').value.trim();
+      let computerData = document.getElementById('computerData').value.trim();
 
       // バリデーション
       if (!raceDate || !venue || !computerData) {
         showStatus('⚠️ すべての必須項目を入力してください', 'error');
         return;
       }
+
+      // 【区切り線除去処理】
+      computerData = removeSeparatorLines(computerData);
 
       showLoading();
       showStatus('📊 パース処理中... 競馬ブックデータと照合します', 'info');

@@ -453,7 +453,7 @@ export const prerender = false;
         }
 
         // 共通情報取得
-        const date = document.getElementById('commonDate').value;
+        const fallbackDate = document.getElementById('commonDate').value;
         const fallbackVenue = document.getElementById('fallbackVenue').value;
 
         // 各レースを解析
@@ -461,6 +461,7 @@ export const prerender = false;
         let successCount = 0;
         let errorCount = 0;
         let commonVenue = null; // 全レース共通の競馬場
+        let commonDate = null;  // 全レース共通の開催日
 
         raceHTMLs.forEach((raceData, index) => {
           const raceHTML = typeof raceData === 'string' ? raceData : raceData.text;
@@ -470,8 +471,9 @@ export const prerender = false;
             // レース情報抽出
             const raceInfo = extractRaceInfo(raceHTML, raceNum);
 
-            // 最初のレースでvenueを設定
+            // 最初のレースで共通情報を設定
             if (index === 0) {
+              // 競馬場の自動検出（既存のロジック）
               commonVenue = raceInfo.venue;
 
               // 自動検出できなかった場合、フォールバックを使用
@@ -485,10 +487,30 @@ export const prerender = false;
               }
 
               console.log(`[Batch] 確定した競馬場: ${commonVenue}`);
+
+              // 開催日の自動検出（新規）
+              commonDate = raceInfo.raceDate;
+
+              // 自動検出できなかった場合、フォールバックを使用
+              if (!commonDate && fallbackDate) {
+                commonDate = fallbackDate;
+                console.log(`[Batch] 開催日の自動検出失敗。フォールバック日付を使用: ${commonDate}`);
+              }
+
+              if (!commonDate) {
+                throw new Error('開催日が検出できませんでした。「開催日」フィールドで手動入力してください。');
+              }
+
+              console.log(`[Batch] 確定した開催日: ${commonDate}`);
             } else {
               // 2レース目以降はvenueの一致を確認
               if (raceInfo.venue && raceInfo.venue !== commonVenue) {
                 console.warn(`⚠️ 第${raceNum}Rの競馬場（${raceInfo.venue}）が第1Rの競馬場（${commonVenue}）と異なります。`);
+              }
+
+              // 2レース目以降はraceDateの一致を確認
+              if (raceInfo.raceDate && raceInfo.raceDate !== commonDate) {
+                console.warn(`⚠️ 第${raceNum}Rの開催日（${raceInfo.raceDate}）が第1Rの開催日（${commonDate}）と異なります。`);
               }
             }
 
@@ -543,10 +565,10 @@ export const prerender = false;
               timeData: timeData
             };
 
-            const comment = generateRaceCommentary(race, date, commonVenue);
+            const comment = generateRaceCommentary(race, commonDate, commonVenue);
 
             const data = {
-              date: date,
+              date: commonDate,
               venue: commonVenue,
               raceNumber: raceNum,
               raceName: raceInfo.raceName,
@@ -568,7 +590,7 @@ export const prerender = false;
               raceNumber: raceNum,
               success: true,
               data,
-              date,
+              date: commonDate,
               venue: commonVenue,
             });
             successCount++;
@@ -588,11 +610,12 @@ export const prerender = false;
         statusDiv.className = errorCount > 0 ? 'parse-status error' : 'parse-status success';
         statusDiv.innerHTML = `
           ✅ 解析完了: 成功 ${successCount}レース / エラー ${errorCount}レース<br>
+          ${commonDate ? `📅 開催日: ${commonDate}<br>` : ''}
           ${commonVenue ? `📍 競馬場: ${commonVenue}` : ''}${commonVenue && errorCount > 0 ? '<br>' : ''}${errorCount > 0 ? '⚠️ エラーが出たレースは下で確認してください' : ''}
         `;
 
         // プレビュー表示
-        displayBatchPreview(batchResults, date, commonVenue);
+        displayBatchPreview(batchResults, commonDate, commonVenue);
 
       } catch (error) {
         statusDiv.className = 'parse-status error';
@@ -720,6 +743,23 @@ export const prerender = false;
       }
 
       console.log('[extractRaceInfo] 抽出したvenue:', venue || '(検出できず)');
+
+      // 開催日を抽出（複数パターンに対応）
+      // 例: 「2026年3月15日（日曜）1回中京2日」
+      // 例: 「2026年3月15日 中京競馬 第1日」
+      let raceDate = null;
+      for (const line of lines) {
+        // パターン1: 「YYYY年M月D日」形式
+        const dateMatch = line.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        if (dateMatch) {
+          const year = dateMatch[1];
+          const month = dateMatch[2].padStart(2, '0');
+          const day = dateMatch[3].padStart(2, '0');
+          raceDate = `${year}-${month}-${day}`;
+          console.log('[extractRaceInfo] 開催日:', raceDate);
+          break;
+        }
+      }
 
       // レース名候補を評価する関数（スコアが高いほど適切）
       const evaluateRaceNameCandidate = (line) => {
@@ -943,8 +983,9 @@ export const prerender = false;
       console.log('[extractRaceInfo] 馬場状態:', trackCondition);
       console.log('[extractRaceInfo] 条件（サブタイトル）:', raceSubtitle);
       console.log('[extractRaceInfo] 競馬場（venue）:', venue);
+      console.log('[extractRaceInfo] 開催日（raceDate）:', raceDate);
 
-      return { raceNumber, raceName, raceSubtitle, distance, surface, track, horses, startTime, weather, trackCondition, venue };
+      return { raceNumber, raceName, raceSubtitle, distance, surface, track, horses, startTime, weather, trackCondition, venue, raceDate };
     }
 
     function extractResults(text) {

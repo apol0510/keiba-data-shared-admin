@@ -1773,8 +1773,23 @@ export const prerender = false;
             ✅ ${successResults.length}レース分の保存成功！<br>
             <strong>ファイル:</strong> ${result.path}<br>
             <strong>コミット:</strong> ${result.sha?.substring(0, 7) || '-'}
+            <br><span style="color: var(--text-secondary);">🔄 1.5秒後に自動リセットします...</span>
           `;
           btn.textContent = '✅ 保存完了';
+
+          // フォームを自動クリア（次の入力に備える）
+          setTimeout(() => {
+            document.getElementById('batchInput').value = '';
+            document.getElementById('commonDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('parseStatus').style.display = 'none';
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('saveSection').style.display = 'none';
+            batchResults = [];
+            btn.disabled = false;
+            btn.textContent = '🚀 12レース一括保存してGit Push';
+            statusDiv.innerHTML = '';
+            console.log('[Auto Reset] フォームをリセットしました。次のデータを貼り付けてください。');
+          }, 1500);
         } else {
           statusDiv.className = 'save-status error';
           statusDiv.innerHTML = `❌ エラー: ${result.error || '保存に失敗しました'}`;

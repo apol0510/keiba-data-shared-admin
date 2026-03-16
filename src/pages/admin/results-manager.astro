@@ -844,9 +844,24 @@ export const prerender = false;
           statusDiv.innerHTML = `
             ✅ ${data.message}<br>
             <strong>コミット:</strong> <a href="${data.commitUrl}" target="_blank" style="color: var(--success);">GitHubで確認</a>
+            <br><span style="color: var(--text-secondary);">🔄 1.5秒後に自動リセットします...</span>
           `;
           btn.textContent = '✅ 保存完了';
           updateRaceStatus(raceNum, '保存済み');
+
+          // フォームを自動クリア（次の入力に備える）
+          setTimeout(() => {
+            document.getElementById('resultHtml').value = '';
+            document.getElementById('raceDate').value = '';
+            document.getElementById('venue').value = '';
+            document.getElementById('raceNumber').value = '';
+            document.getElementById('previewSection').style.display = 'none';
+            document.getElementById('saveSection').style.display = 'none';
+            btn.disabled = false;
+            btn.textContent = '🚀 保存してGit Push';
+            statusDiv.innerHTML = '';
+            console.log('[Auto Reset] フォームをリセットしました。次のデータを貼り付けてください。');
+          }, 1500);
         } else {
           statusDiv.className = 'save-status error';
           statusDiv.innerHTML = `❌ エラー: ${data.error || '保存に失敗しました'}`;

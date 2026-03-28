@@ -933,6 +933,9 @@ export const prerender = false;
           line.includes('印刷用') ||
           line.includes('レース映像') ||
           line.includes('パトロール') ||
+          line.includes('通過順位') ||
+          line.includes('推定上り') ||
+          line.includes('馬体重') ||
           line.includes('着') && line.includes('枠') && line.includes('馬番') ||  // ヘッダー行
           line.includes('番') && line.includes('馬名') && line.includes('性齢') ||  // ヘッダー行
           line.includes('重量') && line.includes('騎手') ||  // ヘッダー行
@@ -948,8 +951,8 @@ export const prerender = false;
           score += 100;
         }
 
-        // 中央競馬の重賞グレード（GI/GII/GIII）（スコア: +200）
-        if (line.match(/[（(]G[IⅠⅡⅢ]+[）)]/)) {
+        // 中央競馬の重賞グレード（GI/GII/GIII/GⅠ/GⅡ/GⅢ）（スコア: +200）
+        if (line.match(/[（(]?G[IⅠⅡⅢ]+[）)]?/) || line.match(/Ｇ[IⅠⅡⅢ]+/)) {
           score += 200;
         }
 
@@ -1036,7 +1039,12 @@ export const prerender = false;
                            text.match(/[ダ芝][\s\u3000]*(\d{1}),?(\d{3})m/);
       const distance = distanceMatch ? parseInt(distanceMatch[1] + distanceMatch[2], 10) : null;
 
-      const surface = text.includes('ダート') || text.includes('ダ') ? 'ダート' : '芝';
+      // 芝/ダート判定（コース行を優先、天候行も参照）
+      const courseLineMatchJra = text.match(/コース[：:][^\n]*（(芝|ダート)[・･]/) ||
+                                 text.match(/コース[：:][^\n]*(芝|ダート)/) ||
+                                 text.match(/天候[^\n]*(芝|ダート)(良|稍重|重|不良)/);
+      const surface = courseLineMatchJra ? (courseLineMatchJra[1] === 'ダート' ? 'ダート' : '芝') :
+                      (text.includes('ダート') ? 'ダート' : '芝');
 
       const trackMatch = text.match(/（(外|内|右|左)）/);
       const track = trackMatch ? trackMatch[1] : null;

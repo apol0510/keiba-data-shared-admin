@@ -416,25 +416,27 @@
         </div>
       </div>
 
-      <!-- ステータス表示 -->
+      <!-- ステータス & 保存ボタン（解析後すぐ見える位置） -->
       <div id="statusBar" class="status-bar"></div>
 
-      <!-- Step 3: プレビュー -->
-      <div id="previewSection" class="form-section preview-section">
-        <h2>3. プレビュー</h2>
-        <div id="previewContent"></div>
-      </div>
-
-      <!-- Step 4: JSON & 保存 -->
       <div id="saveSection" class="form-section preview-section">
-        <h2>4. JSON出力 & 保存</h2>
-        <div class="json-preview" id="jsonPreview"></div>
-        <div class="button-group" style="margin-top: 15px;">
+        <h2>3. 保存</h2>
+        <div class="button-group">
           <button class="btn btn-save" onclick="saveToGit(false)">🚀 保存してGit Push</button>
           <button class="btn btn-danger" onclick="saveToGit(true)">⚠️ 完全上書き保存</button>
           <button class="btn btn-secondary" onclick="copyJson()">📋 JSONコピー</button>
+          <button class="btn btn-secondary" onclick="document.getElementById('jsonWrap').style.display = document.getElementById('jsonWrap').style.display === 'none' ? 'block' : 'none'">{ } JSON表示</button>
         </div>
         <div id="saveResult" style="margin-top:15px;padding:15px;border-radius:8px;font-weight:600;display:none;"></div>
+        <div id="jsonWrap" style="display:none;margin-top:15px;">
+          <div class="json-preview" id="jsonPreview"></div>
+        </div>
+      </div>
+
+      <!-- プレビュー（折りたたみ可能） -->
+      <div id="previewSection" class="form-section preview-section">
+        <h2 style="cursor:pointer" onclick="document.getElementById('previewContent').style.display = document.getElementById('previewContent').style.display === 'none' ? 'block' : 'none'">4. プレビュー ▼</h2>
+        <div id="previewContent"></div>
       </div>
     </div>
   </div>

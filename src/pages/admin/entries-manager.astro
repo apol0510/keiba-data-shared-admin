@@ -434,6 +434,7 @@
           <button class="btn btn-danger" onclick="saveToGit(true)">⚠️ 完全上書き保存</button>
           <button class="btn btn-secondary" onclick="copyJson()">📋 JSONコピー</button>
         </div>
+        <div id="saveResult" style="margin-top:15px;padding:15px;border-radius:8px;font-weight:600;display:none;"></div>
       </div>
     </div>
   </div>
@@ -494,6 +495,23 @@
     const bar = document.getElementById('statusBar');
     bar.textContent = msg;
     bar.className = 'status-bar ' + type;
+  }
+
+  function showSaveResult(msg, type) {
+    showStatus(msg, type);
+    const el = document.getElementById('saveResult');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = 'block';
+    const colors = {
+      success: { bg: 'rgba(16,185,129,0.2)', color: '#34d399', border: 'rgba(16,185,129,0.3)' },
+      error: { bg: 'rgba(239,68,68,0.2)', color: '#f87171', border: 'rgba(239,68,68,0.3)' },
+      info: { bg: 'rgba(59,130,246,0.2)', color: '#60a5fa', border: 'rgba(59,130,246,0.3)' }
+    };
+    const c = colors[type] || colors.info;
+    el.style.background = c.bg;
+    el.style.color = c.color;
+    el.style.border = '1px solid ' + c.border;
   }
 
   // ========== 自動検出 ==========
@@ -1152,7 +1170,7 @@
 
     if (forceOverwrite && !confirm('⚠️ 完全上書きします。既存データは消えます。よろしいですか？')) return;
 
-    showStatus('保存中...', 'info');
+    showSaveResult('⏳ 保存中...', 'info');
 
     try {
       const response = await fetch('/.netlify/functions/save-entries', {
@@ -1171,13 +1189,19 @@
       const result = await response.json();
 
       if (response.ok && result.success) {
-        showStatus(`✅ 保存成功! ${result.path}`, 'success');
+        const msg = `✅ 保存成功！ ${result.path}`;
+        showSaveResult(msg, 'success');
+        alert(msg);
       } else {
-        showStatus(`❌ 保存失敗: ${result.error || result.details || 'Unknown error'}`, 'error');
+        const msg = `❌ 保存失敗: ${result.error || result.details || 'Unknown error'}`;
+        showSaveResult(msg, 'error');
+        alert(msg);
         console.error('[Save] エラー:', result);
       }
     } catch (e) {
-      showStatus('❌ 保存エラー: ' + e.message, 'error');
+      const msg = '❌ 保存エラー: ' + e.message;
+      showSaveResult(msg, 'error');
+      alert(msg);
       console.error('[Save] Exception:', e);
     }
   }

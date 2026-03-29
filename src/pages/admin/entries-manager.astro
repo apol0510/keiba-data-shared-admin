@@ -422,8 +422,7 @@
       <div id="saveSection" class="form-section preview-section">
         <h2>3. 保存</h2>
         <div class="button-group">
-          <button class="btn btn-save" onclick="saveToGit(false)">🚀 保存してGit Push</button>
-          <button class="btn btn-danger" onclick="saveToGit(true)">⚠️ 完全上書き保存</button>
+          <button class="btn btn-save" onclick="saveToGit(true)">🚀 保存してGit Push</button>
           <button class="btn btn-secondary" onclick="copyJson()">📋 JSONコピー</button>
           <button class="btn btn-secondary" onclick="document.getElementById('jsonWrap').style.display = document.getElementById('jsonWrap').style.display === 'none' ? 'block' : 'none'">{ } JSON表示</button>
         </div>
@@ -1169,8 +1168,6 @@
 
     const category = getCategoryByVenue(venue);
     const venueCode = getVenueCode(venue);
-
-    if (forceOverwrite && !confirm('⚠️ 完全上書きします。既存データは消えます。よろしいですか？')) return;
 
     showSaveResult('⏳ 保存中...', 'info');
 

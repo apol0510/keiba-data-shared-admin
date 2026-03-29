@@ -508,12 +508,18 @@
   }
 
   function detectVenueFromText(text) {
-    // 「船　橋」「大　井」のようにスペース入りの場合も対応
     const venues = ['大井', '川崎', '船橋', '浦和', '東京', '中山', '阪神', '京都', '中京', '新潟', '小倉', '札幌', '函館', '福島', '門別', '帯広', '盛岡', '水沢', '金沢', '笠松', '名古屋', '園田', '姫路', '高知', '佐賀'];
-    const normalized = text.replace(/[\s\u3000]+/g, '');
-    for (const v of venues) {
-      if (normalized.includes(v)) return v;
+    // 「第N競走」を含むヘッダー行から検出（騎手所属等の誤検出を防止）
+    const lines = text.split('\n');
+    for (const line of lines) {
+      if (/第\d{1,2}競走/.test(line)) {
+        const n = line.replace(/[\s\u3000]+/g, '');
+        for (const v of venues) { if (n.includes(v)) return v; }
+      }
     }
+    // フォールバック: 先頭200文字
+    const head = text.substring(0, 200).replace(/[\s\u3000]+/g, '');
+    for (const v of venues) { if (head.includes(v)) return v; }
     return null;
   }
 

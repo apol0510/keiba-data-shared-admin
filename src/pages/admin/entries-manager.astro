@@ -577,10 +577,20 @@
         races: races
       };
 
-      showStatus(`✅ ${races.length}レース解析完了（合計${races.reduce((s, r) => s + r.horses.length, 0)}頭）`, 'success');
-      renderPreview(races);
+      const totalHorses = races.reduce((s, r) => s + r.horses.length, 0);
+      showStatus(`✅ ${races.length}レース解析完了（合計${totalHorses}頭）`, 'success');
+      console.log(`[Parser] 解析完了: ${races.length}R, ${totalHorses}頭`);
+
+      // 保存セクションを先に表示（プレビュー描画前に）
       renderJson();
       updateCategoryPath();
+
+      // プレビュー描画（重い処理なので最後に）
+      try {
+        renderPreview(races);
+      } catch (e) {
+        console.error('[Render] プレビュー描画エラー:', e);
+      }
 
     } catch (e) {
       console.error('[Parser] エラー:', e);
@@ -1105,9 +1115,20 @@
 
   function renderJson() {
     if (!parsedResult) return;
-    const section = document.getElementById('saveSection');
-    section.classList.add('visible');
-    document.getElementById('jsonPreview').textContent = JSON.stringify(parsedResult, null, 2);
+    try {
+      const section = document.getElementById('saveSection');
+      section.classList.add('visible');
+      const jsonStr = JSON.stringify(parsedResult, null, 2);
+      // 大きすぎる場合は先頭のみ表示
+      if (jsonStr.length > 100000) {
+        document.getElementById('jsonPreview').textContent = jsonStr.substring(0, 100000) + '\n\n... (以降省略: 全' + jsonStr.length.toLocaleString() + '文字)';
+      } else {
+        document.getElementById('jsonPreview').textContent = jsonStr;
+      }
+      console.log(`[Render] JSON preview: ${jsonStr.length.toLocaleString()}文字, saveSection visible`);
+    } catch (e) {
+      console.error('[Render] renderJson error:', e);
+    }
   }
 
   // ========== 保存 ==========

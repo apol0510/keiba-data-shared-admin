@@ -1191,6 +1191,18 @@
         const msg = `✅ 保存成功！ ${result.path}`;
         showSaveResult(msg, 'success');
         alert(msg);
+        // 保存成功後にリセット（次の貼り付けに備える）
+        setTimeout(() => {
+          document.getElementById('entryText').value = '';
+          document.getElementById('raceDate').value = '';
+          document.getElementById('venue').value = '';
+          updateCategoryPath();
+          document.getElementById('previewSection').classList.remove('visible');
+          document.getElementById('saveSection').classList.remove('visible');
+          document.getElementById('jsonWrap').style.display = 'none';
+          parsedResult = null;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 500);
       } else {
         const msg = `❌ 保存失敗: ${result.error || result.details || 'Unknown error'}`;
         showSaveResult(msg, 'error');

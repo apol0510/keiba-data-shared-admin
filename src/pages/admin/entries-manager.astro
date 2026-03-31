@@ -528,13 +528,18 @@
 
   function detectVenueFromText(text) {
     const venues = ['大井', '川崎', '船橋', '浦和', '東京', '中山', '阪神', '京都', '中京', '新潟', '小倉', '札幌', '函館', '福島', '門別', '帯広', '盛岡', '水沢', '金沢', '笠松', '名古屋', '園田', '姫路', '高知', '佐賀'];
-    // 「第N競走」を含むヘッダー行から検出（騎手所属等の誤検出を防止）
     const lines = text.split('\n');
+    // 地方: 「第N競走」を含むヘッダー行から検出
     for (const line of lines) {
       if (/第\d{1,2}競走/.test(line)) {
         const n = line.replace(/[\s\u3000]+/g, '');
         for (const v of venues) { if (n.includes(v)) return v; }
       }
+    }
+    // JRA: 「N回中山N日」形式から検出
+    for (const line of lines) {
+      const jm = line.match(/\d回(中山|東京|阪神|京都|中京|新潟|小倉|札幌|函館|福島)\d日/);
+      if (jm) return jm[1];
     }
     // フォールバック: 先頭200文字
     const head = text.substring(0, 200).replace(/[\s\u3000]+/g, '');
@@ -617,16 +622,29 @@
     }
   }
 
+  // フォーマット判定: JRA or 地方
+  function detectFormat(text) {
+    // JRA: 「N回中山N日」「Nレース」「枠N白」等のパターン
+    if (/\d回(中山|東京|阪神|京都|中京|新潟|小倉|札幌|函館|福島)\d日/.test(text)) return 'jra';
+    if (/^枠\d(白|黒|赤|青|黄|緑|橙|桃)\s/m.test(text)) return 'jra';
+    if (/メートル.*(ダート|芝)/.test(text)) return 'jra';
+    return 'local';
+  }
+
   function splitAndParseRaces(text) {
     const lines = text.split('\n');
     const races = [];
+    const format = detectFormat(text);
+    console.log('[Parser] フォーマット:', format);
 
-    // レース境界: 「第N競走」を含む行で分割（最も確実）
+    if (format === 'jra') {
+      return splitAndParseRacesJRA(lines);
+    }
+
+    // 地方: 「第N競走」で分割
     const raceStartIndices = [];
     for (let i = 0; i < lines.length; i++) {
-      if (/第\d{1,2}競走/.test(lines[i])) {
-        raceStartIndices.push(i);
-      }
+      if (/第\d{1,2}競走/.test(lines[i])) raceStartIndices.push(i);
     }
 
     console.log('[Parser] レース境界検出:', raceStartIndices.length, '箇所');
@@ -640,10 +658,8 @@
     for (let i = 0; i < raceStartIndices.length; i++) {
       const startIdx = raceStartIndices[i];
       const endIdx = i + 1 < raceStartIndices.length ? raceStartIndices[i + 1] : lines.length;
-      const raceLines = lines.slice(startIdx, endIdx);
-
       try {
-        const race = parseOneRace(raceLines);
+        const race = parseOneRace(lines.slice(startIdx, endIdx));
         if (race && race.horses.length > 0) {
           races.push(race);
           console.log(`[Parser] R${race.raceNumber}: ${race.horses.length}頭`);
@@ -652,8 +668,364 @@
         console.warn(`[Parser] レース解析エラー (index ${i}):`, e.message);
       }
     }
-
     return races;
+  }
+
+  // ===== JRA パーサー =====
+
+  function splitAndParseRacesJRA(lines) {
+    const races = [];
+    // 「Nレース」行で分割
+    const raceStartIndices = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (/^\d{1,2}レース$/.test(lines[i].trim())) raceStartIndices.push(i);
+    }
+
+    console.log('[JRA] レース境界検出:', raceStartIndices.length, '箇所');
+
+    if (raceStartIndices.length === 0) {
+      const race = parseOneRaceJRA(lines);
+      if (race && race.horses.length > 0) races.push(race);
+      return races;
+    }
+
+    for (let i = 0; i < raceStartIndices.length; i++) {
+      const startIdx = Math.max(0, raceStartIndices[i] - 5); // 日付行等を含める
+      const endIdx = i + 1 < raceStartIndices.length ? raceStartIndices[i + 1] - 5 : lines.length;
+      try {
+        const race = parseOneRaceJRA(lines.slice(startIdx, endIdx));
+        if (race && race.horses.length > 0) {
+          races.push(race);
+          console.log(`[JRA] R${race.raceNumber}: ${race.horses.length}頭`);
+        }
+      } catch (e) {
+        console.warn(`[JRA] レース解析エラー:`, e.message);
+      }
+    }
+    return races;
+  }
+
+  function parseOneRaceJRA(lines) {
+    const race = {
+      raceNumber: null, raceName: '', startTime: '',
+      distance: '', surface: '', direction: '',
+      conditions: '', headCount: 0, horses: []
+    };
+
+    const topText = lines.slice(0, Math.min(30, lines.length)).join('\n');
+
+    // レース番号: 「1レース」
+    const rnm = topText.match(/^(\d{1,2})レース$/m);
+    if (rnm) race.raceNumber = parseInt(rnm[1]);
+
+    // 発走時刻: 「発走時刻：9時55分」
+    const tm = topText.match(/発走時刻[：:](\d{1,2})時(\d{1,2})分/);
+    if (tm) race.startTime = `${tm[1]}:${tm[2].padStart(2, '0')}`;
+
+    // 距離: 「コース：1,800メートル（ダート・右）」
+    const dm = topText.match(/(\d[\d,]+)\s*メートル[（(](ダート|芝)[・/](右|左|直)/);
+    if (dm) {
+      race.distance = dm[1].replace(/,/g, '');
+      race.surface = dm[2];
+      race.direction = dm[3];
+    }
+
+    // レース名: 条件名の行を探す
+    for (const line of lines.slice(0, 20)) {
+      const t = line.trim();
+      if (!t || t.length < 2 || t.length > 50) continue;
+      if (/^\d{1,2}レース$|^\d{4}年|^発走|^コース|^本賞金|^レース結果|^オッズ|^印刷用|^馬柱|^着順|^同一|^枠/.test(t)) continue;
+      if (/回(中山|東京|阪神|京都|中京|新潟|小倉|札幌|函館|福島)/.test(t)) continue;
+      if (/^(牝|牡|セン|指定|馬齢|定量|別定|ハンデ|\d歳|未勝利|新馬|オープン)/.test(t)) continue;
+      if (/[ァ-ヶー一-龥Ａ-Ｚ]/.test(t)) {
+        race.raceName = t;
+        break;
+      }
+    }
+    // フォールバック: レース番号の次行
+    if (!race.raceName && rnm) {
+      for (let i = 0; i < lines.length; i++) {
+        if (/^\d{1,2}レース$/.test(lines[i].trim()) && i + 1 < lines.length) {
+          const next = lines[i + 1].trim();
+          if (next && next.length >= 2 && !/^(牝|牡|\d歳|未勝利|新馬)/.test(next)) {
+            race.raceName = next;
+          }
+          break;
+        }
+      }
+    }
+
+    // 馬ブロック: 「枠N色 \tNN \t」で始まる行
+    race.horses = parseHorsesJRA(lines);
+    race.headCount = race.horses.length;
+    return race;
+  }
+
+  function parseHorsesJRA(lines) {
+    const horses = [];
+    const horseStarts = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(/^枠(\d)(白|黒|赤|青|黄|緑|橙|桃)\s+(\d{1,2})/);
+      if (m) {
+        // 馬番の後に「ブリンカー着用」等が付く場合があるので数字部分だけ取得
+        horseStarts.push({ index: i, postPosition: parseInt(m[1]), number: parseInt(m[3].match(/\d+/)[0]) });
+      }
+    }
+
+    console.log('[JRA] 馬ブロック検出:', horseStarts.length, '頭');
+
+    for (let h = 0; h < horseStarts.length; h++) {
+      const start = horseStarts[h].index;
+      const end = h + 1 < horseStarts.length ? horseStarts[h + 1].index : lines.length;
+      try {
+        const horse = parseOneHorseJRA(lines.slice(start, end), horseStarts[h]);
+        if (horse) horses.push(horse);
+      } catch (e) {
+        console.warn(`[JRA] 馬解析エラー (馬番${horseStarts[h].number}):`, e.message);
+      }
+    }
+    return horses;
+  }
+
+  function parseOneHorseJRA(block, meta) {
+    const horse = {
+      postPosition: meta.postPosition, number: meta.number,
+      name: '', gender: '', age: null, coat: '', weight: null,
+      jockey: '', jockeyAffiliation: '', trainer: '', trainerAffiliation: '',
+      owner: '', breeder: '', sire: '', bms: '',
+      record: { total:{wins:0,seconds:0,thirds:0,unplaced:0}, left:{wins:0,seconds:0,thirds:0,unplaced:0}, right:{wins:0,seconds:0,thirds:0,unplaced:0}, venue:{wins:0,seconds:0,thirds:0,unplaced:0}, distance:{wins:0,seconds:0,thirds:0,unplaced:0} },
+      bestTime: '', recentRaces: []
+    };
+
+    // 構造（行順）:
+    // 0: 枠1白 \t1 \t       ← 馬番（ブリンカー等付記あり）
+    // 1: サラサチャチャチャ    ← 馬名
+    // 2: 2.0(1番人気)         ← オッズ
+    // 3: 464kg(0)             ← 馬体重
+    // ~: 横井 良明            ← 馬主
+    // ~: グランド牧場          ← 生産牧場
+    // ~: 田中 剛(美浦)        ← 調教師
+    // ~: 父：ダノンスマッシュ  ← 父
+    // ~: 母：...(母の父：...)  ← 母・BMS
+    // ~: 牝3/鹿              ← 性齢/毛色
+    // ~: 55.0kg              ← 斤量
+    // ~: 江田 照男            ← 騎手
+    // ~: 近走データ...
+
+    // 馬名: 1行目の次の非空行
+    for (let i = 1; i < Math.min(5, block.length); i++) {
+      const t = block[i].trim();
+      if (t && !t.includes('番人気') && !t.includes('kg') && /[ァ-ヶー一-龥]/.test(t)) {
+        horse.name = t;
+        break;
+      }
+    }
+
+    // 馬体重: 「464kg(0)」「500kg(初出走)」
+    for (let i = 1; i < Math.min(10, block.length); i++) {
+      const wm = block[i].trim().match(/^(\d{3,4})kg/);
+      if (wm) {
+        horse.bodyWeight = wm[1];
+        break;
+      }
+    }
+
+    // 馬主・生産牧場・調教師
+    for (let i = 1; i < block.length; i++) {
+      const t = block[i].trim();
+      // 調教師: 「田中 剛(美浦)」「奥平 雅士(美浦)」
+      const trm = t.match(/^(.+?)\s*[(（](美浦|栗東)[)）]/);
+      if (trm) {
+        horse.trainer = trm[1].trim();
+        horse.trainerAffiliation = trm[2];
+        // 馬主: 調教師行の2行前（空行を挟む場合あり）
+        for (let j = i - 1; j >= 1; j--) {
+          const prev = block[j].trim();
+          if (prev && !prev.includes('kg') && !prev.includes('番人気') && !/^枠/.test(prev)) {
+            // 生産牧場
+            horse.breeder = prev;
+            // さらに前が馬主
+            for (let k = j - 1; k >= 1; k--) {
+              const pp = block[k].trim();
+              if (pp && !pp.includes('kg') && !pp.includes('番人気') && !/^枠/.test(pp)) {
+                horse.owner = pp;
+                break;
+              }
+            }
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // 父・BMS: 「父：xxx」「母：yyy(母の父：zzz)」
+    for (const line of block) {
+      const t = line.trim();
+      const sm = t.match(/父[：:](.+)/);
+      if (sm && !t.includes('母の父')) { horse.sire = sm[1].trim(); }
+      const bm = t.match(/母の父[：:]([^)）]+)/);
+      if (bm) { horse.bms = bm[1].trim(); }
+    }
+
+    // 性齢/毛色: 「牝3/鹿」「牡4/黒鹿」
+    for (const line of block) {
+      const gm = line.trim().match(/^(牡|牝|セン)(\d{1,2})\/(鹿|栗|黒鹿|青鹿|芦|白|栃栗|青毛|鹿毛|栗毛)/);
+      if (gm) {
+        horse.gender = gm[1];
+        horse.age = parseInt(gm[2]);
+        horse.coat = gm[3];
+        break;
+      }
+    }
+
+    // 斤量: 「55.0kg」（性齢行の後、騎手の前）
+    for (let i = 0; i < block.length; i++) {
+      const t = block[i].trim();
+      if (/^(牡|牝|セン)\d/.test(t)) {
+        // 性齢行の後で斤量を探す
+        for (let j = i + 1; j < Math.min(i + 5, block.length); j++) {
+          const wm = block[j].trim().match(/^(\d{2,3}\.\d)kg$/);
+          if (wm) { horse.weight = parseFloat(wm[1]); break; }
+        }
+        break;
+      }
+    }
+
+    // 騎手: 斤量行の後の名前行
+    for (let i = 0; i < block.length; i++) {
+      const t = block[i].trim();
+      if (/^\d{2,3}\.\dkg$/.test(t)) {
+        for (let j = i + 1; j < Math.min(i + 3, block.length); j++) {
+          const jt = block[j].trim();
+          if (jt && /^[^\d（(]/.test(jt) && !jt.includes('年') && !jt.includes('kg') && jt.length < 15) {
+            horse.jockey = jt;
+            break;
+          }
+        }
+        break;
+      }
+    }
+
+    // 近走: JRA形式は複数行に分かれる
+    horse.recentRaces = parseRecentRacesJRA(block);
+
+    return horse;
+  }
+
+  function parseRecentRacesJRA(block) {
+    const recentRaces = [];
+    // 近走開始: 「YYYY年M月D日」で始まる行
+    const dateIndices = [];
+    for (let i = 0; i < block.length; i++) {
+      if (/^\d{4}年\d{1,2}月\d{1,2}日$/.test(block[i].trim())) {
+        dateIndices.push(i);
+      }
+    }
+
+    for (let r = 0; r < Math.min(5, dateIndices.length); r++) {
+      const startIdx = dateIndices[r];
+      const endIdx = r + 1 < dateIndices.length ? dateIndices[r + 1] : block.length;
+      const raceBlock = block.slice(startIdx, endIdx).map(l => l.trim()).filter(l => l);
+
+      const raceData = {
+        order: r + 1, finish: null, finishStatus: null,
+        date: '', trackCondition: '', headCount: null,
+        venue: '', direction: '', distance: null, postPosition: null,
+        raceName: '', popularity: null, bodyWeight: '', jockey: '', weight: null,
+        time: '', passingOrder: '', last3f: '', margin: '', opponentName: ''
+      };
+
+      // 日付: 「2026年3月1日」
+      const dtm = raceBlock[0].match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+      if (dtm) raceData.date = `${dtm[1]}-${dtm[2].padStart(2,'0')}-${dtm[3].padStart(2,'0')}`;
+
+      for (const line of raceBlock) {
+        // 競馬場: 「中山」「東京」等
+        const venues = ['中山','東京','阪神','京都','中京','新潟','小倉','札幌','函館','福島','大井','川崎','船橋','浦和'];
+        if (venues.includes(line) && !raceData.venue) { raceData.venue = line; continue; }
+
+        // 着順: 「2着」「8着」
+        const fm = line.match(/^(\d{1,2})着$/);
+        if (fm) { raceData.finish = parseInt(fm[1]); continue; }
+        if (/^(中止|取消|除外|競走中止)$/.test(line)) { raceData.finishStatus = line; continue; }
+
+        // 頭数・枠番・人気: 「16頭6番1番人気」
+        const hm = line.match(/(\d{1,2})頭(\d{1,2})番(\d{1,2})番人気/);
+        if (hm) {
+          raceData.headCount = parseInt(hm[1]);
+          raceData.postPosition = parseInt(hm[2]);
+          raceData.popularity = parseInt(hm[3]);
+          continue;
+        }
+
+        // 斤量: 「55.0kg」
+        const wkm = line.match(/^(\d{2,3}\.\d)kg$/);
+        if (wkm) { raceData.weight = parseFloat(wkm[1]); continue; }
+
+        // 距離・馬場: 「1800ダ」「1600芝」
+        const dism = line.match(/^(\d{3,4})(ダ|芝)$/);
+        if (dism) { raceData.distance = parseInt(dism[1]); raceData.surface = dism[2] === 'ダ' ? 'ダート' : '芝'; continue; }
+
+        // タイム: 「1:55.3」
+        const timm = line.match(/^(\d:\d{2}\.\d)$/);
+        if (timm) { raceData.time = timm[1]; continue; }
+
+        // 馬場状態: 「良」「稍重」「重」「不良」
+        if (/^(良|稍重|重|不良)$/.test(line)) { raceData.trackCondition = line; continue; }
+
+        // 馬体重: 「464kg」
+        const bwm = line.match(/^(\d{3,4})kg$/);
+        if (bwm) { raceData.bodyWeight = bwm[1]; continue; }
+
+        // 通過順: 「7733」「101076」（スペース付きの場合も）
+        if (/^\d{2,8}$/.test(line)) { raceData.passingOrder = line; continue; }
+
+        // 上がり3F: 「3F 40.2」
+        const f3m = line.match(/^3F\s+([\d.]+)$/);
+        if (f3m) { raceData.last3f = f3m[1]; continue; }
+
+        // 相手馬(着差): 「ピュアエンブレム(0.1)」
+        const opm = line.match(/^([ァ-ヶー一-龥a-zA-Zａ-ｚＡ-Ｚ]\S*)\s*[(（]([\d.]+)[)）]$/);
+        if (opm) { raceData.opponentName = opm[1]; raceData.margin = opm[2]; continue; }
+
+        // レース名（条件名）: 上記に該当しない短い文字列
+        if (!raceData.raceName && line.length >= 2 && line.length <= 30 &&
+            /[ァ-ヶー一-龥]/.test(line) && !/^\d/.test(line) && !line.includes('kg') &&
+            !/^(良|稍重|重|不良)$/.test(line) && !venues.includes(line)) {
+          raceData.raceName = line;
+        }
+
+        // 騎手名
+        if (!raceData.jockey && line.length >= 2 && line.length <= 10 &&
+            /^[^\d（(ァ-ヶ]/.test(line) && !line.includes('kg') && !line.includes('着') &&
+            !/^(良|稍重|重|不良|3F)/.test(line) && !venues.includes(line) &&
+            !raceData.raceName) {
+          // 騎手は条件名の後に来る
+        }
+      }
+
+      // 騎手: 着順行と斤量行の間にある名前
+      for (let i = 0; i < raceBlock.length; i++) {
+        if (/^\d{1,2}着$/.test(raceBlock[i]) || /^(中止|取消|除外)$/.test(raceBlock[i])) {
+          // 着順の2行後くらいに騎手名
+          for (let j = i + 1; j < Math.min(i + 4, raceBlock.length); j++) {
+            const jt = raceBlock[j].trim();
+            if (jt && jt.length >= 2 && jt.length <= 10 && /[^\d]/.test(jt) &&
+                !jt.includes('頭') && !jt.includes('kg') && !jt.includes('番人気')) {
+              raceData.jockey = jt;
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      if (raceData.date) recentRaces.push(raceData);
+    }
+
+    return recentRaces;
   }
 
   function parseOneRace(lines) {

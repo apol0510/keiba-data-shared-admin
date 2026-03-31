@@ -622,19 +622,18 @@
     }
   }
 
-  // フォーマット判定: JRA or 地方
-  function detectFormat(text) {
-    // JRA: 「N回中山N日」「Nレース」「枠N白」等のパターン
-    if (/\d回(中山|東京|阪神|京都|中京|新潟|小倉|札幌|函館|福島)\d日/.test(text)) return 'jra';
-    if (/^枠\d(白|黒|赤|青|黄|緑|橙|桃)\s/m.test(text)) return 'jra';
-    if (/メートル.*(ダート|芝)/.test(text)) return 'jra';
-    return 'local';
-  }
-
   function splitAndParseRaces(text) {
     const lines = text.split('\n');
     const races = [];
-    const format = detectFormat(text);
+
+    // フォーマット判定: 先頭50行のみで判定（高速化）
+    let format = 'local';
+    for (let i = 0; i < Math.min(50, lines.length); i++) {
+      const l = lines[i];
+      if (/\d回(中山|東京|阪神|京都|中京|新潟|小倉|札幌|函館|福島)\d日/.test(l)) { format = 'jra'; break; }
+      if (/メートル/.test(l) && /(ダート|芝)/.test(l)) { format = 'jra'; break; }
+      if (/^枠\d(白|黒|赤|青|黄|緑|橙|桃)/.test(l)) { format = 'jra'; break; }
+    }
     console.log('[Parser] フォーマット:', format);
 
     if (format === 'jra') {

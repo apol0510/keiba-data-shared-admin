@@ -1571,6 +1571,8 @@
           document.getElementById('previewSection').classList.remove('visible');
           document.getElementById('saveSection').classList.remove('visible');
           document.getElementById('jsonWrap').style.display = 'none';
+          document.getElementById('saveResult').style.display = 'none';
+          document.getElementById('statusBar').className = 'status-bar';
           parsedResult = null;
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }, 500);

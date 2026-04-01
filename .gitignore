@@ -22,3 +22,7 @@ pnpm-debug.log*
 # IDE
 .vscode/
 .idea/
+node_modules
+dist
+.astro
+.env.*

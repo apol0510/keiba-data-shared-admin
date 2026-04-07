@@ -987,6 +987,7 @@ export const prerender = false;
 
         pastRaces.push({
           venue, raceClass, finish, cond: null, courseNote: null,
+          distance: distance || null,
           time, weight: prWeight ? parseInt(prWeight) : null,
           jockey: prJockey, bodyWeight, paceType, paceRank, final3F, winner
         });

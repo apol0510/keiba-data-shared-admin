@@ -40,7 +40,7 @@ export const prerender = false;
     </div>
   </section>
 
-  <style>
+  <style is:global>
     .admin-section { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; color: #e2e8f0; }
     .admin-section h1 { text-align: center; margin-bottom: 0.25rem; color: #f1f5f9; }
     .lead { text-align: center; color: #94a3b8; margin-bottom: 2rem; }
@@ -1142,6 +1142,7 @@ export const prerender = false;
       container.innerHTML = '';
 
       const json = parsedData;
+      console.log('[Preview] results:', results.length, 'json.races:', json.races.length);
 
       for (let ri = 0; ri < results.length; ri++) {
         const race = results[ri];
@@ -1234,6 +1235,7 @@ export const prerender = false;
         }
         bodyHtml += '</div>';
 
+        if (ri === 0) console.log('[Preview] 1R bodyHtml length:', bodyHtml.length, 'assignments:', !!assignments);
         body.innerHTML = bodyHtml;
         acc.appendChild(body);
         container.appendChild(acc);

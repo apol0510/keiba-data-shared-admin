@@ -31,26 +31,7 @@ export const prerender = false;
     <!-- プレビュー -->
     <div id="previewSection" style="display:none">
       <h2 id="raceTitle"></h2>
-      <div class="table-wrap">
-        <table id="horseTable">
-          <thead>
-            <tr>
-              <th>馬番</th>
-              <th>馬名</th>
-              <th>性齢</th>
-              <th>騎手</th>
-              <th>斤量</th>
-              <th>厩舎</th>
-              <th>指数</th>
-              <th>印</th>
-              <th>オッズ</th>
-              <th>短評</th>
-              <th>近走</th>
-            </tr>
-          </thead>
-          <tbody id="horseTableBody"></tbody>
-        </table>
-      </div>
+      <div id="raceAccordion"></div>
       <details style="margin-top:1rem">
         <summary>JSON出力</summary>
         <pre id="jsonPreview" class="json-pre"></pre>
@@ -78,17 +59,46 @@ export const prerender = false;
     .status-error { background: #fef2f2; color: #991b1b; }
     .status-info { background: #dbeafe; color: #1e40af; }
     .table-wrap { overflow-x: auto; }
-    #horseTable { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    #horseTable th { background: #1e293b; color: #fff; padding: 0.5rem 0.6rem; white-space: nowrap; text-align: left; position: sticky; top: 0; z-index: 1; }
-    #horseTable td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
-    #horseTable tbody tr:hover { background: #f1f5f9; }
-    .mark-cell { font-size: 1.05em; }
-    .mark-cell span { display: inline-block; min-width: 1.3em; text-align: center; margin: 0 1px; }
-    .past-races-cell { white-space: normal !important; min-width: 160px; }
-    .past-race { display: inline-block; font-size: 0.75rem; background: #f1f5f9; border-radius: 3px; padding: 1px 4px; margin: 1px 2px; white-space: nowrap; }
     .btn-save:disabled { background: #9ca3af; cursor: not-allowed; }
     .json-pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; max-height: 400px; }
     #raceTitle { margin-top: 0; }
+    /* アコーディオン */
+    .race-accordion { border: 1px solid #334155; border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; }
+    .race-accordion-header { background: #1e293b; color: #fff; padding: 0.6rem 1rem; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+    .race-accordion-header:hover { background: #334155; }
+    .race-accordion-body { display: none; padding: 0; background: #0f172a; }
+    .race-accordion-body.open { display: block; }
+    /* レース情報カード */
+    .race-info-card { background: #1e293b; padding: 0.8rem 1rem; margin: 0.5rem; border-radius: 6px; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; font-size: 0.85rem; color: #cbd5e1; }
+    .race-info-card dt { font-weight: 600; color: #94a3b8; font-size: 0.75rem; }
+    .race-info-card dd { margin: 0; color: #f1f5f9; }
+    /* 振り分けカード */
+    .assign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 0.5rem; }
+    .assign-card { border-radius: 6px; padding: 0.5rem 0.75rem; }
+    .assign-card .assign-label { font-weight: 700; font-size: 0.8rem; margin-bottom: 0.2rem; }
+    .assign-card .assign-horse { font-size: 0.85rem; color: #e2e8f0; }
+    .assign-honmei { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); border-left: 3px solid #ef4444; }
+    .assign-taikou { background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-left: 3px solid #3b82f6; }
+    .assign-tanana { background: linear-gradient(135deg, #d97706 0%, #92400e 100%); border-left: 3px solid #f59e0b; }
+    .assign-renkatop { background: linear-gradient(135deg, #0d9488 0%, #115e59 100%); border-left: 3px solid #14b8a6; }
+    .assign-renka { background: #1e293b; border-left: 3px solid #64748b; }
+    .assign-hoseki { background: #1e293b; border-left: 3px solid #475569; color: #94a3b8; }
+    .assign-none { background: #0f172a; border-left: 3px solid #334155; color: #64748b; }
+    /* 馬テーブル */
+    .horse-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .horse-table th { background: #1e293b; color: #94a3b8; padding: 0.35rem 0.5rem; text-align: left; font-weight: 600; font-size: 0.7rem; white-space: nowrap; position: sticky; top: 0; }
+    .horse-table td { padding: 0.3rem 0.5rem; border-bottom: 1px solid #1e293b; color: #e2e8f0; white-space: nowrap; }
+    .horse-table tbody tr:hover { background: #1e293b; }
+    .horse-table .mark-cell span { display: inline-block; min-width: 1.2em; text-align: center; margin: 0 1px; font-size: 0.9em; }
+    .assign-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .badge-honmei { background: #dc2626; color: #fff; }
+    .badge-taikou { background: #2563eb; color: #fff; }
+    .badge-tanana { background: #d97706; color: #fff; }
+    .badge-renka { background: #475569; color: #e2e8f0; }
+    .badge-hoseki { background: #334155; color: #94a3b8; }
+    .badge-none { background: transparent; color: #64748b; }
+    .past-race { display: inline-block; font-size: 0.7rem; background: #1e293b; border-radius: 3px; padding: 1px 4px; margin: 1px 2px; white-space: nowrap; color: #94a3b8; }
+    .past-races-cell { white-space: normal !important; min-width: 140px; }
   </style>
 
   <script is:inline>
@@ -1112,43 +1122,105 @@ export const prerender = false;
       document.getElementById('raceTitle').textContent =
         `${results[0].raceInfo.track} 全${results.length}レース`;
 
-      const tbody = document.getElementById('horseTableBody');
-      tbody.innerHTML = '';
+      const container = document.getElementById('raceAccordion');
+      container.innerHTML = '';
 
-      for (const race of results) {
-        const headerTr = document.createElement('tr');
-        const startTimeStr = race.raceInfo.startTime ? ` ${esc(race.raceInfo.startTime)}発走` : '';
-        headerTr.innerHTML = `<td colspan="11" style="background:#1e293b;color:#fff;font-weight:700;padding:0.6rem">` +
-          `${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ` +
-          `${race.raceInfo.conditions ? '(' + esc(race.raceInfo.conditions) + ')' : ''} ` +
-          `${esc(race.raceInfo.distance)}${startTimeStr} — ${race.horses.length}頭</td>`;
-        tbody.appendChild(headerTr);
+      const json = parsedData;
 
+      for (let ri = 0; ri < results.length; ri++) {
+        const race = results[ri];
+        const jsonRace = json.races[ri];
+        const assignments = jsonRace ? jsonRace.assignments : null;
         const sortedHorses = [...race.horses].sort((a, b) => a.number - b.number);
-        for (const h of sortedHorses) {
-          const tr = document.createElement('tr');
-          const marksHtml = h.marks.length > 0
-            ? h.marks.map(m => `<span>${esc(m)}</span>`).join('')
-            : '-';
-          const pastHtml = (h.pastRaces && h.pastRaces.length > 0)
-            ? h.pastRaces.map(r =>
-                `<span class="past-race">${esc(r.finish || '?')}着 ${esc(r.venue)} ${esc(r.time)}</span>`
-              ).join('')
-            : '-';
-          tr.innerHTML =
-            `<td style="text-align:center;font-weight:700">${h.number}</td>` +
-            `<td>${esc(h.name)}</td>` +
-            `<td>${esc(h.sexAge)}</td>` +
-            `<td>${esc(h.jockey)}</td>` +
-            `<td style="text-align:center">${esc(h.weight)}</td>` +
-            `<td>${esc((h.trainer || '').replace(/\s+/g, ''))}</td>` +
-            `<td style="text-align:center;font-weight:700">${esc(h.computerIndex) || '-'}</td>` +
-            `<td class="mark-cell">${marksHtml}</td>` +
-            `<td style="text-align:right">${esc(h.odds) || '-'}</td>` +
-            `<td>${esc(h.comment)}</td>` +
-            `<td class="past-races-cell">${pastHtml}</td>`;
-          tbody.appendChild(tr);
+
+        // スコア計算
+        const scored = sortedHorses.map(h => ({
+          ...h,
+          _ts: calcTotalScore(h.marks),
+          _assign: jsonRace ? getAssignment(h.number, jsonRace.assignments) : '無'
+        }));
+
+        const acc = document.createElement('div');
+        acc.className = 'race-accordion';
+
+        // ヘッダー
+        const header = document.createElement('div');
+        header.className = 'race-accordion-header';
+        const st = race.raceInfo.startTime || '';
+        header.innerHTML = `<span>▸ ${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ${esc(race.raceInfo.distance)} ${st ? st + '発走' : ''} — ${race.horses.length}頭</span><span style="font-size:0.8rem;color:#94a3b8">✅ 成功</span>`;
+        header.onclick = () => {
+          const body = acc.querySelector('.race-accordion-body');
+          body.classList.toggle('open');
+          header.querySelector('span').textContent = body.classList.contains('open')
+            ? `▾ ${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ${esc(race.raceInfo.distance)} ${st ? st + '発走' : ''} — ${race.horses.length}頭`
+            : `▸ ${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ${esc(race.raceInfo.distance)} ${st ? st + '発走' : ''} — ${race.horses.length}頭`;
+        };
+        acc.appendChild(header);
+
+        // ボディ
+        const body = document.createElement('div');
+        body.className = 'race-accordion-body' + (ri === 0 ? ' open' : '');
+        if (ri === 0) header.querySelector('span').textContent = header.querySelector('span').textContent.replace('▸', '▾');
+
+        // レース情報カード
+        body.innerHTML = `
+          <div class="race-info-card">
+            <div><dt>発走</dt><dd>${esc(st) || '-'}</dd></div>
+            <div><dt>レース名</dt><dd>${esc(race.raceInfo.raceClass)}</dd></div>
+            <div><dt>距離</dt><dd>${esc(race.raceInfo.distance)}</dd></div>
+            <div><dt>頭数</dt><dd>${race.horses.length}頭</dd></div>
+          </div>`;
+
+        // 振り分けカード
+        if (assignments) {
+          const findH = (num) => { const h = scored.find(x => x.number === num); return h ? `${num}番 ${esc(h.name)} (${h._ts}点)` : ''; };
+          body.innerHTML += `
+            <div style="padding:0.5rem;font-weight:700;color:#f1f5f9;font-size:0.85rem">🎯 自動振り分け結果</div>
+            <div class="assign-grid">
+              <div class="assign-card assign-honmei"><div class="assign-label">◎ 本命</div><div class="assign-horse">${assignments.main ? findH(assignments.main) : '-'}</div></div>
+              <div class="assign-card assign-taikou"><div class="assign-label">○ 対抗</div><div class="assign-horse">${assignments.sub ? findH(assignments.sub) : '-'}</div></div>
+              <div class="assign-card assign-tanana"><div class="assign-label">▲ 単穴</div><div class="assign-horse">${assignments.hole ? findH(assignments.hole) : '-'}</div></div>
+              <div class="assign-card assign-renkatop"><div class="assign-label">△ 連下最上位</div><div class="assign-horse">${assignments.connectTop ? findH(assignments.connectTop) : '-'}</div></div>
+              <div class="assign-card assign-renka"><div class="assign-label">△ 連下 (1~3頭)</div><div class="assign-horse">${(assignments.connect || []).map(n => findH(n)).join('<br>') || '-'}</div></div>
+              <div class="assign-card assign-hoseki"><div class="assign-label">× 補欠</div><div class="assign-horse">${(assignments.reserve || []).map(n => findH(n)).join('<br>') || '-'}</div></div>
+            </div>`;
         }
+
+        // 馬テーブル
+        const markHeaders = scored.reduce((max, h) => Math.max(max, h.marks.length), 0);
+        let tableHtml = `<div style="overflow-x:auto"><table class="horse-table"><thead><tr>
+          <th>番</th>`;
+        for (let mi = 0; mi < markHeaders; mi++) tableHtml += `<th>印${mi + 1}</th>`;
+        tableHtml += `<th>馬名</th><th>性齢</th><th>騎手</th><th>斤量</th><th>厩舎</th><th>合計</th><th>振分</th><th>近走</th></tr></thead><tbody>`;
+
+        for (const h of scored) {
+          const badgeCls = h._assign === '本命' ? 'badge-honmei' : h._assign === '対抗' ? 'badge-taikou' : h._assign === '単穴' ? 'badge-tanana' : (h._assign.includes('連下') ? 'badge-renka' : (h._assign === '補欠' ? 'badge-hoseki' : 'badge-none'));
+          const pastHtml = (h.pastRaces && h.pastRaces.length > 0)
+            ? h.pastRaces.slice(0, 3).map(r => `<span class="past-race">${esc(r.finish || '?')}着 ${esc(r.venue)} ${esc(r.time)}</span>`).join('')
+            : '-';
+          let markCells = '';
+          for (let mi = 0; mi < markHeaders; mi++) {
+            const m = h.marks[mi] || '-';
+            markCells += `<td class="mark-cell"><span>${esc(m)}</span></td>`;
+          }
+          tableHtml += `<tr>
+            <td style="text-align:center;font-weight:700">${h.number}</td>
+            ${markCells}
+            <td>${esc(h.name)}</td>
+            <td>${esc(h.sexAge)}</td>
+            <td>${esc(h.jockey)}</td>
+            <td style="text-align:center">${esc(h.weight)}</td>
+            <td>${esc((h.trainer || '').replace(/\s+/g, ''))}</td>
+            <td style="text-align:center;font-weight:700">${h._ts}</td>
+            <td><span class="assign-badge ${badgeCls}">${esc(h._assign)}</span></td>
+            <td class="past-races-cell">${pastHtml}</td>
+          </tr>`;
+        }
+        tableHtml += '</tbody></table></div>';
+        body.innerHTML += tableHtml;
+
+        acc.appendChild(body);
+        container.appendChild(acc);
       }
 
       document.getElementById('jsonPreview').textContent = JSON.stringify(parsedData, null, 2);

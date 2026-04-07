@@ -41,23 +41,23 @@ export const prerender = false;
   </section>
 
   <style>
-    .admin-section { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
-    .admin-section h1 { text-align: center; margin-bottom: 0.25rem; }
-    .lead { text-align: center; color: #666; margin-bottom: 2rem; }
-    .input-block { background: #f8f9fa; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .admin-section { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; color: #e2e8f0; }
+    .admin-section h1 { text-align: center; margin-bottom: 0.25rem; color: #f1f5f9; }
+    .lead { text-align: center; color: #94a3b8; margin-bottom: 2rem; }
+    .input-block { background: #1e293b; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; border: 1px solid #334155; }
     .form-row { margin-bottom: 1rem; }
-    .form-row label { display: block; font-weight: 600; margin-bottom: 0.25rem; font-size: 0.9rem; }
+    .form-row label { display: block; font-weight: 600; margin-bottom: 0.25rem; font-size: 0.9rem; color: #cbd5e1; }
     .form-row input[type="date"],
-    .form-row input[type="text"] { padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 1rem; width: 250px; }
-    .form-row textarea { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 0.85rem; resize: vertical; }
+    .form-row input[type="text"] { padding: 0.5rem; border: 1px solid #475569; border-radius: 4px; font-size: 1rem; width: 250px; background: #0f172a; color: #f1f5f9; }
+    .form-row textarea { width: 100%; padding: 0.5rem; border: 1px solid #475569; border-radius: 4px; font-family: monospace; font-size: 0.85rem; resize: vertical; background: #0f172a; color: #f1f5f9; }
     .btn-primary { background: #2563eb; color: #fff; border: none; padding: 0.75rem 2rem; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; }
     .btn-primary:hover { background: #1d4ed8; }
     .btn-save { background: #16a34a; color: #fff; border: none; padding: 0.75rem 2rem; border-radius: 6px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
     .btn-save:hover { background: #15803d; }
     .status-message { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-weight: 500; }
-    .status-success { background: #dcfce7; color: #166534; }
-    .status-error { background: #fef2f2; color: #991b1b; }
-    .status-info { background: #dbeafe; color: #1e40af; }
+    .status-success { background: rgba(22, 163, 74, 0.15); color: #4ade80; border: 1px solid #166534; }
+    .status-error { background: rgba(220, 38, 38, 0.15); color: #f87171; border: 1px solid #991b1b; }
+    .status-info { background: rgba(37, 99, 235, 0.15); color: #60a5fa; border: 1px solid #1e40af; }
     .table-wrap { overflow-x: auto; }
     .btn-save:disabled { background: #9ca3af; cursor: not-allowed; }
     .json-pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 6px; overflow-x: auto; font-size: 0.8rem; max-height: 400px; }

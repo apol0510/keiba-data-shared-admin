@@ -213,53 +213,54 @@ async function enrichWithComputerIndex(data) {
       : { 'Accept': 'application/vnd.github.v3+json' };
 
     const res = await fetch(url, { headers });
-    if (!res.ok) {
-      console.log(`[Enrich] コンピ指数なし (${res.status})、補完スキップ`);
-      return;
+    let compiJson = null;
+
+    if (res.ok) {
+      const fileData = await res.json();
+      compiJson = JSON.parse(Buffer.from(fileData.content, 'base64').toString('utf-8'));
+      if (!compiJson.races) compiJson = null;
     }
 
-    const fileData = await res.json();
-    const compiJson = JSON.parse(Buffer.from(fileData.content, 'base64').toString('utf-8'));
-
-    if (!compiJson.races) {
-      console.log('[Enrich] コンピ指数にracesなし');
-      return;
+    if (!compiJson) {
+      console.log(`[Enrich] コンピ指数なし、印のみで振り分け確定`);
     }
 
+    const COMPI_THRESHOLD = 45;
     let enriched = 0;
-    const COMPI_THRESHOLD = 45; // この値以上は抑え馬として有効
 
     for (const race of data.races) {
-      const compiRace = compiJson.races.find(r => r.raceNumber === race.raceNumber);
-      if (!compiRace || !compiRace.horses) continue;
+      const compiRace = compiJson?.races?.find(r => r.raceNumber === race.raceNumber);
 
       for (const horse of race.horses) {
-        // コンピ指数を補完（馬番一致で照合）
-        const compiHorse = compiRace.horses.find(ch => ch.number === horse.number);
-        if (!compiHorse) continue;
-
-        const compiVal = compiHorse.computerIndex;
-        if (compiVal && (!horse.computerIndex || horse.computerIndex === '')) {
-          horse.computerIndex = String(compiVal);
-          enriched++;
+        // コンピ指数の補完（コンピデータがある場合）
+        if (compiRace) {
+          const compiHorse = compiRace.horses?.find(ch => ch.number === horse.number);
+          if (compiHorse?.computerIndex) {
+            if (!horse.computerIndex || horse.computerIndex === '') {
+              horse.computerIndex = String(compiHorse.computerIndex);
+              enriched++;
+            }
+          }
         }
 
         // 印なし（totalScore=0）で assignment=無 の馬を再評価
         if (horse.totalScore === 0 && horse.assignment === '無') {
-          const ci = parseInt(horse.computerIndex || compiVal || '0');
-          if (ci >= COMPI_THRESHOLD) {
+          const ci = parseInt(horse.computerIndex || '0');
+          if (ci > 0 && ci >= COMPI_THRESHOLD) {
+            // コンピ45以上: 補欠に昇格
             horse.assignment = '補欠';
-          } else {
-            horse.assignment = '不要';
           }
+          // コンピ44以下 or コンピなし: 「無」のまま
         }
       }
 
-      // assignments を再構築（不要馬を除外）
+      // assignments を再構築
       rebuildAssignments(race);
     }
 
-    console.log(`[Enrich] コンピ指数補完: ${enriched}頭`);
+    if (compiJson) {
+      console.log(`[Enrich] コンピ指数補完: ${enriched}頭`);
+    }
 
   } catch (err) {
     console.warn('[Enrich] コンピ指数補完エラー（続行）:', err.message);
@@ -281,7 +282,6 @@ function rebuildAssignments(race) {
       case '連下最上位': a.connectTop = h.number; break;
       case '連下': a.connect.push(h.number); break;
       case '補欠': a.reserve.push(h.number); break;
-      case '不要': break; // 不要馬はどこにも入れない
       default: a.none.push(h.number); break;
     }
   }

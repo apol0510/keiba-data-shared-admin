@@ -99,6 +99,7 @@ export const prerender = false;
     .badge-renka { background: #475569; color: #e2e8f0; }
     .badge-hoseki { background: #334155; color: #94a3b8; }
     .badge-none { background: transparent; color: #64748b; }
+    .badge-fuyo { background: #1c1917; color: #78716c; text-decoration: line-through; }
     .past-race { display: inline-block; font-size: 0.7rem; background: #1e293b; border-radius: 3px; padding: 1px 4px; margin: 1px 2px; white-space: nowrap; color: #94a3b8; }
     /* 馬カード */
     .horse-cards { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
@@ -1071,6 +1072,21 @@ export const prerender = false;
         trackCode,
         races: results.map(r => {
           const { scored, assignments } = assignRoles(r.horses);
+
+          // コンピ指数ベースの再評価（プレビュー用）
+          // 印なし(score=0) + コンピ45以上 → 補欠に昇格
+          const COMPI_THRESHOLD = 45;
+          for (const h of r.horses) {
+            const sc = scored.find(s => s.number === h.number);
+            if (sc && sc.score === 0) {
+              const ci = parseInt(h.computerIndex || '0');
+              if (ci >= COMPI_THRESHOLD) {
+                const nIdx = assignments.none.indexOf(h.number);
+                if (nIdx >= 0) { assignments.none.splice(nIdx, 1); assignments.reserve.push(h.number); }
+              }
+            }
+          }
+
           return {
             raceNumber: r.raceNumber,
             raceClass: r.raceInfo.raceClass || null,

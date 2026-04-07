@@ -820,26 +820,20 @@ export const prerender = false;
         cursor++;
       }
 
-      // "生月.日 毛色 番号" → スキップ
-      cursor++;
-      // 馬主 → スキップ
-      cursor++;
-      // 生産者 → スキップ
-      cursor++;
-
-      // ベストタイム（場+馬場/タイム × 3 = 6行）
-      cursor += 6;
-
-      // 距離別成績（4行数字）
-      cursor += 4;
+      // 調教師行以降: ベストタイム・距離別成績の行数が可変のため、
+      // 近走開始行（場名パターン）を直接検索する
+      const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別)\s+[\d.]+/;
+      while (cursor < hLines.length) {
+        if (VENUE_NAMES_RE.test(hLines[cursor]?.trim() || '')) break;
+        cursor++;
+      }
 
       // 近走データ: 10行×n走
       const pastRaces = [];
       const MAX_PAST = 6;
       while (cursor + 9 < hLines.length && pastRaces.length < MAX_PAST) {
         const venueLine = hLines[cursor]?.trim() || '';
-        // 近走ヘッダ: "場名 月.日" パターン
-        if (!/^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別)\s/.test(venueLine)) break;
+        if (!VENUE_NAMES_RE.test(venueLine)) break;
 
         const finishLine = hLines[cursor + 1]?.trim() || '';
         const classDistLine = hLines[cursor + 3]?.trim() || '';
@@ -1001,7 +995,7 @@ export const prerender = false;
             distance: r.raceInfo.distance || null,
             horseCount: r.horses.length,
             assignments,
-            horses: r.horses.map(h => {
+            horses: [...r.horses].sort((a, b) => a.number - b.number).map(h => {
               const sc = scored.find(s => s.number === h.number);
               const { sexAge, sex, age } = parseSexAge(h.sexAge);
               return {
@@ -1071,7 +1065,8 @@ export const prerender = false;
           `${esc(race.raceInfo.distance)} — ${race.horses.length}頭</td>`;
         tbody.appendChild(headerTr);
 
-        for (const h of race.horses) {
+        const sortedHorses = [...race.horses].sort((a, b) => a.number - b.number);
+        for (const h of sortedHorses) {
           const tr = document.createElement('tr');
           const marksHtml = h.marks.length > 0
             ? h.marks.map(m => `<span>${esc(m)}</span>`).join('')
@@ -1087,7 +1082,7 @@ export const prerender = false;
             `<td>${esc(h.sexAge)}</td>` +
             `<td>${esc(h.jockey)}</td>` +
             `<td style="text-align:center">${esc(h.weight)}</td>` +
-            `<td>${esc(h.trainer.replace(/\s+/g, ''))}</td>` +
+            `<td>${esc((h.trainer || '').replace(/\s+/g, ''))}</td>` +
             `<td style="text-align:center;font-weight:700">${esc(h.computerIndex) || '-'}</td>` +
             `<td class="mark-cell">${marksHtml}</td>` +
             `<td style="text-align:right">${esc(h.odds) || '-'}</td>` +

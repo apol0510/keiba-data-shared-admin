@@ -426,7 +426,7 @@ async function enrichWithPredictionData(computerData) {
           weight: predictionHorse.kinryo ? parseFloat(predictionHorse.kinryo) : null,
           ageGender: predictionHorse.seirei || null,
           umacd: predictionHorse.umacd || null,
-          enrichedFrom: 'predictions'
+          enrichedFrom: predictionHorse.enrichedFrom || 'predictions'
         };
 
         // 【デバッグ】1R 1頭目の補完後データ
@@ -519,13 +519,62 @@ async function fetchPredictionData(date, category, venueCode) {
       console.log(`[Preview Fetch Prediction] フォールバックも404: ${fileNameWithoutVenue} (status=${fallbackResponse.status})`);
     }
 
-    console.log(`[Preview Fetch Prediction] ❌ データなし: ${response.status}`);
+    // フォールバック: racebook JSON（race-data-importer由来）
+    const racebookUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/racebook/${year}/${month}/${date}-${venueCode}.json`;
+    console.log(`[Preview Fetch Prediction] racebook フォールバックURL: ${racebookUrl}`);
+
+    try {
+      const rbResponse = await fetch(racebookUrl);
+      if (rbResponse.ok) {
+        const rbData = await rbResponse.json();
+        console.log(`[Preview Fetch Prediction] ✅ racebook データ取得成功`);
+        // racebook構造をpredictions構造に変換
+        const converted = convertRacebookToPrediction(rbData);
+        return converted;
+      }
+      console.log(`[Preview Fetch Prediction] racebook も404: (status=${rbResponse.status})`);
+    } catch (rbErr) {
+      console.warn('[Preview Fetch Prediction] racebook 取得エラー:', rbErr.message);
+    }
+
+    console.log(`[Preview Fetch Prediction] ❌ データなし`);
     return null;
 
   } catch (error) {
     console.error('[Preview Fetch Prediction] エラー:', error);
     return null;
   }
+}
+
+/**
+ * racebook JSON → predictions互換構造に変換
+ * race-data-importerの出力をcomputer-managerが読める形に変換
+ */
+function convertRacebookToPrediction(rbData) {
+  return {
+    track: rbData.track,
+    races: (rbData.races || []).map(r => ({
+      raceInfo: {
+        date: rbData.date,
+        track: rbData.track,
+        raceNumber: String(r.raceNumber) + 'R',
+        raceName: r.raceClass || '',
+        distance: r.distance || '',
+        raceType: r.conditions || ''
+      },
+      horses: (r.horses || []).map(h => ({
+        number: h.number,
+        name: h.name,
+        seirei: h.sexAge || '',
+        kisyu: h.jockey || '',
+        kinryo: h.weight ? String(h.weight) : '',
+        kyusya: h.trainer || '',
+        umacd: null,
+        marks: {},
+        enrichedFrom: 'keiba-book'
+      }))
+    }))
+  };
 }
 
 /**

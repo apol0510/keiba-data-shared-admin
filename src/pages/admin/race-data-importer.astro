@@ -642,6 +642,41 @@ export const prerender = false;
       return groups;
     }
 
+    // ========== 印スコア計算・振り分け ==========
+    const MARK_SCORES = { '◎': 5, '○': 4, '▲': 3, '☆': 2, '★': 2, '穴': 2, '△': 1, '×': 1 };
+
+    function calcTotalScore(marks) {
+      let score = 0;
+      for (const m of marks) {
+        for (const ch of m) {
+          if (MARK_SCORES[ch]) score += MARK_SCORES[ch];
+        }
+      }
+      return score;
+    }
+
+    function assignRoles(horses) {
+      const scored = horses.map(h => ({
+        number: h.number,
+        score: calcTotalScore(h.marks)
+      })).sort((a, b) => b.score - a.score);
+
+      const assignments = { main: null, sub: null, hole: null, connectTop: null, connect: [], reserve: [], none: [] };
+
+      for (let i = 0; i < scored.length; i++) {
+        const { number, score } = scored[i];
+        if (score === 0) { assignments.none.push(number); continue; }
+        if (i === 0) assignments.main = number;
+        else if (i === 1) assignments.sub = number;
+        else if (i === 2) assignments.hole = number;
+        else if (i === 3) assignments.connectTop = number;
+        else if (i >= 4 && i <= 6 && score >= 1) assignments.connect.push(number);
+        else assignments.reserve.push(number);
+      }
+
+      return { scored, assignments };
+    }
+
     // ========== JSON構築 ==========
     function buildJSON(results) {
       const date = document.getElementById('raceDate').value;
@@ -656,43 +691,62 @@ export const prerender = false;
         track,
         trackCode,
         category: 'jra',
-        races: results.map(r => ({
-          raceNumber: r.raceNumber,
-          raceClass: r.raceInfo.raceClass,
-          conditions: r.raceInfo.conditions,
-          distance: r.raceInfo.distance,
-          horseCount: r.horses.length,
-          horses: r.horses.map(h => ({
-            number: h.number,
-            name: h.name,
-            sire: h.sire,
-            sexAge: h.sexAge,
-            weight: h.weight ? parseInt(h.weight) : null,
-            jockey: h.jockey,
-            trainer: h.trainer.replace(/\s+/g, ''),
-            computerIndex: h.computerIndex || null,
-            marks: h.marks,
-            predictedOdds: h.odds ? parseFloat(h.odds) : null,
-            shortComment: h.comment || null,
-            training: h.training || null,
-            pastRaces: (h.pastRaces || []).map(pr => ({
-              venue: pr.venue || null,
-              raceClass: pr.raceClass || null,
-              finish: pr.finish !== '?' ? parseInt(pr.finish) || null : null,
-              cond: pr.cond || null,
-              courseNote: pr.courseNote || null,
-              time: pr.time || null,
-              weight: pr.weight ? parseInt(pr.weight) : null,
-              jockey: pr.jockey || null,
-              bodyWeight: pr.bodyWeight || null,
-              paceType: pr.paceType || null,
-              paceRank: pr.paceRank || null,
-              final3F: pr.final3F || null,
-              winner: pr.winner || null
-            }))
-          }))
-        }))
+        races: results.map(r => {
+          const { scored, assignments } = assignRoles(r.horses);
+          return {
+            raceNumber: r.raceNumber,
+            raceClass: r.raceInfo.raceClass,
+            conditions: r.raceInfo.conditions,
+            distance: r.raceInfo.distance,
+            horseCount: r.horses.length,
+            assignments,
+            horses: r.horses.map(h => {
+              const sc = scored.find(s => s.number === h.number);
+              return {
+                number: h.number,
+                name: h.name,
+                sire: h.sire,
+                sexAge: h.sexAge,
+                weight: h.weight ? parseInt(h.weight) : null,
+                jockey: h.jockey,
+                trainer: h.trainer.replace(/\s+/g, ''),
+                computerIndex: h.computerIndex || null,
+                marks: h.marks,
+                totalScore: sc ? sc.score : 0,
+                assignment: getAssignment(h.number, assignments),
+                predictedOdds: h.odds ? parseFloat(h.odds) : null,
+                shortComment: h.comment || null,
+                training: h.training || null,
+                pastRaces: (h.pastRaces || []).map(pr => ({
+                  venue: pr.venue || null,
+                  raceClass: pr.raceClass || null,
+                  finish: pr.finish !== '?' ? parseInt(pr.finish) || null : null,
+                  cond: pr.cond || null,
+                  courseNote: pr.courseNote || null,
+                  time: pr.time || null,
+                  weight: pr.weight ? parseInt(pr.weight) : null,
+                  jockey: pr.jockey || null,
+                  bodyWeight: pr.bodyWeight || null,
+                  paceType: pr.paceType || null,
+                  paceRank: pr.paceRank || null,
+                  final3F: pr.final3F || null,
+                  winner: pr.winner || null
+                }))
+              };
+            })
+          };
+        })
       };
+    }
+
+    function getAssignment(num, a) {
+      if (a.main === num) return '本命';
+      if (a.sub === num) return '対抗';
+      if (a.hole === num) return '単穴';
+      if (a.connectTop === num) return '連下最上位';
+      if (a.connect.includes(num)) return '連下';
+      if (a.reserve.includes(num)) return '補欠';
+      return '無';
     }
 
     // ========== プレビュー描画 ==========

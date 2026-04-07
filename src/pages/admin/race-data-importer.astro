@@ -779,50 +779,65 @@ export const prerender = false;
     }
 
     function parseTextHorse(hLines, bracket) {
-      if (hLines.length < 15) return null;
+      if (hLines.length < 10) return null;
 
-      // L0: "馬番 馬名"
+      // ===== すべてパターンベース、固定インデックス参照禁止 =====
+
+      const MARK_RE = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿]$/;
+      const MARK_OR_ELLIPSIS = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]$/;
+      const SEX_AGE_RE = /([牡牝セ騸]\d+)/;
+      const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別|帯広)\s+[\d.]+/;
+      const TRAINER_RE = /^(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|美浦|栗東)\s+(.+)/;
+
+      // --- 馬番・馬名（必須: 先頭行） ---
       const numNameMatch = hLines[0].trim().match(/^(\d{1,2})\s+(.+)/);
       if (!numNameMatch) return null;
       const number = parseInt(numNameMatch[1]);
       const name = numNameMatch[2].trim();
 
-      // L1: "父 性齢"
-      const sireAgeMatch = hLines[1].trim().match(/^(.+?)\s+([牡牝セ騸]\d+)/);
-      const sire = sireAgeMatch ? sireAgeMatch[1].trim() : '';
-      const sexAgeRaw = sireAgeMatch ? sireAgeMatch[2] : '';
-
-      // L2: 馬名（重複、スキップ）
-      // L3: "母（母父）"
-      const damLine = hLines[3] ? hLines[3].trim() : '';
-      const damMatch = damLine.match(/^(.+?)（(.+?)）/);
-      const dam = damMatch ? damMatch[1] : damLine || null;
-
-      // L4以降: コンピ指数を探す（1〜3桁の数字単独行）
-      // 母行の後に来るが、母行が長い場合や改行ずれで位置がずれる可能性
-      let computerIndex = '';
-      let markStart = 5; // デフォルト
-      const MARK_OR_ELLIPSIS = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]$/;
-
-      for (let ci = 4; ci < Math.min(hLines.length, 8); ci++) {
-        const t = hLines[ci].trim();
-        if (/^\d{1,3}$/.test(t) && !MARK_OR_ELLIPSIS.test(t)) {
-          computerIndex = t;
-          markStart = ci + 1;
-          break;
-        }
-        // 印行に到達したらコンピ指数はない
-        if (MARK_OR_ELLIPSIS.test(t)) {
-          markStart = ci;
+      // --- 性齢を含む行を探す（上から10行以内） ---
+      let sire = '', sexAgeRaw = '', sexAgeLine = -1;
+      for (let i = 1; i < Math.min(hLines.length, 10); i++) {
+        const m = hLines[i].trim().match(/^(.+?)\s+([牡牝セ騸]\d+)$/);
+        if (m) {
+          sire = m[1].trim();
+          sexAgeRaw = m[2];
+          sexAgeLine = i;
           break;
         }
       }
 
-      // 印（…=なし、◎○▲△☆★×=あり）
-      const MARK_RE = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿]$/;
+      // --- 母（「（」を含む行を探す、性齢行以降10行以内） ---
+      let dam = null;
+      const damSearchStart = sexAgeLine > 0 ? sexAgeLine + 1 : 2;
+      for (let i = damSearchStart; i < Math.min(hLines.length, damSearchStart + 5); i++) {
+        const t = hLines[i].trim();
+        if (t.includes('（')) {
+          const dm = t.match(/^(.+?)（/);
+          if (dm) dam = dm[1];
+          break;
+        }
+      }
+
+      // --- コンピ指数（1-3桁数字の単独行、印行より前） ---
+      let computerIndex = '';
+      let markStartIdx = -1;
+      for (let i = damSearchStart; i < Math.min(hLines.length, 20); i++) {
+        const t = hLines[i].trim();
+        if (MARK_OR_ELLIPSIS.test(t)) {
+          markStartIdx = i;
+          break;
+        }
+        if (/^\d{1,3}$/.test(t) && markStartIdx < 0) {
+          computerIndex = t;
+        }
+      }
+      if (markStartIdx < 0) markStartIdx = Math.min(damSearchStart + 5, hLines.length);
+
+      // --- 印（…=なし、◎○▲△☆★×=あり） ---
       const marks = [];
-      let markEnd = markStart;
-      for (let i = markStart; i < Math.min(hLines.length, markStart + 15); i++) {
+      let markEnd = markStartIdx;
+      for (let i = markStartIdx; i < Math.min(hLines.length, markStartIdx + 15); i++) {
         const t = hLines[i].trim();
         if (t === '…' || MARK_RE.test(t)) {
           if (MARK_RE.test(t)) marks.push(t);
@@ -832,21 +847,18 @@ export const prerender = false;
         }
       }
 
-      // markEnd: 合計スコア行
+      // --- 合計スコア（印終了直後の数値行） ---
       let cursor = markEnd;
-
-      // 合計スコア（数字行）
       let totalScoreRaw = '0';
       if (cursor < hLines.length && /^\d+$/.test(hLines[cursor].trim())) {
         totalScoreRaw = hLines[cursor].trim();
         cursor++;
       }
 
-      // 斤量 騎手（"54 国分祐" パターン）
+      // --- 斤量・騎手（"54 国分祐" パターンを探索） ---
       let weight = null, jockey = null;
-      // 次の数行から "数字2桁 名前" パターンを探す
-      for (let wi = cursor; wi < Math.min(cursor + 3, hLines.length); wi++) {
-        const wjMatch = hLines[wi].trim().match(/^(\d{2})\s+(.+)/);
+      for (let wi = cursor; wi < Math.min(cursor + 5, hLines.length); wi++) {
+        const wjMatch = hLines[wi].trim().match(/^(\d{2})\s+([^\d].+)/);
         if (wjMatch) {
           weight = wjMatch[1];
           jockey = wjMatch[2].replace(/\s+/g, '').trim();
@@ -855,21 +867,18 @@ export const prerender = false;
         }
       }
 
-      // 戦績4行（スキップ）
-      cursor += 4;
-
-      // "所属 調教師"
+      // --- 調教師（"所属 名前" パターンを探索） ---
       let trainer = null;
-      if (cursor < hLines.length) {
-        const trLine = hLines[cursor].trim();
-        const trMatch = trLine.match(/^(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|美浦|栗東)\s+(.+)/);
-        if (trMatch) trainer = trMatch[2].replace(/\s+/g, '');
-        cursor++;
+      for (let ti = cursor; ti < Math.min(cursor + 10, hLines.length); ti++) {
+        const trMatch = hLines[ti].trim().match(TRAINER_RE);
+        if (trMatch) {
+          trainer = trMatch[2].replace(/\s+/g, '');
+          cursor = ti + 1;
+          break;
+        }
       }
 
-      // 調教師行以降: ベストタイム・距離別成績の行数が可変のため、
-      // 近走開始行（場名パターン）を直接検索する
-      const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別|帯広)\s+[\d.]+/;
+      // --- 近走開始行（場名パターン）を直接検索 ---
       while (cursor < hLines.length) {
         if (VENUE_NAMES_RE.test(hLines[cursor]?.trim() || '')) break;
         cursor++;

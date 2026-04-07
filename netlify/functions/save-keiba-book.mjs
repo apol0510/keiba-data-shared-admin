@@ -66,10 +66,11 @@ export const handler = async (event) => {
  * GitHubに保存
  */
 async function saveToGitHub(data) {
-  const { date, trackCode } = data;
+  const { date, trackCode, category } = data;
   const [year, month] = date.split('-');
+  const cat = category || 'jra';
 
-  const filePath = `jra/racebook/${year}/${month}/${date}-${trackCode}.json`;
+  const filePath = `${cat}/racebook/${year}/${month}/${date}-${trackCode}.json`;
 
   const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
   const repo = 'apol0510/keiba-data-shared';
@@ -106,7 +107,7 @@ async function saveToGitHub(data) {
   const content = Buffer.from(JSON.stringify(data, null, 2)).toString('base64');
 
   const putPayload = {
-    message: `📊 レースデータ追加: ${date} ${data.track}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>`,
+    message: `📊 レースデータ追加: ${date} ${data.track}(${cat})\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>`,
     content: content,
     branch: 'main'
   };

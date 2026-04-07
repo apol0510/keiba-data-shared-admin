@@ -19,8 +19,8 @@ export const prerender = false;
         <input type="text" id="trackName" readonly placeholder="XMLから自動検出" />
       </div>
       <div class="form-row">
-        <label for="xmlInput">XML貼り付け</label>
-        <textarea id="xmlInput" rows="8" placeholder="pdftohtml -xml で変換したXMLを貼り付け"></textarea>
+        <label for="xmlInput">データ貼り付け（XML / テキスト自動判定）</label>
+        <textarea id="xmlInput" rows="8" placeholder="XML（pdftohtml出力）またはテキスト形式データを貼り付け"></textarea>
       </div>
       <button class="btn-primary" id="parseBtn" type="button">🔍 解析</button>
     </div>
@@ -100,6 +100,12 @@ export const prerender = false;
       '札幌':'SAP','函館':'HKD'
     };
 
+    const NANKAN_VENUE_CODES = {
+      '大井':'OOI','川崎':'KAW','船橋':'FUN','浦和':'URA'
+    };
+
+    const ALL_VENUE_CODES = { ...JRA_VENUE_CODES, ...NANKAN_VENUE_CODES };
+
     let parsedData = null;
 
     document.getElementById('parseBtn').addEventListener('click', runParse);
@@ -110,11 +116,13 @@ export const prerender = false;
       hideStatus();
       document.getElementById('previewSection').style.display = 'none';
 
-      const xmlText = document.getElementById('xmlInput').value.trim();
-      if (!xmlText) { showStatus('XMLを貼り付けてください', 'error'); return; }
+      const inputText = document.getElementById('xmlInput').value.trim();
+      if (!inputText) { showStatus('データを貼り付けてください', 'error'); return; }
 
       try {
-        const results = parseAllRaces(xmlText);
+        // 自動判定: XML or テキスト
+        const isXml = /^<\?xml|^<pdf2xml/i.test(inputText);
+        const results = isXml ? parseAllRaces(inputText) : parseTextFormat(inputText);
         if (!results || results.length === 0) { showStatus('レースデータを検出できませんでした', 'error'); return; }
 
         document.getElementById('trackName').value = results[0].raceInfo.track || '';
@@ -642,6 +650,276 @@ export const prerender = false;
       return groups;
     }
 
+    // ========== テキスト形式パーサー（南関等） ==========
+    function parseTextFormat(text) {
+      // 区切り線を除去
+      const rawLines = text.split('\n');
+      const lines = rawLines.filter(l => !/^[\s\u3000]*={3,}.*={3,}[\s\u3000]*$/.test(l));
+
+      // 1行目からヘッダ情報を取得（"4/8　川崎競馬" 等）
+      let headerTrack = '';
+      const headerLine = lines[0] || '';
+      const hm = headerLine.match(/(大井|川崎|船橋|浦和)/);
+      if (hm) headerTrack = hm[1];
+
+      // レース分割: "XR " で始まる行をレースヘッダーとする
+      const raceBlocks = [];
+      let currentBlock = null;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        const rm = line.match(/^(\d{1,2})R\s+(.+)/);
+        if (rm) {
+          // 次の行から詳細情報を取得 "川崎1R 14:45発走 / ダート1400m12頭"
+          const infoLine = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+          const im = infoLine.match(/(\S+?)(\d{1,2})R\s+(\d{1,2}:\d{2})発走\s*\/\s*(ダート|芝)(\d+)m\s*(\d+)頭/);
+
+          currentBlock = {
+            raceNumber: parseInt(rm[1]),
+            raceClass: rm[2],
+            track: im ? im[1] : headerTrack,
+            startTime: im ? im[3] : null,
+            surface: im ? im[4] : null,
+            distance: im ? im[4] + im[5] + 'm' : null,
+            headCount: im ? parseInt(im[6]) : null,
+            lines: [],
+            startLine: i
+          };
+          raceBlocks.push(currentBlock);
+          continue;
+        }
+        if (currentBlock) currentBlock.lines.push(line);
+      }
+
+      if (raceBlocks.length === 0) throw new Error('レースヘッダーが見つかりません');
+
+      // 各レースの馬データを抽出
+      const results = [];
+      for (const block of raceBlocks) {
+        try {
+          const race = parseTextRace(block, headerTrack);
+          if (race && race.horses.length > 0) results.push(race);
+        } catch (e) {
+          console.warn(`[TextParser] ${block.raceNumber}R スキップ:`, e.message);
+        }
+      }
+
+      return results;
+    }
+
+    function parseTextRace(block, headerTrack) {
+      const { lines } = block;
+      const SEX_RE = /[牡牝セ騸]/;
+
+      // 馬データの開始行を検出: "馬番 馬名" の次行が "父名 性齢" パターン
+      const horseStarts = [];
+      for (let i = 0; i < lines.length; i++) {
+        const curr = lines[i].trim();
+        const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+        if (/^\d{1,2}\s+[ァ-ヺー\u30A0-\u30FFぁ-んＡ-Ｚa-zA-Zア-ン]/.test(curr) && SEX_RE.test(next) && /\d$/.test(next)) {
+          const prev = (i > 0) ? lines[i - 1].trim() : '';
+          const bracket = /^[1-8]$/.test(prev) ? parseInt(prev) : null;
+          horseStarts.push({ idx: i, bracket });
+        }
+      }
+
+      if (horseStarts.length === 0) return null;
+
+      const horses = [];
+      for (let hi = 0; hi < horseStarts.length; hi++) {
+        const start = horseStarts[hi].idx;
+        const end = (hi + 1 < horseStarts.length) ? horseStarts[hi + 1].idx - 1 : lines.length;
+        const hLines = lines.slice(start, end);
+        const bracket = horseStarts[hi].bracket;
+
+        try {
+          const horse = parseTextHorse(hLines, bracket);
+          if (horse) horses.push(horse);
+        } catch (e) {
+          if (DEBUG) console.warn(`[TextParser] 馬解析失敗 L${start}:`, e.message);
+        }
+      }
+
+      return {
+        raceNumber: block.raceNumber,
+        raceInfo: {
+          track: block.track || headerTrack,
+          raceClass: block.raceClass || '',
+          conditions: '',
+          distance: block.distance || ''
+        },
+        horses,
+        predictorNames: []
+      };
+    }
+
+    function parseTextHorse(hLines, bracket) {
+      if (hLines.length < 15) return null;
+
+      // L0: "馬番 馬名"
+      const numNameMatch = hLines[0].trim().match(/^(\d{1,2})\s+(.+)/);
+      if (!numNameMatch) return null;
+      const number = parseInt(numNameMatch[1]);
+      const name = numNameMatch[2].trim();
+
+      // L1: "父 性齢"
+      const sireAgeMatch = hLines[1].trim().match(/^(.+?)\s+([牡牝セ騸]\d+)/);
+      const sire = sireAgeMatch ? sireAgeMatch[1].trim() : '';
+      const sexAgeRaw = sireAgeMatch ? sireAgeMatch[2] : '';
+
+      // L2: 馬名（重複、スキップ）
+      // L3: "母（母父）"
+      const damLine = hLines[3] ? hLines[3].trim() : '';
+      const damMatch = damLine.match(/^(.+?)（(.+?)）/);
+      const dam = damMatch ? damMatch[1] : damLine || null;
+
+      // L4: コンピ指数
+      const computerIndex = hLines[4] ? hLines[4].trim() : '';
+
+      // L5〜L13: 印（9個、…=なし）
+      const MARK_RE = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿]$/;
+      const marks = [];
+      let markEnd = 5;
+      for (let i = 5; i < Math.min(hLines.length, 20); i++) {
+        const t = hLines[i].trim();
+        if (t === '…' || MARK_RE.test(t)) {
+          if (MARK_RE.test(t)) marks.push(t);
+          markEnd = i + 1;
+        } else {
+          break;
+        }
+      }
+
+      // markEnd: 合計スコア行
+      let cursor = markEnd;
+
+      // 合計スコア
+      const totalScoreRaw = (cursor < hLines.length) ? hLines[cursor].trim() : '0';
+      cursor++;
+
+      // 斤量 騎手
+      let weight = null, jockey = null;
+      if (cursor < hLines.length) {
+        const wjMatch = hLines[cursor].trim().match(/^(\d{2})\s+(.+)/);
+        if (wjMatch) {
+          weight = wjMatch[1];
+          jockey = wjMatch[2].replace(/\s+/g, '').trim();
+        }
+        cursor++;
+      }
+
+      // 戦績4行（スキップ）
+      cursor += 4;
+
+      // "所属 調教師"
+      let trainer = null;
+      if (cursor < hLines.length) {
+        const trLine = hLines[cursor].trim();
+        const trMatch = trLine.match(/^(大井|川崎|船橋|浦和|美浦|栗東)\s+(.+)/);
+        if (trMatch) trainer = trMatch[2].replace(/\s+/g, '');
+        cursor++;
+      }
+
+      // "生月.日 毛色 番号" → スキップ
+      cursor++;
+      // 馬主 → スキップ
+      cursor++;
+      // 生産者 → スキップ
+      cursor++;
+
+      // ベストタイム（場+馬場/タイム × 3 = 6行）
+      cursor += 6;
+
+      // 距離別成績（4行数字）
+      cursor += 4;
+
+      // 近走データ: 10行×n走
+      const pastRaces = [];
+      const MAX_PAST = 6;
+      while (cursor + 9 < hLines.length && pastRaces.length < MAX_PAST) {
+        const venueLine = hLines[cursor]?.trim() || '';
+        // 近走ヘッダ: "場名 月.日" パターン
+        if (!/^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別)\s/.test(venueLine)) break;
+
+        const finishLine = hLines[cursor + 1]?.trim() || '';
+        const classDistLine = hLines[cursor + 3]?.trim() || '';
+        const timeLine = hLines[cursor + 4]?.trim() || '';
+        const detailLine = hLines[cursor + 5]?.trim() || '';
+        const jkWeightLine = hLines[cursor + 6]?.trim() || '';
+        const paceLine = hLines[cursor + 7]?.trim() || '';
+        const winnerLine = hLines[cursor + 9]?.trim() || '';
+
+        // 着順: 先頭の丸数字 or 数字
+        let finish = null;
+        const circledMatch = finishLine.match(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿]/);
+        if (circledMatch) {
+          const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
+          const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
+          let idx = CIRCLED_ALL.indexOf(circledMatch[0]);
+          if (idx >= 0) finish = String(idx + 1);
+          else {
+            idx = DINGBAT.indexOf(circledMatch[0]);
+            if (idx >= 0) finish = String(idx + 1);
+          }
+        } else {
+          const numMatch = finishLine.match(/^(\d{1,2})\s/);
+          if (numMatch) finish = numMatch[1];
+        }
+
+        // クラス+距離: "Ｃ3 ダ2000"
+        const cdMatch = classDistLine.match(/^(.+?)\s+(ダ|芝)(\d+)/);
+        const raceClass = cdMatch ? cdMatch[1] : classDistLine;
+        const distance = cdMatch ? cdMatch[2] + cdMatch[3] : null;
+
+        // タイム
+        const time = /^\d/.test(timeLine) ? timeLine : null;
+
+        // 馬体重: "12頭 8枠 443"
+        const bwMatch = detailLine.match(/(\d{3,4})\s*$/);
+        const bodyWeight = bwMatch ? parseInt(bwMatch[1]) : null;
+
+        // 騎手+斤量: "中島良 52"
+        let prJockey = null, prWeight = null;
+        const jkMatch = jkWeightLine.match(/^(.+?)\s+(\d{2})/);
+        if (jkMatch) { prJockey = jkMatch[1].replace(/\s+/g, ''); prWeight = jkMatch[2]; }
+
+        // ペース: "Ｍ ① 40.6 11人"
+        let paceType = null, paceRank = null, final3F = null;
+        const paceMatch = paceLine.match(/^([ＳＭＨSMHスミハ])\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿])\s*([\d.]+)/);
+        if (paceMatch) {
+          const ptMap = { 'Ｓ':'S','Ｍ':'M','Ｈ':'H','S':'S','M':'M','H':'H','ス':'S','ミ':'M','ハ':'H' };
+          paceType = ptMap[paceMatch[1]] || paceMatch[1];
+          const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
+          const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
+          let ri = CIRCLED_ALL.indexOf(paceMatch[2]);
+          if (ri < 0) ri = DINGBAT.indexOf(paceMatch[2]);
+          paceRank = ri >= 0 ? ri + 1 : null;
+          final3F = paceMatch[3];
+        }
+
+        // 勝ち馬
+        const winner = winnerLine.replace(/^\d+休\s*/, '').trim() || null;
+
+        // 開催情報
+        const venueMatch = venueLine.match(/^(\S+)\s+([\d.]+)/);
+        const venue = venueMatch ? venueMatch[1] + ' ' + venueMatch[2] : venueLine;
+
+        pastRaces.push({
+          venue, raceClass, finish, cond: null, courseNote: null,
+          time, weight: prWeight ? parseInt(prWeight) : null,
+          jockey: prJockey, bodyWeight, paceType, paceRank, final3F, winner
+        });
+
+        cursor += 10;
+      }
+
+      return {
+        number, name, sire, sexAge: sexAgeRaw, weight, jockey,
+        trainer, computerIndex: computerIndex || '', marks,
+        odds: '', comment: '', pastRaces, training: null
+      };
+    }
+
     // ========== 印スコア計算・振り分け ==========
     const MARK_SCORES = { '◎': 5, '○': 4, '▲': 3, '☆': 2, '★': 2, '穴': 2, '△': 1, '×': 1 };
 
@@ -694,17 +972,24 @@ export const prerender = false;
     }
 
     // ========== JSON構築 ==========
+    function detectCategory(track) {
+      if (NANKAN_VENUE_CODES[track]) return 'nankan';
+      if (JRA_VENUE_CODES[track]) return 'jra';
+      return 'local';
+    }
+
     function buildJSON(results) {
       const date = document.getElementById('raceDate').value;
       const track = results[0].raceInfo.track;
-      const trackCode = JRA_VENUE_CODES[track] || 'UNK';
+      const category = detectCategory(track);
+      const trackCode = ALL_VENUE_CODES[track] || 'UNK';
 
       return {
         version: '1.1.0',
         source: 'racebook',
         createdAt: new Date().toISOString(),
         date,
-        category: 'jra',
+        category,
         track,
         trackCode,
         races: results.map(r => {
@@ -848,7 +1133,7 @@ export const prerender = false;
       }
 
       const totalHorses = parsedData.races.reduce((s, r) => s + r.horseCount, 0);
-      const savePath = `jra/racebook/${date.slice(0,4)}/${date.slice(5,7)}/${date}-${parsedData.trackCode}.json`;
+      const savePath = `${parsedData.category}/racebook/${date.slice(0,4)}/${date.slice(5,7)}/${date}-${parsedData.trackCode}.json`;
 
       if (!confirm(
         `以下のデータを保存しますか？\n\n` +

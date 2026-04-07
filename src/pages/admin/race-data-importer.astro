@@ -1173,69 +1173,68 @@ export const prerender = false;
         };
         acc.appendChild(header);
 
-        // ボディ
+        // ボディ（全HTMLを一度に組み立て）
         const body = document.createElement('div');
         body.className = 'race-accordion-body' + (ri === 0 ? ' open' : '');
         if (ri === 0) header.querySelector('span').textContent = header.querySelector('span').textContent.replace('▸', '▾');
 
-        // レース情報カード
-        body.innerHTML = `
-          <div class="race-info-card">
-            <div><dt>発走</dt><dd>${esc(st) || '-'}</dd></div>
-            <div><dt>レース名</dt><dd>${esc(race.raceInfo.raceClass)}</dd></div>
-            <div><dt>距離</dt><dd>${esc(race.raceInfo.distance)}</dd></div>
-            <div><dt>頭数</dt><dd>${race.horses.length}頭</dd></div>
-          </div>`;
+        let bodyHtml = '';
 
-        // 振り分けカード（predictions-batch準拠）
+        // レース情報カード
+        bodyHtml += `<div class="race-info-card">
+          <div><dt>発走</dt><dd>${esc(st) || '-'}</dd></div>
+          <div><dt>レース名</dt><dd>${esc(race.raceInfo.raceClass)}</dd></div>
+          <div><dt>距離</dt><dd>${esc(race.raceInfo.distance)}</dd></div>
+          <div><dt>頭数</dt><dd>${race.horses.length}頭</dd></div>
+        </div>`;
+
+        // 振り分けカード
         if (assignments) {
           const findH = (num) => { const h = scored.find(x => x.number === num); return h ? `${num}番 ${esc(h.name)} (${h._ts}点)` : ''; };
-          const findMulti = (nums) => (nums || []).map(n => findH(n)).filter(s => s).map(s => `<li>${s}</li>`).join('') || '<li>なし</li>';
-          const noneNums = assignments.none || [];
-          body.innerHTML += `
-            <div style="padding:0.5rem 0.5rem 0;font-weight:700;color:#f1f5f9;font-size:0.85rem">🎯 自動振り分け結果</div>
-            <div class="assign-grid">
-              <div class="assign-card assign-honmei"><div class="assign-label">◎ 本命</div><ul class="assign-list">${assignments.main ? '<li>'+findH(assignments.main)+'</li>' : '<li>なし</li>'}</ul></div>
-              <div class="assign-card assign-taikou"><div class="assign-label">○ 対抗</div><ul class="assign-list">${assignments.sub ? '<li>'+findH(assignments.sub)+'</li>' : '<li>なし</li>'}</ul></div>
-              <div class="assign-card assign-tanana"><div class="assign-label">▲ 単穴</div><ul class="assign-list">${assignments.hole ? '<li>'+findH(assignments.hole)+'</li>' : '<li>なし</li>'}</ul></div>
-              <div class="assign-card assign-renkatop"><div class="assign-label">△ 連下最上位</div><ul class="assign-list">${assignments.connectTop ? '<li>'+findH(assignments.connectTop)+'</li>' : '<li>なし</li>'}</ul></div>
-              <div class="assign-card assign-renka"><div class="assign-label">△ 連下 (1~3頭)</div><ul class="assign-list">${findMulti(assignments.connect)}</ul></div>
-              <div class="assign-card assign-hoseki"><div class="assign-label">× 補欠 (1点以上)</div><ul class="assign-list">${findMulti(assignments.reserve)}</ul></div>
-              <div class="assign-card assign-none"><div class="assign-label">無 (0点)</div><ul class="assign-list">${findMulti(noneNums)}</ul></div>
-            </div>`;
+          const findMulti = (nums) => (nums || []).map(n => findH(n)).filter(s => s).map(s => '<li>' + s + '</li>').join('') || '<li>なし</li>';
+          bodyHtml += `<div style="padding:0.5rem 0.5rem 0;font-weight:700;color:#f1f5f9;font-size:0.85rem">🎯 自動振り分け結果</div>
+          <div class="assign-grid">
+            <div class="assign-card assign-honmei"><div class="assign-label">◎ 本命</div><ul class="assign-list">${assignments.main ? '<li>' + findH(assignments.main) + '</li>' : '<li>なし</li>'}</ul></div>
+            <div class="assign-card assign-taikou"><div class="assign-label">○ 対抗</div><ul class="assign-list">${assignments.sub ? '<li>' + findH(assignments.sub) + '</li>' : '<li>なし</li>'}</ul></div>
+            <div class="assign-card assign-tanana"><div class="assign-label">▲ 単穴</div><ul class="assign-list">${assignments.hole ? '<li>' + findH(assignments.hole) + '</li>' : '<li>なし</li>'}</ul></div>
+            <div class="assign-card assign-renkatop"><div class="assign-label">△ 連下最上位</div><ul class="assign-list">${assignments.connectTop ? '<li>' + findH(assignments.connectTop) + '</li>' : '<li>なし</li>'}</ul></div>
+            <div class="assign-card assign-renka"><div class="assign-label">△ 連下 (1~3頭)</div><ul class="assign-list">${findMulti(assignments.connect)}</ul></div>
+            <div class="assign-card assign-hoseki"><div class="assign-label">× 補欠 (1点以上)</div><ul class="assign-list">${findMulti(assignments.reserve)}</ul></div>
+            <div class="assign-card assign-none"><div class="assign-label">無 (0点)</div><ul class="assign-list">${findMulti(assignments.none || [])}</ul></div>
+          </div>`;
         }
 
         // 馬カード一覧
-        let cardsHtml = '<div class="horse-cards">';
+        bodyHtml += '<div class="horse-cards">';
         for (const h of scored) {
           const badgeCls = h._assign === '本命' ? 'badge-honmei' : h._assign === '対抗' ? 'badge-taikou' : h._assign === '単穴' ? 'badge-tanana' : (h._assign.includes('連下') ? 'badge-renka' : (h._assign === '補欠' ? 'badge-hoseki' : 'badge-none'));
           const borderCls = h._assign === '本命' ? 'hcard-honmei' : h._assign === '対抗' ? 'hcard-taikou' : h._assign === '単穴' ? 'hcard-tanana' : (h._assign.includes('連下') ? 'hcard-renka' : '');
-          const marksStr = h.marks.length > 0 ? h.marks.map(m => `<span class="hcard-mark">${esc(m)}</span>`).join('') : '<span style="color:#64748b">-</span>';
-          const pastHtml = (h.pastRaces && h.pastRaces.length > 0)
-            ? h.pastRaces.slice(0, 3).map(r => `<span class="past-race">${esc(r.finish || '?')}着 ${esc(r.venue)} ${esc(r.time)}</span>`).join('')
+          const marksStr = h.marks.length > 0 ? h.marks.map(m => '<span class="hcard-mark">' + esc(m) + '</span>').join('') : '<span style="color:#64748b">-</span>';
+          const pastStr = (h.pastRaces && h.pastRaces.length > 0)
+            ? h.pastRaces.slice(0, 3).map(r => '<span class="past-race">' + esc(r.finish || '?') + '着 ' + esc(r.venue) + ' ' + esc(r.time) + '</span>').join('')
             : '';
-          cardsHtml += `
-            <div class="horse-card ${borderCls}">
-              <div class="hcard-header">
-                <span class="hcard-number">${h.number}</span>
-                <span class="hcard-name">${esc(h.name)}</span>
-                <span class="assign-badge ${badgeCls}">${esc(h._assign)}</span>
-                <span class="hcard-score">${h._ts}点</span>
-              </div>
-              <div class="hcard-details">
-                <span>${esc(h.sexAge)}</span>
-                ${h.weight ? '<span>⚖️' + esc(h.weight) + 'kg</span>' : ''}
-                ${h.jockey ? '<span>🏇' + esc(h.jockey) + '</span>' : ''}
-                ${h.trainer ? '<span>🏠' + esc((h.trainer||'').replace(/\\s+/g,'')) + '</span>' : ''}
-                ${h.computerIndex ? '<span>📊' + esc(h.computerIndex) + '</span>' : ''}
-              </div>
-              <div class="hcard-marks">${marksStr}</div>
-              ${pastHtml ? '<div class="hcard-past">' + pastHtml + '</div>' : ''}
-            </div>`;
+          const trainerStr = (h.trainer || '').replace(/\s+/g, '');
+          bodyHtml += '<div class="horse-card ' + borderCls + '">'
+            + '<div class="hcard-header">'
+            + '<span class="hcard-number">' + h.number + '</span>'
+            + '<span class="hcard-name">' + esc(h.name) + '</span>'
+            + '<span class="assign-badge ' + badgeCls + '">' + esc(h._assign) + '</span>'
+            + '<span class="hcard-score">' + h._ts + '点</span>'
+            + '</div>'
+            + '<div class="hcard-details">'
+            + '<span>' + esc(h.sexAge) + '</span>'
+            + (h.weight ? '<span>⚖️' + esc(h.weight) + 'kg</span>' : '')
+            + (h.jockey ? '<span>🏇' + esc(h.jockey) + '</span>' : '')
+            + (trainerStr ? '<span>🏠' + esc(trainerStr) + '</span>' : '')
+            + (h.computerIndex ? '<span>📊' + esc(h.computerIndex) + '</span>' : '')
+            + '</div>'
+            + '<div class="hcard-marks">' + marksStr + '</div>'
+            + (pastStr ? '<div class="hcard-past">' + pastStr + '</div>' : '')
+            + '</div>';
         }
-        cardsHtml += '</div>';
-        body.innerHTML += cardsHtml;
+        bodyHtml += '</div>';
 
+        body.innerHTML = bodyHtml;
         acc.appendChild(body);
         container.appendChild(acc);
       }

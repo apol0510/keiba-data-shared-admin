@@ -47,8 +47,10 @@ export const handler = async (event) => {
     const KEIBA_INTELLIGENCE_TOKEN = process.env.KEIBA_INTELLIGENCE_TOKEN || process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
     const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
 
-    if (KEIBA_INTELLIGENCE_TOKEN) {
-      const category = data.category || 'jra';
+    const category = data.category || 'jra';
+
+    // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
+    if (KEIBA_INTELLIGENCE_TOKEN && (category === 'jra' || category === 'nankan')) {
       const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
 
       fetch(dispatchUrl, {
@@ -77,6 +79,8 @@ export const handler = async (event) => {
       }).catch(err => {
         console.warn('⚠️ dispatch送信エラー:', err.message);
       });
+    } else if (category === 'local') {
+      console.log(`📋 [Save] 地方データ(${data.track}): keiba-intelligence dispatchスキップ`);
     }
 
     return {

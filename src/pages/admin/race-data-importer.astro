@@ -104,7 +104,13 @@ export const prerender = false;
       '大井':'OOI','川崎':'KAW','船橋':'FUN','浦和':'URA'
     };
 
-    const ALL_VENUE_CODES = { ...JRA_VENUE_CODES, ...NANKAN_VENUE_CODES };
+    const LOCAL_VENUE_CODES = {
+      '門別':'MON','盛岡':'MOR','水沢':'MIZ','金沢':'KNZ',
+      '笠松':'KSM','名古屋':'NGY','園田':'SON','姫路':'HIM',
+      '高知':'KOC','佐賀':'SAG','帯広':'OBI','ばんえい':'OBI'
+    };
+
+    const ALL_VENUE_CODES = { ...JRA_VENUE_CODES, ...NANKAN_VENUE_CODES, ...LOCAL_VENUE_CODES };
 
     let parsedData = null;
 
@@ -659,7 +665,7 @@ export const prerender = false;
       // 1行目からヘッダ情報を取得（"4/8　川崎競馬" 等）
       let headerTrack = '';
       const headerLine = lines[0] || '';
-      const hm = headerLine.match(/(大井|川崎|船橋|浦和)/);
+      const hm = headerLine.match(/(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館)/);
       if (hm) headerTrack = hm[1];
 
       // レース分割: "XR " で始まる行をレースヘッダーとする
@@ -815,14 +821,14 @@ export const prerender = false;
       let trainer = null;
       if (cursor < hLines.length) {
         const trLine = hLines[cursor].trim();
-        const trMatch = trLine.match(/^(大井|川崎|船橋|浦和|美浦|栗東)\s+(.+)/);
+        const trMatch = trLine.match(/^(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|美浦|栗東)\s+(.+)/);
         if (trMatch) trainer = trMatch[2].replace(/\s+/g, '');
         cursor++;
       }
 
       // 調教師行以降: ベストタイム・距離別成績の行数が可変のため、
       // 近走開始行（場名パターン）を直接検索する
-      const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別)\s+[\d.]+/;
+      const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別|帯広)\s+[\d.]+/;
       while (cursor < hLines.length) {
         if (VENUE_NAMES_RE.test(hLines[cursor]?.trim() || '')) break;
         cursor++;
@@ -967,9 +973,10 @@ export const prerender = false;
 
     // ========== JSON構築 ==========
     function detectCategory(track) {
-      if (NANKAN_VENUE_CODES[track]) return 'nankan';
       if (JRA_VENUE_CODES[track]) return 'jra';
-      return 'local';
+      if (NANKAN_VENUE_CODES[track]) return 'nankan';
+      if (LOCAL_VENUE_CODES[track]) return 'local';
+      return 'local'; // 未知の会場もlocalとして扱う
     }
 
     function buildJSON(results) {
@@ -1110,11 +1117,12 @@ export const prerender = false;
 
       parsedData.date = date;
       const track = parsedData.track;
-      parsedData.trackCode = JRA_VENUE_CODES[track] || 'UNK';
+      parsedData.trackCode = ALL_VENUE_CODES[track] || 'UNK';
+      parsedData.category = detectCategory(track);
 
       // バリデーション
       if (parsedData.trackCode === 'UNK') {
-        showStatus('競馬場を検出できません。XMLを確認してください', 'error');
+        showStatus(`競馬場「${track}」のコードが未登録です。データを確認してください`, 'error');
         return;
       }
       if (!parsedData.races || parsedData.races.length === 0) {

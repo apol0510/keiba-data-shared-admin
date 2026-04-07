@@ -752,7 +752,8 @@ export const prerender = false;
           track: block.track || headerTrack,
           raceClass: block.raceClass || '',
           conditions: '',
-          distance: block.distance || ''
+          distance: block.distance || '',
+          startTime: block.startTime || null
         },
         horses,
         predictorNames: []
@@ -1000,6 +1001,7 @@ export const prerender = false;
             raceClass: r.raceInfo.raceClass || null,
             conditions: r.raceInfo.conditions || null,
             distance: r.raceInfo.distance || null,
+            startTime: r.raceInfo.startTime || null,
             horseCount: r.horses.length,
             assignments,
             horses: [...r.horses].sort((a, b) => a.number - b.number).map(h => {
@@ -1066,10 +1068,11 @@ export const prerender = false;
 
       for (const race of results) {
         const headerTr = document.createElement('tr');
+        const startTimeStr = race.raceInfo.startTime ? ` ${esc(race.raceInfo.startTime)}発走` : '';
         headerTr.innerHTML = `<td colspan="11" style="background:#1e293b;color:#fff;font-weight:700;padding:0.6rem">` +
           `${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ` +
           `${race.raceInfo.conditions ? '(' + esc(race.raceInfo.conditions) + ')' : ''} ` +
-          `${esc(race.raceInfo.distance)} — ${race.horses.length}頭</td>`;
+          `${esc(race.raceInfo.distance)}${startTimeStr} — ${race.horses.length}頭</td>`;
         tbody.appendChild(headerTr);
 
         const sortedHorses = [...race.horses].sort((a, b) => a.number - b.number);

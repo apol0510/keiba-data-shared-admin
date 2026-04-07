@@ -100,7 +100,21 @@ export const prerender = false;
     .badge-hoseki { background: #334155; color: #94a3b8; }
     .badge-none { background: transparent; color: #64748b; }
     .past-race { display: inline-block; font-size: 0.7rem; background: #1e293b; border-radius: 3px; padding: 1px 4px; margin: 1px 2px; white-space: nowrap; color: #94a3b8; }
-    .past-races-cell { white-space: normal !important; min-width: 140px; }
+    /* 馬カード */
+    .horse-cards { padding: 0.5rem; display: flex; flex-direction: column; gap: 0.4rem; }
+    .horse-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 0.5rem 0.75rem; }
+    .horse-card.hcard-honmei { border-left: 3px solid #ef4444; background: rgba(239, 68, 68, 0.05); }
+    .horse-card.hcard-taikou { border-left: 3px solid #3b82f6; background: rgba(59, 130, 246, 0.05); }
+    .horse-card.hcard-tanana { border-left: 3px solid #f59e0b; background: rgba(245, 158, 11, 0.05); }
+    .horse-card.hcard-renka { border-left: 3px solid #64748b; }
+    .hcard-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .hcard-number { font-size: 1.1rem; font-weight: 800; color: #f1f5f9; min-width: 1.8rem; text-align: center; }
+    .hcard-name { font-weight: 700; color: #f1f5f9; font-size: 0.95rem; flex: 1; }
+    .hcard-score { font-size: 0.75rem; color: #94a3b8; font-weight: 600; }
+    .hcard-details { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.25rem; }
+    .hcard-marks { display: flex; gap: 2px; margin-bottom: 0.2rem; }
+    .hcard-mark { display: inline-block; min-width: 1.3em; text-align: center; font-size: 0.9rem; color: #e2e8f0; }
+    .hcard-past { margin-top: 0.2rem; }
   </style>
 
   <script is:inline>
@@ -1191,38 +1205,36 @@ export const prerender = false;
             </div>`;
         }
 
-        // 馬テーブル
-        const markHeaders = scored.reduce((max, h) => Math.max(max, h.marks.length), 0);
-        let tableHtml = `<div style="overflow-x:auto"><table class="horse-table"><thead><tr>
-          <th>番</th>`;
-        for (let mi = 0; mi < markHeaders; mi++) tableHtml += `<th>印${mi + 1}</th>`;
-        tableHtml += `<th>馬名</th><th>性齢</th><th>騎手</th><th>斤量</th><th>厩舎</th><th>合計</th><th>振分</th><th>近走</th></tr></thead><tbody>`;
-
+        // 馬カード一覧
+        let cardsHtml = '<div class="horse-cards">';
         for (const h of scored) {
           const badgeCls = h._assign === '本命' ? 'badge-honmei' : h._assign === '対抗' ? 'badge-taikou' : h._assign === '単穴' ? 'badge-tanana' : (h._assign.includes('連下') ? 'badge-renka' : (h._assign === '補欠' ? 'badge-hoseki' : 'badge-none'));
+          const borderCls = h._assign === '本命' ? 'hcard-honmei' : h._assign === '対抗' ? 'hcard-taikou' : h._assign === '単穴' ? 'hcard-tanana' : (h._assign.includes('連下') ? 'hcard-renka' : '');
+          const marksStr = h.marks.length > 0 ? h.marks.map(m => `<span class="hcard-mark">${esc(m)}</span>`).join('') : '<span style="color:#64748b">-</span>';
           const pastHtml = (h.pastRaces && h.pastRaces.length > 0)
             ? h.pastRaces.slice(0, 3).map(r => `<span class="past-race">${esc(r.finish || '?')}着 ${esc(r.venue)} ${esc(r.time)}</span>`).join('')
-            : '-';
-          let markCells = '';
-          for (let mi = 0; mi < markHeaders; mi++) {
-            const m = h.marks[mi] || '-';
-            markCells += `<td class="mark-cell"><span>${esc(m)}</span></td>`;
-          }
-          tableHtml += `<tr>
-            <td style="text-align:center;font-weight:700">${h.number}</td>
-            ${markCells}
-            <td>${esc(h.name)}</td>
-            <td>${esc(h.sexAge)}</td>
-            <td>${esc(h.jockey)}</td>
-            <td style="text-align:center">${esc(h.weight)}</td>
-            <td>${esc((h.trainer || '').replace(/\s+/g, ''))}</td>
-            <td style="text-align:center;font-weight:700">${h._ts}</td>
-            <td><span class="assign-badge ${badgeCls}">${esc(h._assign)}</span></td>
-            <td class="past-races-cell">${pastHtml}</td>
-          </tr>`;
+            : '';
+          cardsHtml += `
+            <div class="horse-card ${borderCls}">
+              <div class="hcard-header">
+                <span class="hcard-number">${h.number}</span>
+                <span class="hcard-name">${esc(h.name)}</span>
+                <span class="assign-badge ${badgeCls}">${esc(h._assign)}</span>
+                <span class="hcard-score">${h._ts}点</span>
+              </div>
+              <div class="hcard-details">
+                <span>${esc(h.sexAge)}</span>
+                ${h.weight ? '<span>⚖️' + esc(h.weight) + 'kg</span>' : ''}
+                ${h.jockey ? '<span>🏇' + esc(h.jockey) + '</span>' : ''}
+                ${h.trainer ? '<span>🏠' + esc((h.trainer||'').replace(/\\s+/g,'')) + '</span>' : ''}
+                ${h.computerIndex ? '<span>📊' + esc(h.computerIndex) + '</span>' : ''}
+              </div>
+              <div class="hcard-marks">${marksStr}</div>
+              ${pastHtml ? '<div class="hcard-past">' + pastHtml + '</div>' : ''}
+            </div>`;
         }
-        tableHtml += '</tbody></table></div>';
-        body.innerHTML += tableHtml;
+        cardsHtml += '</div>';
+        body.innerHTML += cardsHtml;
 
         acc.appendChild(body);
         container.appendChild(acc);

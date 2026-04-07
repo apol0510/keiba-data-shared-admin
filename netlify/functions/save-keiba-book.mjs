@@ -43,6 +43,42 @@ export const handler = async (event) => {
 
     console.log(`[Save KeibaBook] 完了: ${result.filePath}`);
 
+    // keiba-intelligenceへの自動インポートトリガー（repository_dispatch）
+    const KEIBA_INTELLIGENCE_TOKEN = process.env.KEIBA_INTELLIGENCE_TOKEN || process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+    const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
+
+    if (KEIBA_INTELLIGENCE_TOKEN) {
+      const category = data.category || 'jra';
+      const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
+
+      fetch(dispatchUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          event_type: 'prediction-updated',
+          client_payload: {
+            date: data.date,
+            track: data.track,
+            trackCode: data.trackCode,
+            category: category,
+            source: 'racebook'
+          }
+        })
+      }).then(response => {
+        if (response.ok) {
+          console.log(`✅ keiba-intelligenceにインポートトリガー送信 (prediction-updated, date: ${data.date})`);
+        } else {
+          console.warn(`⚠️ dispatch失敗: ${response.status}`);
+        }
+      }).catch(err => {
+        console.warn('⚠️ dispatch送信エラー:', err.message);
+      });
+    }
+
     return {
       statusCode: 200,
       headers,

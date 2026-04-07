@@ -549,10 +549,15 @@ async function fetchPredictionData(date, category, venueCode) {
 /**
  * racebook JSON → predictions互換構造に変換
  * race-data-importerの出力をcomputer-managerが読める形に変換
+ * 情報欠落を起こさないことを最優先とする
  */
 function convertRacebookToPrediction(rbData) {
   return {
     track: rbData.track,
+    category: rbData.category || null,
+    trackCode: rbData.trackCode || null,
+    date: rbData.date,
+    source: rbData.source || 'racebook',
     races: (rbData.races || []).map(r => ({
       raceInfo: {
         date: rbData.date,
@@ -562,16 +567,29 @@ function convertRacebookToPrediction(rbData) {
         distance: r.distance || '',
         raceType: r.conditions || ''
       },
+      assignments: r.assignments || null,
       horses: (r.horses || []).map(h => ({
         number: h.number,
         name: h.name,
         seirei: h.sexAge || '',
         kisyu: h.jockey || '',
-        kinryo: h.weight ? String(h.weight) : '',
+        kinryo: h.weight != null ? String(h.weight) : '',
         kyusya: h.trainer || '',
         umacd: null,
-        marks: {},
-        enrichedFrom: 'keiba-book'
+        // marks: 配列をそのまま引き継ぐ（predictions形式のobjectとは異なるが情報保持優先）
+        marks: Array.isArray(h.marks) ? h.marks : (h.marks ? [h.marks] : []),
+        totalScore: h.totalScore != null ? h.totalScore : 0,
+        assignment: h.assignment || null,
+        predictedOdds: h.predictedOdds || null,
+        shortComment: h.shortComment || null,
+        sire: h.sire || null,
+        sex: h.sex || null,
+        age: h.age || null,
+        computerIndex: h.computerIndex || null,
+        training: h.training || null,
+        pastRaces: h.pastRaces || [],
+        recentFormSource: h.recentFormSource || 'racebook',
+        enrichedFrom: 'racebook'
       }))
     }))
   };

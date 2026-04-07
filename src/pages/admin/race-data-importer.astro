@@ -677,6 +677,22 @@ export const prerender = false;
       return { scored, assignments };
     }
 
+    // ========== 正規化ヘルパー ==========
+    function normName(s) {
+      if (!s) return null;
+      return s.replace(/[\s\u3000]+/g, '').trim() || null;
+    }
+
+    function parseSexAge(sa) {
+      if (!sa) return { sexAge: null, sex: null, age: null };
+      const m = sa.match(/^([牡牝セ騸])?(\d)?/);
+      return {
+        sexAge: sa,
+        sex: m && m[1] ? m[1] : null,
+        age: m && m[2] ? parseInt(m[2]) : null
+      };
+    }
+
     // ========== JSON構築 ==========
     function buildJSON(results) {
       const date = document.getElementById('raceDate').value;
@@ -684,32 +700,36 @@ export const prerender = false;
       const trackCode = JRA_VENUE_CODES[track] || 'UNK';
 
       return {
-        version: '1.0.0',
-        source: 'keiba-book',
+        version: '1.1.0',
+        source: 'racebook',
         createdAt: new Date().toISOString(),
         date,
+        category: 'jra',
         track,
         trackCode,
-        category: 'jra',
         races: results.map(r => {
           const { scored, assignments } = assignRoles(r.horses);
           return {
             raceNumber: r.raceNumber,
-            raceClass: r.raceInfo.raceClass,
-            conditions: r.raceInfo.conditions,
-            distance: r.raceInfo.distance,
+            raceClass: r.raceInfo.raceClass || null,
+            conditions: r.raceInfo.conditions || null,
+            distance: r.raceInfo.distance || null,
             horseCount: r.horses.length,
             assignments,
             horses: r.horses.map(h => {
               const sc = scored.find(s => s.number === h.number);
+              const { sexAge, sex, age } = parseSexAge(h.sexAge);
               return {
                 number: h.number,
-                name: h.name,
-                sire: h.sire,
-                sexAge: h.sexAge,
+                name: normName(h.name),
+                sire: normName(h.sire) || null,
+                dam: null,
+                sexAge,
+                sex,
+                age,
                 weight: h.weight ? parseInt(h.weight) : null,
-                jockey: h.jockey,
-                trainer: h.trainer.replace(/\s+/g, ''),
+                jockey: normName(h.jockey),
+                trainer: normName(h.trainer),
                 computerIndex: h.computerIndex || null,
                 marks: h.marks,
                 totalScore: sc ? sc.score : 0,
@@ -717,6 +737,7 @@ export const prerender = false;
                 predictedOdds: h.odds ? parseFloat(h.odds) : null,
                 shortComment: h.comment || null,
                 training: h.training || null,
+                recentFormSource: 'racebook',
                 pastRaces: (h.pastRaces || []).map(pr => ({
                   venue: pr.venue || null,
                   raceClass: pr.raceClass || null,
@@ -725,12 +746,12 @@ export const prerender = false;
                   courseNote: pr.courseNote || null,
                   time: pr.time || null,
                   weight: pr.weight ? parseInt(pr.weight) : null,
-                  jockey: pr.jockey || null,
+                  jockey: normName(pr.jockey),
                   bodyWeight: pr.bodyWeight || null,
                   paceType: pr.paceType || null,
                   paceRank: pr.paceRank || null,
                   final3F: pr.final3F || null,
-                  winner: pr.winner || null
+                  winner: normName(pr.winner)
                 }))
               };
             })

@@ -73,10 +73,12 @@ export const prerender = false;
     .race-info-card dt { font-weight: 600; color: #94a3b8; font-size: 0.75rem; }
     .race-info-card dd { margin: 0; color: #f1f5f9; }
     /* 振り分けカード */
-    .assign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; padding: 0.5rem; }
+    .assign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; padding: 0.5rem; }
     .assign-card { border-radius: 6px; padding: 0.5rem 0.75rem; }
-    .assign-card .assign-label { font-weight: 700; font-size: 0.8rem; margin-bottom: 0.2rem; }
+    .assign-card .assign-label { font-weight: 700; font-size: 0.8rem; margin-bottom: 0.25rem; }
     .assign-card .assign-horse { font-size: 0.85rem; color: #e2e8f0; }
+    .assign-list { list-style: none; padding: 0; margin: 0; font-size: 0.85rem; color: #e2e8f0; }
+    .assign-list li { margin: 0.15rem 0; }
     .assign-honmei { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); border-left: 3px solid #ef4444; }
     .assign-taikou { background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); border-left: 3px solid #3b82f6; }
     .assign-tanana { background: linear-gradient(135deg, #d97706 0%, #92400e 100%); border-left: 3px solid #f59e0b; }
@@ -1171,18 +1173,21 @@ export const prerender = false;
             <div><dt>頭数</dt><dd>${race.horses.length}頭</dd></div>
           </div>`;
 
-        // 振り分けカード
+        // 振り分けカード（predictions-batch準拠）
         if (assignments) {
           const findH = (num) => { const h = scored.find(x => x.number === num); return h ? `${num}番 ${esc(h.name)} (${h._ts}点)` : ''; };
+          const findMulti = (nums) => (nums || []).map(n => findH(n)).filter(s => s).map(s => `<li>${s}</li>`).join('') || '<li>なし</li>';
+          const noneNums = assignments.none || [];
           body.innerHTML += `
-            <div style="padding:0.5rem;font-weight:700;color:#f1f5f9;font-size:0.85rem">🎯 自動振り分け結果</div>
+            <div style="padding:0.5rem 0.5rem 0;font-weight:700;color:#f1f5f9;font-size:0.85rem">🎯 自動振り分け結果</div>
             <div class="assign-grid">
-              <div class="assign-card assign-honmei"><div class="assign-label">◎ 本命</div><div class="assign-horse">${assignments.main ? findH(assignments.main) : '-'}</div></div>
-              <div class="assign-card assign-taikou"><div class="assign-label">○ 対抗</div><div class="assign-horse">${assignments.sub ? findH(assignments.sub) : '-'}</div></div>
-              <div class="assign-card assign-tanana"><div class="assign-label">▲ 単穴</div><div class="assign-horse">${assignments.hole ? findH(assignments.hole) : '-'}</div></div>
-              <div class="assign-card assign-renkatop"><div class="assign-label">△ 連下最上位</div><div class="assign-horse">${assignments.connectTop ? findH(assignments.connectTop) : '-'}</div></div>
-              <div class="assign-card assign-renka"><div class="assign-label">△ 連下 (1~3頭)</div><div class="assign-horse">${(assignments.connect || []).map(n => findH(n)).join('<br>') || '-'}</div></div>
-              <div class="assign-card assign-hoseki"><div class="assign-label">× 補欠</div><div class="assign-horse">${(assignments.reserve || []).map(n => findH(n)).join('<br>') || '-'}</div></div>
+              <div class="assign-card assign-honmei"><div class="assign-label">◎ 本命</div><ul class="assign-list">${assignments.main ? '<li>'+findH(assignments.main)+'</li>' : '<li>なし</li>'}</ul></div>
+              <div class="assign-card assign-taikou"><div class="assign-label">○ 対抗</div><ul class="assign-list">${assignments.sub ? '<li>'+findH(assignments.sub)+'</li>' : '<li>なし</li>'}</ul></div>
+              <div class="assign-card assign-tanana"><div class="assign-label">▲ 単穴</div><ul class="assign-list">${assignments.hole ? '<li>'+findH(assignments.hole)+'</li>' : '<li>なし</li>'}</ul></div>
+              <div class="assign-card assign-renkatop"><div class="assign-label">△ 連下最上位</div><ul class="assign-list">${assignments.connectTop ? '<li>'+findH(assignments.connectTop)+'</li>' : '<li>なし</li>'}</ul></div>
+              <div class="assign-card assign-renka"><div class="assign-label">△ 連下 (1~3頭)</div><ul class="assign-list">${findMulti(assignments.connect)}</ul></div>
+              <div class="assign-card assign-hoseki"><div class="assign-label">× 補欠 (1点以上)</div><ul class="assign-list">${findMulti(assignments.reserve)}</ul></div>
+              <div class="assign-card assign-none"><div class="assign-label">無 (0点)</div><ul class="assign-list">${findMulti(noneNums)}</ul></div>
             </div>`;
         }
 

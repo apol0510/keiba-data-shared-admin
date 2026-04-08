@@ -887,9 +887,12 @@ export const prerender = false;
       }
 
       // --- 斤量・騎手（"54 国分祐" パターンを探索） ---
+      // 合計スコア行の位置がずれる場合があるため、広範囲で探索
       let weight = null, jockey = null;
-      for (let wi = cursor; wi < Math.min(cursor + 5, hLines.length); wi++) {
-        const wjMatch = hLines[wi].trim().match(/^(\d{2})\s+([^\d].+)/);
+      for (let wi = cursor; wi < Math.min(cursor + 8, hLines.length); wi++) {
+        const line = hLines[wi].trim();
+        // 斤量(2桁) + スペース + 騎手名（漢字/カナで始まる）
+        const wjMatch = line.match(/^(\d{2})\s+([\u3000-\u9FFFa-zA-Zァ-ヺぁ-ん].+)/);
         if (wjMatch) {
           weight = wjMatch[1];
           jockey = wjMatch[2].replace(/\s+/g, '').trim();

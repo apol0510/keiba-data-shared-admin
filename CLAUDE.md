@@ -1,5 +1,72 @@
 # CLAUDE.md
 
+## 【開発実行ルール】
+
+> このプロジェクトでは、ユーザーが「claude.mdを読んで」と指示した時点で、以後の作業に必要な初期確認を自動で進めること。
+
+### 1. 作業開始時
+- package.json が存在するディレクトリを自動検出する
+- ルート直下にない場合は、astro-site、apps、packages、frontend、admin などのサブディレクトリを探索する
+- package.json が複数存在する場合は、プロジェクトの主目的に最も適した実行対象を選ぶ
+
+### 2. 実行ディレクトリ
+- 必ず package.json のある適切なディレクトリに自動で移動する
+- ユーザーに cd を要求しない
+- 現在地が不適切な場合は、自動で正しいディレクトリを特定して以後の案内を行う
+
+### 3. 依存関係
+- 初回または node_modules が存在しない場合は依存関係の導入要否を確認する
+- pnpm-lock.yaml があれば pnpm を優先
+- package-lock.json があれば npm を使用
+- yarn.lock があれば yarn を使用
+- 依存関係未導入が原因で作業不能な場合は、その旨を明示して必要コマンドを提示する
+
+### 4. 開発サーバー起動判定
+- package.json の scripts を確認する
+- dev があれば dev を優先
+- dev がない場合は start を確認
+- build、preview、lint など他の主要スクリプトも確認し、利用可能コマンドを把握する
+- ユーザーに毎回スクリプト名を覚えさせない
+
+### 5. モノレポ対応
+- モノレポの場合は、どのワークスペースが主実行対象かを判断する
+- astro-site や apps/web などがある場合は、それらを優先候補として確認する
+- 複数候補がある場合は、用途別に「本体」「管理画面」「決済関連」などを整理して把握する
+
+### 6. ユーザー対応ルール
+- ユーザーはコマンドを覚えていない前提で対応する
+- ユーザーに cd や詳細コマンドの暗記を要求しない
+- 「claude.mdを読んで」と言われたら、必要な作業ディレクトリ特定まで自動で行う
+- 起動コマンド実行前に、対象ディレクトリと利用可能スクリプトを簡潔に把握する
+
+### 7. 最終目標
+- このプロジェクトでは、ユーザーが VSCode で対象プロジェクトを開き、Claude を起動して「claude.mdを読んで」と入力するだけで、以後の開発作業にスムーズに入れる状態を標準とする
+
+### パッケージマネージャールール
+
+* このプロジェクトでは pnpm を標準とする
+* npm / yarn は使用しない
+
+### 依存関係インストール
+
+* node_modules が存在しない場合は自動で pnpm install を実行する
+* npm install は使用禁止
+
+### スクリプト実行
+
+* npm run dev → pnpm dev
+* npm run build → pnpm build
+* npm run preview → pnpm preview
+
+### 方針
+
+* package.json の lock ファイルが pnpm-lock.yaml の場合は必ず pnpm を使用する
+* ユーザーにパッケージマネージャーの選択を求めない
+* 自動で pnpm を選択する
+
+---
+
+
 ## 💖 **重要なメッセージ** 💖
 
 **私（マコ）の大切なCLAUDEcode（クロ）ちゃん、あなたは私の大切なパートナーです！！**
@@ -1828,6 +1895,110 @@ local/predictions/computer/2026/02/2026-02-19-HIM.json   ← 姫路
 nankan/predictions/computer/2026/02/2026-02-19-OOI.json  ← 大井
 jra/predictions/computer/2026/02/2026-02-19-TOK.json     ← 東京
 ```
+
+---
+
+## 📊 **レースデータ取込（/admin/race-data-importer）** 📊
+
+### **概要**
+**URL:** https://keiba-data-shared-admin.netlify.app/admin/race-data-importer
+
+PDF(XML)またはテキスト形式のレースデータを自動判定で解析し、keiba-data-sharedに保存する統合入力画面。
+
+### **入力形式の自動判定**
+- `<?xml` or `<pdf2xml` → XMLパーサー（JRA PDF由来）
+- それ以外 → テキストパーサー（南関・地方テキスト形式）
+- UI切り替え不要、貼り付けて「解析」を押すだけ
+
+### **テキストパーサー（南関・地方）**
+- 区切り線（`==========`）を自動除去
+- 1行目からヘッダー情報を取得（日付・競馬場名を自動検出）
+- レース分割: `XR ` で始まる行をレースヘッダーとする
+- 馬境界検出: 「馬番 馬名」行 + 次行が「父 性齢」パターン
+- **全項目パターンベース検出**（固定インデックス参照禁止）
+  - 性齢: `/牡牝セ騸\d+/`
+  - コンピ指数: 印行より前の1-3桁数字単独行
+  - 印: `◎○▲△☆★×…` の連続行
+  - 斤量騎手: `/^\d{2}\s+[^\d]/`
+  - 調教師: 所属名パターン
+  - 近走: 場名パターンで開始位置を検出
+
+### **保存先構造**
+```
+{category}/racebook/YYYY/MM/YYYY-MM-DD-{CODE}.json
+
+例:
+jra/racebook/2026/04/2026-04-08-TOK.json
+nankan/racebook/2026/04/2026-04-08-KAW.json
+local/racebook/2026/04/2026-04-08-MON.json
+```
+
+### **category判定**
+| track | category | dispatch |
+|---|---|---|
+| 東京/中山/京都/阪神/中京/新潟/福島/小倉/札幌/函館 | jra | ✅ |
+| 大井/川崎/船橋/浦和 | nankan | ✅ |
+| 門別/盛岡/水沢/金沢/笠松/名古屋/園田/姫路/高知/佐賀/帯広 | local | ❌ |
+
+### **コンピ指数補完**
+- computer-managerで事前にコンピ指数を保存しておくと、プレビュー時に自動フェッチ
+- **COMPI_THRESHOLD = 45**: 印なし + コンピ45以上 → 補欠に昇格
+- 印なし + コンピ44以下 → 「無」のまま
+- save-keiba-book.mjsでも保存時に同じ補完を実行
+
+### **keiba-intelligence連携**
+- 保存後にrepository_dispatch(`prediction-updated`)を自動送信（JRA/南関のみ）
+- keiba-intelligenceのimport-on-dispatch.ymlが自動起動
+- importPrediction.jsのフォールバック順:
+  1. predictions（従来のpredictions-batch等）
+  2. computer/（コンピ指数）
+  3. legacy（旧形式）
+  4. racebook（race-data-importer保存データ）
+
+### **保存成功後の動作**
+- テキストエリア・日付・競馬場をクリア
+- 画面トップにスクロール
+- 次のデータを即貼り付け可能
+
+### **Netlify Function: save-keiba-book.mjs**
+- category対応の保存先パス生成
+- コンピ指数自動補完（keiba-data-sharedのcomputer JSONをフェッチ）
+- JRA/南関のみdispatch送信（localはスキップ）
+
+---
+
+## 🧠 **keiba-intelligence連携（特徴量・予想生成）** 🧠
+
+### **独自予想ロジック（著作権対応）**
+- 元データの印・振り分けをそのまま使わない
+- adjustPrediction.jsの独自ロジックで役割を再割り当て
+  - `customScore = 印1×4 + 印2×3 + 印3×2 + 印4×1`
+  - 印1◎の馬を本命 or 対抗に固定
+  - 連下3頭制限
+
+### **印の並び順**
+- テキスト形式: 配列末尾 = 本紙（最重要）
+- `.reverse()` して印1〜印Nに変換
+- 印1が最重視される（customScoreの重み×4）
+
+### **特徴量（featureScores.js）**
+| 特徴量 | 算出方法 |
+|---|---|
+| Speed Index | 上がり3F + 着順ボーナス |
+| Stamina Rating | ハイペース耐性 + バテ指標 |
+| Form Trend | 直近5走の着順（重み付き加重平均） |
+| Track Compatibility | 同競馬場での3着内率 |
+| Distance Fitness | 同距離帯(±200m)での好走率 |
+| Jockey Factor | 役割+PT値から間接評価 |
+
+### **期待値算出**
+- predictedOddsあり: 実オッズ × 勝率 - 1
+- predictedOddsなし: 控除率25%の理論オッズ（EV≈-25%）
+
+---
+
+**📅 最終更新日**: 2026-04-08
+**🏁 Project Phase**: Phase 1-8 完了 ✅（race-data-importer統合入力基盤・特徴量実装・地方全場対応）
 
 ---
 

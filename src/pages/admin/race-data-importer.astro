@@ -768,6 +768,7 @@ export const prerender = false;
 
       // 馬データの開始行を検出: "馬番 馬名" の次行が "父名 性齢" パターン
       const horseStarts = [];
+      let standaloneMode = false;
       for (let i = 0; i < lines.length; i++) {
         const curr = lines[i].trim();
         const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
@@ -778,12 +779,28 @@ export const prerender = false;
         }
       }
 
+      // フォールバック: 馬番が単独行のパターン（小頭数で枠番=馬番の場合）
+      if (horseStarts.length === 0) {
+        for (let i = 0; i < lines.length; i++) {
+          const curr = lines[i].trim();
+          const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
+          if (/^\d{1,2}$/.test(curr) && SEX_RE.test(next) && /\d$/.test(next)) {
+            horseStarts.push({ idx: i, bracket: null });
+          }
+        }
+        if (horseStarts.length > 0) {
+          standaloneMode = true;
+          if (DEBUG) console.log(`[TextParser] ${block.raceNumber}R: 馬番単独行パターン検出 (${horseStarts.length}頭)`);
+        }
+      }
+
       if (horseStarts.length === 0) return null;
 
       const horses = [];
       for (let hi = 0; hi < horseStarts.length; hi++) {
         const start = horseStarts[hi].idx;
-        const end = (hi + 1 < horseStarts.length) ? horseStarts[hi + 1].idx - 1 : lines.length;
+        // standaloneMode: 枠番行がないので次の馬番行まで全て含める
+        const end = (hi + 1 < horseStarts.length) ? horseStarts[hi + 1].idx - (standaloneMode ? 0 : 1) : lines.length;
         const hLines = lines.slice(start, end);
         const bracket = horseStarts[hi].bracket;
 
@@ -821,10 +838,32 @@ export const prerender = false;
       const TRAINER_RE = /^(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|美浦|栗東)\s+(.+)/;
 
       // --- 馬番・馬名（必須: 先頭行） ---
+      let number, name;
       const numNameMatch = hLines[0].trim().match(/^(\d{1,2})\s+(.+)/);
-      if (!numNameMatch) return null;
-      const number = parseInt(numNameMatch[1]);
-      const name = numNameMatch[2].trim();
+      if (numNameMatch) {
+        number = parseInt(numNameMatch[1]);
+        name = numNameMatch[2].trim();
+      } else {
+        // フォールバック: 馬番単独行（小頭数で枠番=馬番）
+        const numOnlyMatch = hLines[0].trim().match(/^(\d{1,2})$/);
+        if (!numOnlyMatch) return null;
+        number = parseInt(numOnlyMatch[1]);
+        // 馬名は父+性齢行の次行にある
+        name = '';
+        for (let i = 1; i < Math.min(hLines.length, 5); i++) {
+          if (/^.+\s+[牡牝セ騸]\d+$/.test(hLines[i].trim())) {
+            if (i + 1 < hLines.length) {
+              const candidate = hLines[i + 1].trim();
+              if (candidate && !/^\d+$/.test(candidate) && !candidate.includes('（') && !/^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]$/.test(candidate)) {
+                name = candidate;
+              }
+            }
+            break;
+          }
+        }
+        if (!name) return null;
+        if (DEBUG) console.log(`[TextParser] 馬番単独: ${number}番 → ${name}`);
+      }
 
       // --- 性齢を含む行を探す（上から10行以内） ---
       let sire = '', sexAgeRaw = '', sexAgeLine = -1;

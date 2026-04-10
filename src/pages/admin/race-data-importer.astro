@@ -160,15 +160,30 @@ export const prerender = false;
 
         document.getElementById('trackName').value = results[0].raceInfo.track || '';
 
-        // 日付自動セット: headerDate(XML/テキスト) > 既存入力 > 今日(ローカル時刻)
+        // 日付自動セット: 最優先=XML/テキスト抽出 > 8桁日付 > 既存入力 > 今日(ローカル)
+        // XML/テキストから検出した場合は既存入力を上書き
         if (results._headerDate) {
           document.getElementById('raceDate').value = results._headerDate;
-        } else if (!document.getElementById('raceDate').value) {
-          // ローカル日付を文字列で生成（UTCのtoISOStringは使わない）
-          const now = new Date();
-          const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-          document.getElementById('raceDate').value = todayStr;
+          console.log(`[Import] 日付セット(データ検出): ${results._headerDate}`);
+        } else {
+          // フォールバック: 入力テキストからファイル名風8桁日付を抽出
+          const inputText8 = document.getElementById('xmlInput').value;
+          const fn8Match = inputText8.match(/(\d{4})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
+          if (fn8Match) {
+            const fn8Date = `${fn8Match[1]}-${fn8Match[2]}-${fn8Match[3]}`;
+            document.getElementById('raceDate').value = fn8Date;
+            console.log(`[Import] 日付セット(8桁フォールバック): ${fn8Date}`);
+          } else if (!document.getElementById('raceDate').value) {
+            // 最終フォールバック: ローカル今日（UTCのtoISOStringは使わない）
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+            document.getElementById('raceDate').value = todayStr;
+            console.log(`[Import] 日付セット(今日フォールバック): ${todayStr}`);
+          }
         }
+
+        const raceDateValue = document.getElementById('raceDate').value;
+        console.log('[Import] 使用開催日:', raceDateValue);
 
         parsedData = buildJSON(results);
         renderPreview(results);
@@ -218,47 +233,82 @@ export const prerender = false;
 
     // XML全体から開催日を文字列ベースで抽出（Dateオブジェクト不使用）
     function detectDateFromXml(xmlText) {
-      // 全テキスト要素を抽出して日付パターンを探す
-      const textRe = /<text[^>]*>([\s\S]*?)<\/text>/g;
-      let m;
-      const texts = [];
-      while ((m = textRe.exec(xmlText)) !== null) {
-        texts.push(m[1].replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&'));
-      }
+      // 先頭ページのテキスト要素をtop順で抽出（日付はページ上部にある）
+      const firstPageMatch = xmlText.match(/<page\s+number="1"[^>]*>([\s\S]*?)<\/page>/);
+      const searchXml = firstPageMatch ? firstPageMatch[1] : xmlText;
 
-      // パターン1: 「2026年4月11日」「2026年04月11日」
-      for (const t of texts) {
+      const elRe = /<text\s+top="(-?\d+)"\s+left="(\d+)"\s+width="(\d+)"\s+height="(\d+)"[^>]*>([\s\S]*?)<\/text>/g;
+      let m;
+      const topEls = [];
+      while ((m = elRe.exec(searchXml)) !== null) {
+        const top = +m[1];
+        if (top <= 150) {
+          topEls.push({
+            top, left: +m[2], width: +m[3], height: +m[4],
+            text: m[5].replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&')
+          });
+        }
+      }
+      topEls.sort((a, b) => a.top - b.top || a.left - b.left);
+
+      // デバッグ: 上部テキスト要素を全出力
+      console.log('[Import] XML日付候補(上部テキスト):', topEls.map(e => `[top=${e.top},left=${e.left}] "${e.text}"`).join(' / '));
+
+      // PDF由来XMLではテキストが1文字ずつ分割されることがある
+      // 近接する要素を結合してからパターンマッチ
+      const merged = mergeNearbyTexts(topEls);
+      console.log('[Import] XML日付候補(結合後):', merged.map(e => `[top=${e.top}] "${e.text}"`).join(' / '));
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      for (const t of merged.map(e => e.text)) {
+        // パターン1: 「2026年4月11日」「2026年04月11日」
         const ym = t.match(/(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
         if (ym) return `${ym[1]}-${String(ym[2]).padStart(2,'0')}-${String(ym[3]).padStart(2,'0')}`;
-      }
 
-      // パターン2: 「4月11日」「04月11日」（年なし→現在年を補完）
-      for (const t of texts) {
+        // パターン2: 「4月11日」「04月11日」（年なし）
         const md = t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
-        if (md) {
-          const now = new Date();
-          const y = now.getFullYear();
-          return `${y}-${String(md[1]).padStart(2,'0')}-${String(md[2]).padStart(2,'0')}`;
-        }
-      }
+        if (md) return `${currentYear}-${String(md[1]).padStart(2,'0')}-${String(md[2]).padStart(2,'0')}`;
 
-      // パターン3: 「2026/4/11」「2026-04-11」
-      for (const t of texts) {
+        // パターン3: 「2026/4/11」「2026-04-11」
         const full = t.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
         if (full) return `${full[1]}-${String(full[2]).padStart(2,'0')}-${String(full[3]).padStart(2,'0')}`;
+
+        // パターン4: 「4/11」「04/11」（月/日のみ、文字列中でもOK）
+        const sd = t.match(/(\d{1,2})\/(\d{1,2})/);
+        if (sd) return `${currentYear}-${String(sd[1]).padStart(2,'0')}-${String(sd[2]).padStart(2,'0')}`;
       }
 
-      // パターン4: 「4/11」（月/日のみ）
-      for (const t of texts) {
-        const sd = t.match(/^(\d{1,2})\/(\d{1,2})$/);
-        if (sd) {
-          const now = new Date();
-          const y = now.getFullYear();
-          return `${y}-${String(sd[1]).padStart(2,'0')}-${String(sd[2]).padStart(2,'0')}`;
-        }
+      // パターン5: 入力テキスト全体からファイル名風8桁日付を検出
+      const fnMatch = xmlText.match(/(\d{4})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
+      if (fnMatch) {
+        const candidate = `${fnMatch[1]}-${fnMatch[2]}-${fnMatch[3]}`;
+        console.log(`[Import] XML日付: ファイル名風8桁から検出: ${candidate}`);
+        return candidate;
       }
 
       return null;
+    }
+
+    // 近接テキスト要素を結合（PDF由来XMLの1文字分割対策）
+    function mergeNearbyTexts(els) {
+      if (els.length === 0) return [];
+      const result = [];
+      let current = { top: els[0].top, text: els[0].text };
+
+      for (let i = 1; i < els.length; i++) {
+        const el = els[i];
+        // 同一行（top差5以内）なら結合
+        if (Math.abs(el.top - current.top) <= 5) {
+          current.text += el.text;
+        } else {
+          result.push(current);
+          current = { top: el.top, text: el.text };
+        }
+      }
+      result.push(current);
+      return result;
     }
 
     function parseSinglePage(pageXml, raceNumber) {
@@ -374,15 +424,24 @@ export const prerender = false;
       const trackEl = elements.find(e => e.height >= 20 && e.height <= 30 && e.top >= 0 && e.top <= 15 && e.text.trim());
       if (trackEl) track = trackEl.text.trim();
 
-      // 距離検出: ㍍、m、メートル、または「ダ/芝+数字」パターンに対応
-      const distEl = elements.find(e => e.text.includes('㍍'));
+      // 距離検出: レース条件欄（ページ上部 top<=120）に限定し、説明文を除外
+      // 除外ワード: 標高・直線・中間・海抜など距離でない「㍍」表記
+      const DIST_EXCLUDE_RE = /標高|直線|中間|海抜|地上|走路/;
+
+      // 優先1: ページ上部で「㍍」を含み、除外ワードを含まないもの
+      const distEl = elements.find(e =>
+        e.top >= 0 && e.top <= 120 &&
+        e.text.includes('㍍') &&
+        !DIST_EXCLUDE_RE.test(e.text)
+      );
       if (distEl) {
         distance = distEl.text.trim();
       } else {
-        // フォールバック1: 「1200m」「1600ｍ」「2000メートル」等
+        // フォールバック1: ページ上部の「1200m」「1600ｍ」等
         const distElAlt = elements.find(e =>
           e.top >= 0 && e.top <= 120 &&
-          /\d{3,5}\s*[mｍ㍍]|メートル/.test(e.text)
+          /\d{3,5}\s*[mｍ㍍]/.test(e.text) &&
+          !DIST_EXCLUDE_RE.test(e.text)
         );
         if (distElAlt) {
           distance = distElAlt.text.trim();
@@ -395,19 +454,19 @@ export const prerender = false;
           if (distElSurface) {
             distance = normPUA(distElSurface.text).trim();
           } else {
-            // フォールバック3: ページ上部の数字4桁単独（距離らしき値）
-            const distElNum = elements.find(e =>
-              e.top >= 0 && e.top <= 80 &&
-              e.height >= 12 &&
-              /^\d{3,5}$/.test(e.text.trim())
+            // フォールバック3: ページ全体から「㍍」を含み除外ワードなしの最初の要素
+            const distElWide = elements.find(e =>
+              e.text.includes('㍍') &&
+              !DIST_EXCLUDE_RE.test(e.text) &&
+              /\d{3,5}/.test(e.text)
             );
-            if (distElNum) {
-              distance = distElNum.text.trim() + 'm';
+            if (distElWide) {
+              distance = distElWide.text.trim();
             }
           }
         }
       }
-      if (DEBUG) console.log(`[Import] レースdistance: "${distance}" (検出元: ${distEl ? '㍍' : distance ? 'fallback' : 'なし'})`);
+      console.log(`[Import] distance抽出: "${distance}" (元テキスト: "${distEl ? distEl.text : '㍍要素なし'}")`);
 
       const classEls = elements.filter(e => e.height >= 30 && e.height <= 40 && e.width === 0 && e.text.trim());
       classEls.sort((a, b) => a.top - b.top);
@@ -1321,6 +1380,7 @@ export const prerender = false;
       const cat = category || 'jra';
       const compiUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${cat}/predictions/computer/${year}/${month}/${date}-${trackCode}.json`;
 
+      console.log(`[Enrich] 使用日付: ${date}, trackCode: ${trackCode}`);
       console.log('[Enrich] コンピ指数取得:', compiUrl);
 
       try {

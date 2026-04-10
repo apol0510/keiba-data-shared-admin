@@ -21,7 +21,7 @@ export const JRA_VENUE_CODE_MAP: Record<string, string> = {
   '阪神': 'HAN',
   '中京': 'CHU',
   '新潟': 'NII',
-  '福島': 'FKU',
+  '福島': 'FKS',
   '小倉': 'KOK',
   '札幌': 'SAP',
   '函館': 'HKD'

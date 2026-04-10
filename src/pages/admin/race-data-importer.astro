@@ -556,18 +556,50 @@ export const prerender = false;
 
       // 印
       const MARK_CHARS = /[◎○▲△☆★×✕注穴①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱]/;
+      const PUA_MARK_MAP = {};
+      // PUA文字→印マッピングを動的構築（PDF内フォント依存の印文字を救済）
       const marks = [];
-      const markEls = elements.filter(e =>
-        e.width <= 5 &&
+
+      // 印領域の全要素を取得（デバッグ + PUA検出用）
+      const markRegionEls = elements.filter(e =>
         e.top > labels.computerIndexTop + 1 &&
         e.top < labels.weightJockeyTop - 3 &&
         inCol(e) &&
-        MARK_CHARS.test(e.text)
+        e.text.trim()
       );
+
+      if (horseNum === 1) {
+        console.log(`[Import] 印領域 (top ${labels.computerIndexTop}〜${labels.weightJockeyTop}, predictors: ${labels.predictors.length}名):`);
+        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
+      }
+
+      // 印フィルタ: width制限を緩和（<=5 → <=12）+ PUA文字も候補に含める
+      const markEls = markRegionEls.filter(e => {
+        if (e.width > 12) return false;
+        const txt = e.text.trim();
+        // 通常の印文字
+        if (MARK_CHARS.test(txt)) return true;
+        // PUA文字（フォント埋め込みの印記号）
+        if (/[\uE000-\uF8FF]/.test(txt)) return true;
+        // 「…」は印なし表記
+        if (txt === '…' || txt === '‥') return true;
+        return false;
+      });
+
       const markRows = groupByTop(markEls, 4);
       for (const row of markRows) {
-        const combined = row.map(e => e.text.trim()).filter(t => t).join('');
-        if (combined) marks.push(combined);
+        // PUA文字は除去して通常の印文字のみ残す
+        const combined = row.map(e => {
+          let t = e.text.trim();
+          // PUA文字を除去（印でないエンコード文字）
+          t = t.replace(/[\uE000-\uF8FF]/g, '');
+          return t;
+        }).filter(t => t && t !== '…' && t !== '‥').join('');
+        if (combined && MARK_CHARS.test(combined)) marks.push(combined);
+      }
+
+      if (horseNum <= 3) {
+        console.log(`[Import] #${horseNum} ${name}: marks=[${marks.join(',')}] (markEls=${markEls.length}, markRows=${markRows.length})`);
       }
 
       // 単予想オッズ

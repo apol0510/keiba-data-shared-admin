@@ -212,6 +212,7 @@ export const prerender = false;
       if (!labels) return null;
 
       const raceInfo = extractRaceInfo(elements, labels);
+      console.log(`[Import] ${raceNumber}R: distance="${raceInfo.distance || '未取得'}", track="${raceInfo.track || '未取得'}", class="${raceInfo.raceClass || '未取得'}"`);
 
       const colBases = findHorseColumns(elements, labels);
       if (colBases.length === 0) return null;
@@ -316,8 +317,40 @@ export const prerender = false;
       const trackEl = elements.find(e => e.height >= 20 && e.height <= 30 && e.top >= 0 && e.top <= 15 && e.text.trim());
       if (trackEl) track = trackEl.text.trim();
 
+      // 距離検出: ㍍、m、メートル、または「ダ/芝+数字」パターンに対応
       const distEl = elements.find(e => e.text.includes('㍍'));
-      if (distEl) distance = distEl.text.trim();
+      if (distEl) {
+        distance = distEl.text.trim();
+      } else {
+        // フォールバック1: 「1200m」「1600ｍ」「2000メートル」等
+        const distElAlt = elements.find(e =>
+          e.top >= 0 && e.top <= 120 &&
+          /\d{3,5}\s*[mｍ㍍]|メートル/.test(e.text)
+        );
+        if (distElAlt) {
+          distance = distElAlt.text.trim();
+        } else {
+          // フォールバック2: 「ダート1400」「芝2000」「ダ1200」等
+          const distElSurface = elements.find(e =>
+            e.top >= 0 && e.top <= 120 &&
+            /(?:ダート?|芝|障害?)\s*\d{3,5}/.test(normPUA(e.text))
+          );
+          if (distElSurface) {
+            distance = normPUA(distElSurface.text).trim();
+          } else {
+            // フォールバック3: ページ上部の数字4桁単独（距離らしき値）
+            const distElNum = elements.find(e =>
+              e.top >= 0 && e.top <= 80 &&
+              e.height >= 12 &&
+              /^\d{3,5}$/.test(e.text.trim())
+            );
+            if (distElNum) {
+              distance = distElNum.text.trim() + 'm';
+            }
+          }
+        }
+      }
+      if (DEBUG) console.log(`[Import] レースdistance: "${distance}" (検出元: ${distEl ? '㍍' : distance ? 'fallback' : 'なし'})`);
 
       const classEls = elements.filter(e => e.height >= 30 && e.height <= 40 && e.width === 0 && e.text.trim());
       classEls.sort((a, b) => a.top - b.top);
@@ -441,10 +474,20 @@ export const prerender = false;
       }
 
       // 近走成績
-      const pastRaces = extractPastRaces(elements, colLeft, colRight, labels);
+      let pastRaces = [];
+      try {
+        pastRaces = extractPastRaces(elements, colLeft, colRight, labels);
+      } catch (e) {
+        console.warn(`[Import] #${horseNum} 近走抽出エラー:`, e.message);
+      }
 
       // 今回調教
-      const training = extractTraining(elements, colLeft, colRight, labels);
+      let training = null;
+      try {
+        training = extractTraining(elements, colLeft, colRight, labels);
+      } catch (e) {
+        console.warn(`[Import] #${horseNum} 調教抽出エラー:`, e.message);
+      }
 
       if (DEBUG && horseNum === 1) {
         console.log(`[Import] #${horseNum} ${name}: pastRaces=${pastRaces.length}件`);
@@ -563,6 +606,20 @@ export const prerender = false;
           e.top > vTop + 15 && e.top < vTop + 25 && e.width >= 10 && e.width <= 20
         );
         const cond = condEl ? condEl.text.trim() : '';
+
+        // 距離抽出: 近走ブロック内から「ダ1400」「芝2000」等のパターンを検出
+        let distance = null;
+        const DIST_RE = /[ダ芝障](\d{3,5})/;
+        for (const e of blockEls) {
+          if (e.top > vTop + 5 && e.top < vTop + 30) {
+            const dm = normPUA(e.text).match(DIST_RE);
+            if (dm) {
+              distance = normPUA(e.text).match(/[ダ芝障]\d{3,5}/)[0];
+              break;
+            }
+          }
+        }
+        if (!distance && DEBUG) console.warn(`[Import] 近走distance未取得 (vTop=${vTop}, texts: ${blockEls.filter(e => e.top > vTop + 5 && e.top < vTop + 30).map(e => e.text.trim()).join('|')})`);
 
         const courseEl = blockEls.find(e =>
           e.top > vTop + 15 && e.top < vTop + 25 && e.left > colLeft + 10 && /[A-ZＡ-Ｚ坂芝ダ]/.test(e.text)

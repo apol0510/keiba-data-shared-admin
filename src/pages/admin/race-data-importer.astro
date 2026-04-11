@@ -557,10 +557,16 @@ export const prerender = false;
       // 印
       const MARK_CHARS = /[◎○▲△☆★×✕注穴①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱]/;
       const MARK_STD = /[◎○▲△☆★×✕注穴]/;
-      // PUA文字→印マッピング（JRA競馬新聞PDF由来のフォント埋め込み印記号）
+      // ========== PUA文字→印マッピング表 ==========
+      // JRA競馬新聞PDF由来のフォント埋め込み印記号
+      // 実ログ（2026-04-11福島12R）から頻出PUAを収集し、
+      // 出現頻度・文脈から印記号を推定:
+      //   EC9E: 出現頻度 低（1レースあたり1-3回/馬）→ 最高評価
+      //   EC9D: 出現頻度 高（1レースあたり3-8回/馬）→ 高評価
+      // ☆(U+2606)はPUAではなく直接Unicode → MARK_STDで処理
       const PUA_MARK_MAP = {
-        '\uEC9D': '△',  // 一般推奨マーク（出現頻度: 高 → 低スコア印）
-        '\uEC9E': '○',  // 強推奨マーク（出現頻度: 低 → 高スコア印）
+        '\uEC9E': '◎',  // 強推奨（出現頻度: 低 → ◎本命級）
+        '\uEC9D': '○',  // 推奨（出現頻度: 高 → ○対抗級）
       };
       // 罫線・装飾・ランキング用PUA（印ではない）
       const isBlankDecoPUA = (ch) => {
@@ -569,6 +575,7 @@ export const prerender = false;
                (cp >= 0xED00 && cp <= 0xEDFF) || cp === 0xFF22;
       };
       const marks = [];
+      let ranking = 0; // 本紙順位（丸数字 ①=1, ②=2, ...）
 
       // 印領域の全要素を取得（デバッグ + PUA検出用）
       const markRegionEls = elements.filter(e =>
@@ -580,7 +587,7 @@ export const prerender = false;
 
       if (horseNum === 1) {
         console.log(`[Import] 印領域 (top ${labels.computerIndexTop}〜${labels.weightJockeyTop}, predictors: ${labels.predictors.length}名):`);
-        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height},f=${e.font}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
+        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
       }
 
       // 印フィルタ: width制限を緩和（<=5 → <=12）+ PUA文字も候補に含める
@@ -595,7 +602,6 @@ export const prerender = false;
 
       const markRows = groupByTop(markEls, 4);
       for (const row of markRows) {
-        // left順ソートでサブカラム構造を活用（左:罫線, 中:印, 右:装飾/番号）
         row.sort((a, b) => a.left - b.left);
 
         let markFound = '';
@@ -608,36 +614,43 @@ export const prerender = false;
           // 罫線・装飾PUAはスキップ
           if (isBlankDecoPUA(firstChar)) continue;
 
-          // PUAマッピング適用（EC9D→△, EC9E→○ 等）
+          // PUAマッピング適用（EC9E→◎, EC9D→○）
           if (PUA_MARK_MAP[firstChar]) {
             markFound = PUA_MARK_MAP[firstChar];
             break;
           }
 
-          // 通常の印文字（◎○▲△☆★× 等、丸数字除く）
+          // 通常の印文字（◎○▲△☆★× 等）
           const stdMatch = txt.match(MARK_STD);
           if (stdMatch) {
             markFound = stdMatch[0];
             break;
           }
 
-          // 未知のPUA文字 → 印の可能性、△として救済
-          if (/[\uE000-\uF8FF]/.test(firstChar)) {
-            markFound = '△';
-            if (horseNum === 1) {
-              console.log(`[Import] 未知PUA印検出: U+${firstChar.charCodeAt(0).toString(16).toUpperCase()} → △ (font=${e.font})`);
-            }
-            break;
+          // 丸数字 → 本紙順位として記録（印スコアには含めない）
+          const circledMatch = txt.match(/[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱]/);
+          if (circledMatch) {
+            ranking = CIRCLED_NUMS.indexOf(circledMatch[0]) + 1;
+            continue;
           }
 
-          // 丸数字は本紙ランキング（スコア0）→ 印としては不採用
+          // 未知のPUA文字 → 無視（スコア汚染防止）
+          if (/[\uE000-\uF8FF]/.test(firstChar)) {
+            if (horseNum === 1) {
+              console.log(`[Import] 未知PUA無視: U+${firstChar.charCodeAt(0).toString(16).toUpperCase()} (font=${e.font})`);
+            }
+            continue;
+          }
         }
 
         if (markFound) marks.push(markFound);
       }
 
       if (horseNum <= 3) {
-        console.log(`[Import] #${horseNum} ${name}: marks=[${marks.join(',')}] (markEls=${markEls.length}, markRows=${markRows.length})`);
+        const markCounts = {};
+        marks.forEach(m => { markCounts[m] = (markCounts[m] || 0) + 1; });
+        const markSummary = Object.entries(markCounts).map(([k,v]) => `${k}×${v}`).join(' ');
+        console.log(`[Import] #${horseNum} ${name}: marks=[${marks.join(',')}] 内訳: ${markSummary || 'なし'} 順位:${ranking || '-'} (rows=${markRows.length})`);
       }
 
       // 単予想オッズ
@@ -682,7 +695,8 @@ export const prerender = false;
       return {
         number: horseNum,
         name, sire, sexAge: sexAgeClean, weight, jockey, trainer,
-        computerIndex, marks, odds, comment, pastRaces, training
+        computerIndex, marks, ranking, predictorCount: labels.predictors.length,
+        odds, comment, pastRaces, training
       };
     }
 
@@ -1282,28 +1296,58 @@ export const prerender = false;
 
       return {
         number, name, sire, sexAge: sexAgeRaw, weight, jockey,
-        trainer, computerIndex: computerIndex || '', marks,
+        trainer, computerIndex: computerIndex || '', marks, ranking: 0, predictorCount: 0,
         odds: '', comment: '', pastRaces, training: null
       };
     }
 
     // ========== 印スコア計算・振り分け ==========
     const MARK_SCORES = { '◎': 5, '○': 4, '▲': 3, '☆': 2, '★': 2, '穴': 2, '△': 1, '×': 1 };
+    // 本紙順位ボーナス（①=5, ②=4, ③=3, ④=2, ⑤=1, ⑥以降=0）
+    const RANKING_BONUS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
+    // 予想者数正規化の基準値
+    const BASE_PREDICTORS = 5;
 
-    function calcTotalScore(marks) {
-      let score = 0;
+    function calcTotalScore(horse) {
+      const marks = horse.marks || [];
+      const ranking = horse.ranking || 0;
+      const pc = horse.predictorCount || 0;
+
+      // 印スコア合計
+      let markScore = 0;
       for (const m of marks) {
         for (const ch of m) {
-          if (MARK_SCORES[ch]) score += MARK_SCORES[ch];
+          if (MARK_SCORES[ch]) markScore += MARK_SCORES[ch];
         }
       }
-      return score;
+
+      // 予想者数による正規化（基準5名 → 3名なら×1.67, 17名なら×0.29）
+      const normalized = pc >= 2 ? Math.round(markScore * BASE_PREDICTORS / pc) : markScore;
+
+      // 本紙順位ボーナス
+      const rankBonus = RANKING_BONUS[ranking] || 0;
+
+      return normalized + rankBonus;
+    }
+
+    // デバッグ用: スコア内訳
+    function scoreBreakdown(horse) {
+      const marks = horse.marks || [];
+      const ranking = horse.ranking || 0;
+      const pc = horse.predictorCount || 0;
+      let markScore = 0;
+      for (const m of marks) {
+        for (const ch of m) { if (MARK_SCORES[ch]) markScore += MARK_SCORES[ch]; }
+      }
+      const normalized = pc >= 2 ? Math.round(markScore * BASE_PREDICTORS / pc) : markScore;
+      const rankBonus = RANKING_BONUS[ranking] || 0;
+      return { markScore, normalized, rankBonus, total: normalized + rankBonus, pc, ranking };
     }
 
     function assignRoles(horses) {
       const scored = horses.map(h => ({
         number: h.number,
-        score: calcTotalScore(h.marks)
+        score: calcTotalScore(h)
       })).sort((a, b) => b.score - a.score);
 
       const assignments = { main: null, sub: null, hole: null, connectTop: null, connect: [], reserve: [], none: [] };
@@ -1377,6 +1421,15 @@ export const prerender = false;
             }
           }
 
+          // スコアデバッグログ（レース単位で上位5頭）
+          const top5 = [...scored].slice(0, 5);
+          const pc = r.horses[0]?.predictorCount || '?';
+          console.log(`[Score] ${r.raceNumber}R (${pc}名予想): ${top5.map(s => {
+            const h = r.horses.find(x => x.number === s.number);
+            const bd = h ? scoreBreakdown(h) : {};
+            return `#${s.number}${h?.name || ''}=${s.score}pt(印${bd.markScore || 0}→正規${bd.normalized || 0}+順位${bd.rankBonus || 0})`;
+          }).join(', ')}`);
+
           return {
             raceNumber: r.raceNumber,
             raceClass: r.raceInfo.raceClass || null,
@@ -1384,6 +1437,7 @@ export const prerender = false;
             distance: r.raceInfo.distance || null,
             startTime: r.raceInfo.startTime || null,
             horseCount: r.horses.length,
+            predictorCount: r.horses[0]?.predictorCount || null,
             assignments,
             horses: [...r.horses].sort((a, b) => a.number - b.number).map(h => {
               const sc = scored.find(s => s.number === h.number);
@@ -1401,6 +1455,7 @@ export const prerender = false;
                 trainer: normName(h.trainer),
                 computerIndex: h.computerIndex || null,
                 marks: h.marks,
+                ranking: h.ranking || null,
                 totalScore: sc ? sc.score : 0,
                 assignment: getAssignment(h.number, assignments),
                 predictedOdds: h.odds ? parseFloat(h.odds) : null,
@@ -1529,7 +1584,8 @@ export const prerender = false;
         // スコア計算
         const scored = sortedHorses.map(h => ({
           ...h,
-          _ts: calcTotalScore(h.marks),
+          _ts: calcTotalScore(h),
+          _bd: scoreBreakdown(h),
           _assign: jsonRace ? getAssignment(h.number, jsonRace.assignments) : '無'
         }));
 
@@ -1587,6 +1643,8 @@ export const prerender = false;
           const badgeCls = h._assign === '本命' ? 'badge-honmei' : h._assign === '対抗' ? 'badge-taikou' : h._assign === '単穴' ? 'badge-tanana' : (h._assign.includes('連下') ? 'badge-renka' : (h._assign === '補欠' ? 'badge-hoseki' : 'badge-none'));
           const borderCls = h._assign === '本命' ? 'hcard-honmei' : h._assign === '対抗' ? 'hcard-taikou' : h._assign === '単穴' ? 'hcard-tanana' : (h._assign.includes('連下') ? 'hcard-renka' : '');
           const marksStr = h.marks.length > 0 ? h.marks.map(m => '<span class="hcard-mark">' + esc(m) + '</span>').join('') : '<span style="color:#64748b">-</span>';
+          const rankStr = h.ranking ? '<span style="color:#fbbf24;font-weight:600;margin-left:4px">' + CIRCLED_NUMS[h.ranking - 1] + '</span>' : '';
+          const bdStr = h._bd ? `<span style="color:#64748b;font-size:0.7rem;margin-left:4px">(印${h._bd.normalized}+順${h._bd.rankBonus})</span>` : '';
           const pastStr = (h.pastRaces && h.pastRaces.length > 0)
             ? h.pastRaces.slice(0, 3).map(r => '<span class="past-race">' + esc(r.finish || '?') + '着 ' + esc(r.venue) + ' ' + esc(r.time) + '</span>').join('')
             : '';
@@ -1596,7 +1654,7 @@ export const prerender = false;
             + '<span class="hcard-number">' + h.number + '</span>'
             + '<span class="hcard-name">' + esc(h.name) + '</span>'
             + '<span class="assign-badge ' + badgeCls + '">' + esc(h._assign) + '</span>'
-            + '<span class="hcard-score">' + h._ts + '点</span>'
+            + '<span class="hcard-score">' + h._ts + '点' + bdStr + '</span>'
             + '</div>'
             + '<div class="hcard-details">'
             + '<span>' + esc(h.sexAge) + '</span>'
@@ -1605,7 +1663,7 @@ export const prerender = false;
             + (trainerStr ? '<span>🏠' + esc(trainerStr) + '</span>' : '')
             + (h.computerIndex ? '<span>📊' + esc(h.computerIndex) + '</span>' : '')
             + '</div>'
-            + '<div class="hcard-marks">' + marksStr + '</div>'
+            + '<div class="hcard-marks">' + marksStr + rankStr + '</div>'
             + (pastStr ? '<div class="hcard-past">' + pastStr + '</div>' : '')
             + '</div>';
         }

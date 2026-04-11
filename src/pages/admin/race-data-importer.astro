@@ -1663,6 +1663,11 @@ export const prerender = false;
           const compiRace = compiJson.races.find(r => r.raceNumber === race.raceNumber);
           if (!compiRace || !compiRace.horses) continue;
 
+          // 発走時刻の補完（XMLから取れなかった場合）
+          if (!race.startTime && compiRace.startTime) {
+            race.startTime = compiRace.startTime;
+          }
+
           for (const horse of race.horses) {
             const compiHorse = compiRace.horses.find(ch => ch.number === horse.number);
             if (!compiHorse || !compiHorse.computerIndex) continue;
@@ -1731,7 +1736,7 @@ export const prerender = false;
         // ヘッダー
         const header = document.createElement('div');
         header.className = 'race-accordion-header';
-        const st = race.raceInfo.startTime || '';
+        const st = race.raceInfo.startTime || (jsonRace && jsonRace.startTime) || '';
         header.innerHTML = `<span>▸ ${race.raceNumber}R ${esc(race.raceInfo.raceClass)} ${esc(race.raceInfo.distance)} ${st ? st + '発走' : ''} — ${race.horses.length}頭</span><span style="font-size:0.8rem;color:#94a3b8">✅ 成功</span>`;
         header.onclick = () => {
           const body = acc.querySelector('.race-accordion-body');

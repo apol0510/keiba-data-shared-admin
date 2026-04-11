@@ -587,7 +587,19 @@ export const prerender = false;
 
       if (horseNum === 1) {
         console.log(`[Import] 印領域 (top ${labels.computerIndexTop}〜${labels.weightJockeyTop}, predictors: ${labels.predictors.length}名):`);
-        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
+        // PUA文字の出現頻度カウント（◎候補の低頻度PUA検出用）
+        const puaFreq = {};
+        for (const e of markRegionEls) {
+          for (const ch of e.text.trim()) {
+            const cp = ch.charCodeAt(0);
+            if (cp >= 0xE000 && cp <= 0xF8FF) {
+              const hex = 'U+' + cp.toString(16).toUpperCase().padStart(4, '0');
+              puaFreq[hex] = (puaFreq[hex] || 0) + 1;
+            }
+          }
+        }
+        const puaSummary = Object.entries(puaFreq).sort((a,b) => b[1] - a[1]).map(([k,v]) => `${k}:${v}`).join(' ');
+        console.log(`[Import] #1 PUA頻度: ${puaSummary}`);
       }
 
       // 印フィルタ: width制限を緩和（<=5 → <=12）+ PUA文字も候補に含める
@@ -1302,7 +1314,7 @@ export const prerender = false;
     }
 
     // ========== 印スコア計算・振り分け ==========
-    const MARK_SCORES = { '◎': 5, '○': 4, '▲': 3, '☆': 2, '★': 2, '穴': 2, '△': 1, '×': 1 };
+    const MARK_SCORES = { '◎': 5, '○': 4, '▲': 3, '☆': 3, '★': 2, '穴': 2, '△': 1, '×': 1 };
     // 本紙順位ボーナス（①=5, ②=4, ③=3, ④=2, ⑤=1, ⑥以降=0）
     const RANKING_BONUS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     // 予想者数正規化の基準値
@@ -1321,8 +1333,8 @@ export const prerender = false;
         }
       }
 
-      // 予想者数による正規化（基準5名 → 3名なら×1.67, 17名なら×0.29）
-      const normalized = pc >= 2 ? Math.round(markScore * BASE_PREDICTORS / pc) : markScore;
+      // 予想者数による正規化（sqrt緩和: 3名→×1.29, 9名→×0.75, 17名→×0.54）
+      const normalized = pc >= 2 ? Math.round(markScore * Math.sqrt(BASE_PREDICTORS / pc)) : markScore;
 
       // 本紙順位ボーナス
       const rankBonus = RANKING_BONUS[ranking] || 0;
@@ -1339,12 +1351,30 @@ export const prerender = false;
       for (const m of marks) {
         for (const ch of m) { if (MARK_SCORES[ch]) markScore += MARK_SCORES[ch]; }
       }
-      const normalized = pc >= 2 ? Math.round(markScore * BASE_PREDICTORS / pc) : markScore;
+      const normalized = pc >= 2 ? Math.round(markScore * Math.sqrt(BASE_PREDICTORS / pc)) : markScore;
       const rankBonus = RANKING_BONUS[ranking] || 0;
       return { markScore, normalized, rankBonus, total: normalized + rankBonus, pc, ranking };
     }
 
+    // ▲自動生成: ◎なし + ○が複数ある馬 → 先頭の○を▲に昇格
+    function autoPromoteToTriangle(horses) {
+      for (const h of horses) {
+        const marks = h.marks;
+        if (!marks || marks.length === 0) continue;
+        const hasHonmei = marks.includes('◎');
+        if (hasHonmei) continue;
+        const maruCount = marks.filter(m => m === '○').length;
+        if (maruCount >= 2) {
+          const idx = marks.indexOf('○');
+          if (idx >= 0) marks[idx] = '▲';
+        }
+      }
+    }
+
     function assignRoles(horses) {
+      // ▲自動生成を適用
+      autoPromoteToTriangle(horses);
+
       const scored = horses.map(h => ({
         number: h.number,
         score: calcTotalScore(h)
@@ -1421,13 +1451,24 @@ export const prerender = false;
             }
           }
 
+          // 印分布ログ（◎/○/▲/☆/△の出現数）
+          const markDist = { '◎': 0, '○': 0, '▲': 0, '☆': 0, '△': 0 };
+          for (const h of r.horses) {
+            for (const m of (h.marks || [])) {
+              if (markDist[m] !== undefined) markDist[m]++;
+            }
+          }
+          const distStr = Object.entries(markDist).map(([k,v]) => `${k}${v}`).join(' ');
+          const markedCount = r.horses.filter(h => (h.marks || []).length > 0).length;
+
           // スコアデバッグログ（レース単位で上位5頭）
           const top5 = [...scored].slice(0, 5);
           const pc = r.horses[0]?.predictorCount || '?';
-          console.log(`[Score] ${r.raceNumber}R (${pc}名予想): ${top5.map(s => {
+          console.log(`[Score] ${r.raceNumber}R (${pc}名予想, 印付${markedCount}/${r.horses.length}頭) 分布: ${distStr}`);
+          console.log(`[Score] ${r.raceNumber}R 上位: ${top5.map(s => {
             const h = r.horses.find(x => x.number === s.number);
             const bd = h ? scoreBreakdown(h) : {};
-            return `#${s.number}${h?.name || ''}=${s.score}pt(印${bd.markScore || 0}→正規${bd.normalized || 0}+順位${bd.rankBonus || 0})`;
+            return `#${s.number}${h?.name || ''}=${s.score}pt(印${bd.markScore || 0}→正規${bd.normalized || 0}+順${bd.rankBonus || 0})`;
           }).join(', ')}`);
 
           return {

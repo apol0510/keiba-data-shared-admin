@@ -482,7 +482,48 @@ export const prerender = false;
         conditions = condText.map(e => e.text.trim()).join('');
       }
 
-      return { track, distance, raceClass, conditions };
+      // 発走時刻: ページ上部〜中部から「HH:MM」パターンを検索
+      let startTime = null;
+      // 優先1: 「発走」テキストの近くにある時刻
+      const startEl = elements.find(e =>
+        e.top >= 0 && e.top <= 500 && /発走/.test(e.text)
+      );
+      if (startEl) {
+        const tm = startEl.text.match(/(\d{1,2}:\d{2})/);
+        if (tm) startTime = tm[1];
+        if (!startTime) {
+          // 「発走」と同じtop付近にある時刻要素を探す
+          const nearTime = elements.find(e =>
+            Math.abs(e.top - startEl.top) <= 5 && /^\d{1,2}:\d{2}$/.test(e.text.trim())
+          );
+          if (nearTime) startTime = nearTime.text.trim();
+        }
+      }
+      // 優先2: ページ上部（top<=50）の「HH:MM」パターン（PUA除去後）
+      if (!startTime) {
+        for (const e of elements) {
+          if (e.top < 0 || e.top > 50) continue;
+          const cleaned = normPUA(e.text);
+          const tm = cleaned.match(/(\d{1,2}:\d{2})/);
+          if (tm && parseInt(tm[1]) >= 9 && parseInt(tm[1]) <= 17) {
+            startTime = tm[1];
+            break;
+          }
+        }
+      }
+      // 優先3: ページ全体から「XX時XX分」パターン
+      if (!startTime) {
+        const timeEl = elements.find(e =>
+          e.top >= 0 && e.top <= 500 &&
+          /\d{1,2}時\d{2}分/.test(normPUA(e.text))
+        );
+        if (timeEl) {
+          const tm = normPUA(timeEl.text).match(/(\d{1,2})時(\d{2})分/);
+          if (tm) startTime = `${tm[1]}:${tm[2]}`;
+        }
+      }
+
+      return { track, distance, raceClass, conditions, startTime };
     }
 
     // ========== 馬データ抽出 ==========
@@ -566,6 +607,8 @@ export const prerender = false;
       const PUA_MARK_MAP = {
         '\uEC9E': '○',  // 低頻度PUA → ○対抗級
         '\uEC9D': '△',  // 高頻度PUA → △連下級
+        '\uEC9A': '○',  // EC9Aも○（EC9Eと同等、フォント違いで出現）
+        '\uEC99': '△',  // EC99も△（EC9Dと同等、フォント違いで出現）
       };
       // 罫線・装飾・ランキング用PUA（印ではない）
       const isBlankDecoPUA = (ch) => {

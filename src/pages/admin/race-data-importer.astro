@@ -160,32 +160,31 @@ export const prerender = false;
 
         document.getElementById('trackName').value = results[0].raceInfo.track || '';
 
-        // 日付自動セット: ユーザー手動入力 > XML/テキスト抽出 > 8桁日付 > 今日(ローカル)
-        // ユーザーが事前に日付を入力していればそれを最優先（上書きしない）
+        // 日付自動セット: 既存入力 > XML検出 > 8桁日付 > コンピ指数推定 > 今日
         const existingDate = document.getElementById('raceDate').value;
+        let dateSource = '';
         if (existingDate) {
-          console.log(`[Import] 日付セット(ユーザー入力維持): ${existingDate}`);
+          dateSource = 'ユーザー入力維持';
         } else if (results._headerDate) {
           document.getElementById('raceDate').value = results._headerDate;
-          console.log(`[Import] 日付セット(データ検出): ${results._headerDate}`);
+          dateSource = 'データ検出';
         } else {
-          // フォールバック: 入力テキストからファイル名風8桁日付を抽出
           const inputText8 = document.getElementById('xmlInput').value;
           const fn8Match = inputText8.match(/(\d{4})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
           if (fn8Match) {
-            const fn8Date = `${fn8Match[1]}-${fn8Match[2]}-${fn8Match[3]}`;
-            document.getElementById('raceDate').value = fn8Date;
-            console.log(`[Import] 日付セット(8桁フォールバック): ${fn8Date}`);
+            document.getElementById('raceDate').value = `${fn8Match[1]}-${fn8Match[2]}-${fn8Match[3]}`;
+            dateSource = '8桁検出';
           } else {
-            // 最終フォールバック: ローカル今日
+            // 最終フォールバック: 今日
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
             document.getElementById('raceDate').value = todayStr;
-            console.log(`[Import] 日付セット(今日フォールバック): ${todayStr}`);
+            dateSource = '今日フォールバック';
           }
         }
 
         const raceDateValue = document.getElementById('raceDate').value;
+        console.log(`[Import] 日付セット(${dateSource}): ${raceDateValue}`);
         console.log('[Import] 使用開催日:', raceDateValue);
 
         parsedData = buildJSON(results);
@@ -194,6 +193,36 @@ export const prerender = false;
         document.getElementById('previewSection').scrollIntoView({ behavior: 'smooth' });
         const totalHorses = results.reduce((s, r) => s + r.horses.length, 0);
         console.log(`[Import] 解析完了: ${results.length}R ${totalHorses}頭`);
+
+        // 日付がフォールバックの場合、コンピ指数から正確な日付を推定
+        if (dateSource === '今日フォールバック') {
+          const track = results[0].raceInfo.track;
+          const trackCode = ALL_VENUE_CODES[track];
+          const category = JRA_VENUE_CODES[track] ? 'jra' : (NANKAN_VENUE_CODES[track] ? 'nankan' : 'local');
+          if (trackCode) {
+            // 今日〜3日後のコンピ指数を探して日付を特定
+            const now = new Date();
+            for (let d = 0; d <= 3; d++) {
+              const checkDate = new Date(now);
+              checkDate.setDate(now.getDate() + d);
+              const ds = `${checkDate.getFullYear()}-${String(checkDate.getMonth()+1).padStart(2,'0')}-${String(checkDate.getDate()).padStart(2,'0')}`;
+              const [y, m] = ds.split('-');
+              const compiUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${y}/${m}/${ds}-${trackCode}.json`;
+              try {
+                const res = await fetch(compiUrl, { method: 'HEAD' });
+                if (res.ok) {
+                  document.getElementById('raceDate').value = ds;
+                  console.log(`[Import] 日付推定(コンピ指数): ${ds} (${track}=${trackCode})`);
+                  // JSONを再構築
+                  parsedData = buildJSON(results);
+                  renderPreview(results);
+                  break;
+                }
+              } catch (e) { /* continue */ }
+            }
+          }
+        }
+
         showStatus(`✅ ${results.length}レース・${totalHorses}頭を検出`, 'success');
 
         // コンピ指数の自動補完を試行
@@ -1882,10 +1911,10 @@ export const prerender = false;
         if (!res.ok) throw new Error(result.error || result.details || res.statusText);
         console.log('[Import] 保存完了:', result.filePath);
         showStatus('🎉 保存完了: ' + result.filePath + ' — 次のデータを貼り付けできます', 'success');
-        // リセット: 次のデータを貼れる状態にする
+        // リセット: 次のデータを貼れる状態にする（日付は維持＝連続取込用）
         document.getElementById('xmlInput').value = '';
         document.getElementById('trackName').value = '';
-        document.getElementById('raceDate').value = '';
+        // raceDate は維持（同日の別会場を連続取込するため）
         document.getElementById('previewSection').style.display = 'none';
         parsedData = null;
         window.scrollTo({ top: 0, behavior: 'smooth' });

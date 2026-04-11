@@ -1321,7 +1321,7 @@ export const prerender = false;
     const RANKING_BONUS = { 1: 5, 2: 4, 3: 3, 4: 2, 5: 1 };
     // C層: コンピ指数レース内順位ボーナス
     const COMPI_RANK_BONUS = { 1: 6, 2: 5, 3: 4, 4: 3, 5: 2 };
-    const COMPI_RANK_DEFAULT = 1; // 6位以下
+    const COMPI_RANK_DEFAULT = 0; // 6位以下はボーナスなし
 
     // コンピ指数のレース内順位を計算
     function calcCompiRanks(horses) {

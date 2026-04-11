@@ -195,13 +195,14 @@ export const prerender = false;
         console.log(`[Import] 解析完了: ${results.length}R ${totalHorses}頭`);
 
         // 日付がフォールバックの場合、コンピ指数から正確な日付を推定
+        // 既にracebookが保存済みの日付はスキップし、未保存の日付を優先
         if (dateSource === '今日フォールバック') {
           const track = results[0].raceInfo.track;
           const trackCode = ALL_VENUE_CODES[track];
           const category = JRA_VENUE_CODES[track] ? 'jra' : (NANKAN_VENUE_CODES[track] ? 'nankan' : 'local');
           if (trackCode) {
-            // 今日〜3日後のコンピ指数を探して日付を特定
             const now = new Date();
+            const candidates = [];
             for (let d = 0; d <= 3; d++) {
               const checkDate = new Date(now);
               checkDate.setDate(now.getDate() + d);
@@ -210,15 +211,24 @@ export const prerender = false;
               const compiUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/predictions/computer/${y}/${m}/${ds}-${trackCode}.json`;
               try {
                 const res = await fetch(compiUrl, { method: 'HEAD' });
-                if (res.ok) {
-                  document.getElementById('raceDate').value = ds;
-                  console.log(`[Import] 日付推定(コンピ指数): ${ds} (${track}=${trackCode})`);
-                  // JSONを再構築
-                  parsedData = buildJSON(results);
-                  renderPreview(results);
-                  break;
-                }
+                if (res.ok) candidates.push(ds);
               } catch (e) { /* continue */ }
+            }
+            if (candidates.length > 0) {
+              // 未保存の日付を優先（既にracebookがある日はスキップ）
+              let bestDate = candidates[0];
+              for (const ds of candidates) {
+                const [y, m] = ds.split('-');
+                const rbUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/racebook/${y}/${m}/${ds}-${trackCode}.json`;
+                try {
+                  const rbRes = await fetch(rbUrl, { method: 'HEAD' });
+                  if (!rbRes.ok) { bestDate = ds; break; } // 未保存→この日付を使う
+                } catch (e) { bestDate = ds; break; }
+              }
+              document.getElementById('raceDate').value = bestDate;
+              console.log(`[Import] 日付推定(コンピ指数): ${bestDate} (${track}=${trackCode}, 候補: ${candidates.join(',')})`);
+              parsedData = buildJSON(results);
+              renderPreview(results);
             }
           }
         }

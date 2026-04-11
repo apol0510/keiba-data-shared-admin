@@ -556,8 +556,18 @@ export const prerender = false;
 
       // 印
       const MARK_CHARS = /[◎○▲△☆★×✕注穴①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱]/;
-      const PUA_MARK_MAP = {};
-      // PUA文字→印マッピングを動的構築（PDF内フォント依存の印文字を救済）
+      const MARK_STD = /[◎○▲△☆★×✕注穴]/;
+      // PUA文字→印マッピング（JRA競馬新聞PDF由来のフォント埋め込み印記号）
+      const PUA_MARK_MAP = {
+        '\uEC9D': '△',  // 一般推奨マーク（出現頻度: 高 → 低スコア印）
+        '\uEC9E': '○',  // 強推奨マーク（出現頻度: 低 → 高スコア印）
+      };
+      // 罫線・装飾・ランキング用PUA（印ではない）
+      const isBlankDecoPUA = (ch) => {
+        const cp = ch.charCodeAt(0);
+        return cp === 0xE412 || cp === 0xE04F ||
+               (cp >= 0xED00 && cp <= 0xEDFF) || cp === 0xFF22;
+      };
       const marks = [];
 
       // 印領域の全要素を取得（デバッグ + PUA検出用）
@@ -570,32 +580,60 @@ export const prerender = false;
 
       if (horseNum === 1) {
         console.log(`[Import] 印領域 (top ${labels.computerIndexTop}〜${labels.weightJockeyTop}, predictors: ${labels.predictors.length}名):`);
-        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
+        console.log(`[Import] #1 印領域要素: ${markRegionEls.map(e => `[top=${e.top},w=${e.width},h=${e.height},f=${e.font}] "${e.text.trim()}" (codes:${[...e.text.trim()].map(c => 'U+' + c.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0')).join(',')})`).join(' / ')}`);
       }
 
       // 印フィルタ: width制限を緩和（<=5 → <=12）+ PUA文字も候補に含める
       const markEls = markRegionEls.filter(e => {
         if (e.width > 12) return false;
         const txt = e.text.trim();
-        // 通常の印文字
         if (MARK_CHARS.test(txt)) return true;
-        // PUA文字（フォント埋め込みの印記号）
         if (/[\uE000-\uF8FF]/.test(txt)) return true;
-        // 「…」は印なし表記
         if (txt === '…' || txt === '‥') return true;
         return false;
       });
 
       const markRows = groupByTop(markEls, 4);
       for (const row of markRows) {
-        // PUA文字は除去して通常の印文字のみ残す
-        const combined = row.map(e => {
-          let t = e.text.trim();
-          // PUA文字を除去（印でないエンコード文字）
-          t = t.replace(/[\uE000-\uF8FF]/g, '');
-          return t;
-        }).filter(t => t && t !== '…' && t !== '‥').join('');
-        if (combined && MARK_CHARS.test(combined)) marks.push(combined);
+        // left順ソートでサブカラム構造を活用（左:罫線, 中:印, 右:装飾/番号）
+        row.sort((a, b) => a.left - b.left);
+
+        let markFound = '';
+        for (const e of row) {
+          const txt = e.text.trim();
+          if (!txt || txt === '…' || txt === '‥') continue;
+
+          const firstChar = txt.charAt(0);
+
+          // 罫線・装飾PUAはスキップ
+          if (isBlankDecoPUA(firstChar)) continue;
+
+          // PUAマッピング適用（EC9D→△, EC9E→○ 等）
+          if (PUA_MARK_MAP[firstChar]) {
+            markFound = PUA_MARK_MAP[firstChar];
+            break;
+          }
+
+          // 通常の印文字（◎○▲△☆★× 等、丸数字除く）
+          const stdMatch = txt.match(MARK_STD);
+          if (stdMatch) {
+            markFound = stdMatch[0];
+            break;
+          }
+
+          // 未知のPUA文字 → 印の可能性、△として救済
+          if (/[\uE000-\uF8FF]/.test(firstChar)) {
+            markFound = '△';
+            if (horseNum === 1) {
+              console.log(`[Import] 未知PUA印検出: U+${firstChar.charCodeAt(0).toString(16).toUpperCase()} → △ (font=${e.font})`);
+            }
+            break;
+          }
+
+          // 丸数字は本紙ランキング（スコア0）→ 印としては不採用
+        }
+
+        if (markFound) marks.push(markFound);
       }
 
       if (horseNum <= 3) {

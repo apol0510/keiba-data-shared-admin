@@ -160,9 +160,12 @@ export const prerender = false;
 
         document.getElementById('trackName').value = results[0].raceInfo.track || '';
 
-        // 日付自動セット: 最優先=XML/テキスト抽出 > 8桁日付 > 既存入力 > 今日(ローカル)
-        // XML/テキストから検出した場合は既存入力を上書き
-        if (results._headerDate) {
+        // 日付自動セット: ユーザー手動入力 > XML/テキスト抽出 > 8桁日付 > 今日(ローカル)
+        // ユーザーが事前に日付を入力していればそれを最優先（上書きしない）
+        const existingDate = document.getElementById('raceDate').value;
+        if (existingDate) {
+          console.log(`[Import] 日付セット(ユーザー入力維持): ${existingDate}`);
+        } else if (results._headerDate) {
           document.getElementById('raceDate').value = results._headerDate;
           console.log(`[Import] 日付セット(データ検出): ${results._headerDate}`);
         } else {
@@ -173,8 +176,8 @@ export const prerender = false;
             const fn8Date = `${fn8Match[1]}-${fn8Match[2]}-${fn8Match[3]}`;
             document.getElementById('raceDate').value = fn8Date;
             console.log(`[Import] 日付セット(8桁フォールバック): ${fn8Date}`);
-          } else if (!document.getElementById('raceDate').value) {
-            // 最終フォールバック: ローカル今日（UTCのtoISOStringは使わない）
+          } else {
+            // 最終フォールバック: ローカル今日
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
             document.getElementById('raceDate').value = todayStr;

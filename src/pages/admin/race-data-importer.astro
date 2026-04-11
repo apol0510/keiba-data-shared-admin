@@ -559,14 +559,13 @@ export const prerender = false;
       const MARK_STD = /[◎○▲△☆★×✕注穴]/;
       // ========== PUA文字→印マッピング表 ==========
       // JRA競馬新聞PDF由来のフォント埋め込み印記号
-      // 実ログ（2026-04-11福島12R）から頻出PUAを収集し、
-      // 出現頻度・文脈から印記号を推定:
-      //   EC9E: 出現頻度 低（1レースあたり1-3回/馬）→ 最高評価
-      //   EC9D: 出現頻度 高（1レースあたり3-8回/馬）→ 高評価
+      // ◎はPUAから直接生成せず、スコア1位+順位+コンピで後段生成
+      //   EC9E: 出現頻度 低 → ○（対抗級）
+      //   EC9D: 出現頻度 高 → △（連下級）
       // ☆(U+2606)はPUAではなく直接Unicode → MARK_STDで処理
       const PUA_MARK_MAP = {
-        '\uEC9E': '◎',  // 強推奨（出現頻度: 低 → ◎本命級）
-        '\uEC9D': '○',  // 推奨（出現頻度: 高 → ○対抗級）
+        '\uEC9E': '○',  // 低頻度PUA → ○対抗級
+        '\uEC9D': '△',  // 高頻度PUA → △連下級
       };
       // 罫線・装飾・ランキング用PUA（印ではない）
       const isBlankDecoPUA = (ch) => {
@@ -646,12 +645,13 @@ export const prerender = false;
             continue;
           }
 
-          // 未知のPUA文字 → 無視（スコア汚染防止）
+          // 未知のPUA文字 → △として救済（ログ出力）
           if (/[\uE000-\uF8FF]/.test(firstChar)) {
-            if (horseNum === 1) {
-              console.log(`[Import] 未知PUA無視: U+${firstChar.charCodeAt(0).toString(16).toUpperCase()} (font=${e.font})`);
+            markFound = '△';
+            if (horseNum <= 3) {
+              console.log(`[Import] 未知PUA→△: U+${firstChar.charCodeAt(0).toString(16).toUpperCase()} (horse#${horseNum}, font=${e.font})`);
             }
-            continue;
+            break;
           }
         }
 
@@ -1356,13 +1356,35 @@ export const prerender = false;
       return { markScore, normalized, rankBonus, total: normalized + rankBonus, pc, ranking };
     }
 
-    // ▲自動生成: ◎なし + ○が複数ある馬 → 先頭の○を▲に昇格
+    // ◎後段生成: PUAからは◎を作らず、スコア・順位・コンピで最大1頭に付与
+    // ○が複数ある馬のうちスコア最上位 → 先頭○を◎に昇格
+    function autoAssignHonmei(horses) {
+      // スコア順にソート（仮計算）
+      const withScore = horses
+        .filter(h => (h.marks || []).length > 0)
+        .map(h => ({ h, score: calcTotalScore(h), maruCount: (h.marks || []).filter(m => m === '○').length }))
+        .sort((a, b) => b.score - a.score);
+
+      // 既に◎がある場合はスキップ
+      if (withScore.some(x => (x.h.marks || []).includes('◎'))) return;
+
+      // スコア1位 + ○が1つ以上 + (順位上位5位以内 or コンピ50以上)
+      const top = withScore[0];
+      if (!top || top.maruCount === 0) return;
+      const ranking = top.h.ranking || 99;
+      const compi = parseInt(top.h.computerIndex || '0');
+      if (ranking <= 5 || compi >= 50) {
+        const idx = top.h.marks.indexOf('○');
+        if (idx >= 0) top.h.marks[idx] = '◎';
+      }
+    }
+
+    // ▲自動生成: ◎なし + ○が複数ある馬 → 先頭○を▲に昇格
     function autoPromoteToTriangle(horses) {
       for (const h of horses) {
         const marks = h.marks;
         if (!marks || marks.length === 0) continue;
-        const hasHonmei = marks.includes('◎');
-        if (hasHonmei) continue;
+        if (marks.includes('◎')) continue;
         const maruCount = marks.filter(m => m === '○').length;
         if (maruCount >= 2) {
           const idx = marks.indexOf('○');
@@ -1372,7 +1394,9 @@ export const prerender = false;
     }
 
     function assignRoles(horses) {
-      // ▲自動生成を適用
+      // 1. ◎後段生成（最大1頭）
+      autoAssignHonmei(horses);
+      // 2. ▲自動生成（◎なし+○複数→先頭○を▲に）
       autoPromoteToTriangle(horses);
 
       const scored = horses.map(h => ({

@@ -59,32 +59,33 @@ export const handler = async (event) => {
       const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
       const eventType = category === 'jra' ? 'prediction-jra-updated' : 'prediction-updated';
 
-      fetch(dispatchUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          event_type: eventType,
-          client_payload: {
-            date: data.date,
-            track: data.track,
-            trackCode: data.trackCode,
-            category: category,
-            source: 'racebook'
-          }
-        })
-      }).then(response => {
-        if (response.ok) {
+      try {
+        const dispatchRes = await fetch(dispatchUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            event_type: eventType,
+            client_payload: {
+              date: data.date,
+              track: data.track,
+              trackCode: data.trackCode,
+              category: category,
+              source: 'racebook'
+            }
+          })
+        });
+        if (dispatchRes.ok) {
           console.log(`✅ keiba-intelligenceにインポートトリガー送信 (${eventType}, date: ${data.date})`);
         } else {
-          console.warn(`⚠️ dispatch失敗: ${response.status}`);
+          console.warn(`⚠️ dispatch失敗: ${dispatchRes.status} ${await dispatchRes.text().catch(() => '')}`);
         }
-      }).catch(err => {
+      } catch (err) {
         console.warn('⚠️ dispatch送信エラー:', err.message);
-      });
+      }
     } else if (category === 'local') {
       console.log(`📋 [Save] 地方データ(${data.track}): keiba-intelligence dispatchスキップ`);
     }

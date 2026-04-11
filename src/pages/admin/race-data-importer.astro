@@ -145,7 +145,7 @@ export const prerender = false;
     document.getElementById('saveBtn').addEventListener('click', saveData);
 
     // ========== メイン解析 ==========
-    function runParse() {
+    async function runParse() {
       hideStatus();
       document.getElementById('previewSection').style.display = 'none';
 

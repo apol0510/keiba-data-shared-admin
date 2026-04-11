@@ -53,8 +53,11 @@ export const handler = async (event) => {
     const category = data.category || 'jra';
 
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
+    // JRA → prediction-jra-updated（importPredictionJra.jsを起動）
+    // 南関 → prediction-updated（importPrediction.jsを起動）
     if (KEIBA_INTELLIGENCE_TOKEN && (category === 'jra' || category === 'nankan')) {
       const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
+      const eventType = category === 'jra' ? 'prediction-jra-updated' : 'prediction-updated';
 
       fetch(dispatchUrl, {
         method: 'POST',
@@ -64,7 +67,7 @@ export const handler = async (event) => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          event_type: 'prediction-updated',
+          event_type: eventType,
           client_payload: {
             date: data.date,
             track: data.track,
@@ -75,7 +78,7 @@ export const handler = async (event) => {
         })
       }).then(response => {
         if (response.ok) {
-          console.log(`✅ keiba-intelligenceにインポートトリガー送信 (prediction-updated, date: ${data.date})`);
+          console.log(`✅ keiba-intelligenceにインポートトリガー送信 (${eventType}, date: ${data.date})`);
         } else {
           console.warn(`⚠️ dispatch失敗: ${response.status}`);
         }

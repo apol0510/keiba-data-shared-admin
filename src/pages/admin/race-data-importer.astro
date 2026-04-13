@@ -1282,15 +1282,35 @@ export const prerender = false;
       // --- 斤量・騎手（"54 国分祐" パターンを探索） ---
       // 合計スコア行の位置がずれる場合があるため、広範囲で探索
       let weight = null, jockey = null;
-      for (let wi = cursor; wi < Math.min(cursor + 8, hLines.length); wi++) {
+      const wjEnd = Math.min(cursor + 10, hLines.length);
+      for (let wi = cursor; wi < wjEnd; wi++) {
         const line = hLines[wi].trim();
-        // 斤量(2桁) + スペース + 騎手名（漢字/カナで始まる）
+        // パターンA: 斤量(2桁) + スペース + 騎手名（漢字/カナで始まる）
         const wjMatch = line.match(/^(\d{2})\s+([\u3000-\u9FFFa-zA-Zァ-ヺぁ-ん].+)/);
         if (wjMatch) {
           weight = wjMatch[1];
           jockey = wjMatch[2].replace(/\s+/g, '').trim();
           cursor = wi + 1;
           break;
+        }
+        // パターンB: 斤量のみの行(2桁)+次行が騎手名（所属/場名パターンでないこと）
+        if (/^\d{2}$/.test(line)) {
+          for (let ji = wi + 1; ji < Math.min(wi + 4, hLines.length); ji++) {
+            const nx = hLines[ji].trim();
+            if (!nx) continue;
+            if (/^\d/.test(nx)) continue;
+            if (TRAINER_RE.test(nx)) break;
+            if (VENUE_NAMES_RE.test(nx)) break;
+            if (/^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]/.test(nx)) continue;
+            // 漢字/カナ始まりを騎手名とみなす
+            if (/^[\u3400-\u9FFFァ-ヺぁ-ん]/.test(nx)) {
+              weight = line;
+              jockey = nx.replace(/\s+/g, '').trim();
+              cursor = ji + 1;
+              break;
+            }
+          }
+          if (weight) break;
         }
       }
 

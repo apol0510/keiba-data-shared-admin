@@ -4,6 +4,8 @@
  * パス: jra/racebook/YYYY/MM/YYYY-MM-DD-{venueCode}.json
  */
 
+import { dispatchToTargets } from '../lib/dispatch.mjs';
+
 export const handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -46,48 +48,26 @@ export const handler = async (event) => {
 
     console.log(`[Save KeibaBook] 完了: ${result.filePath}`);
 
-    // keiba-intelligenceへの自動インポートトリガー（repository_dispatch）
-    const KEIBA_INTELLIGENCE_TOKEN = process.env.KEIBA_INTELLIGENCE_TOKEN || process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
-    const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
+    // 既存のコンピ指数ファイルへ騎手/調教師/斤量/性齢を逆補完
+    // （computer-manager → race-data-importer の順で保存されたケースに対応）
+    await backfillComputerFile(data);
 
-    const category = data.category || 'jra';
-
+    // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
     // JRA → prediction-jra-updated（importPredictionJra.jsを起動）
     // 南関 → prediction-updated（importPrediction.jsを起動）
-    if (KEIBA_INTELLIGENCE_TOKEN && (category === 'jra' || category === 'nankan')) {
-      const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
+    const category = data.category || 'jra';
+    if (category === 'jra' || category === 'nankan') {
       const eventType = category === 'jra' ? 'prediction-jra-updated' : 'prediction-updated';
-
-      try {
-        const dispatchRes = await fetch(dispatchUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            event_type: eventType,
-            client_payload: {
-              date: data.date,
-              track: data.track,
-              trackCode: data.trackCode,
-              category: category,
-              source: 'racebook'
-            }
-          })
-        });
-        if (dispatchRes.ok) {
-          console.log(`✅ keiba-intelligenceにインポートトリガー送信 (${eventType}, date: ${data.date})`);
-        } else {
-          console.warn(`⚠️ dispatch失敗: ${dispatchRes.status} ${await dispatchRes.text().catch(() => '')}`);
-        }
-      } catch (err) {
-        console.warn('⚠️ dispatch送信エラー:', err.message);
-      }
+      dispatchToTargets(eventType, {
+        date: data.date,
+        track: data.track,
+        trackCode: data.trackCode,
+        category,
+        source: 'racebook',
+      });
     } else if (category === 'local') {
-      console.log(`📋 [Save] 地方データ(${data.track}): keiba-intelligence dispatchスキップ`);
+      console.log(`📋 [Save] 地方データ(${data.track}): dispatchスキップ`);
     }
 
     return {
@@ -268,6 +248,107 @@ async function enrichWithComputerIndex(data) {
 
   } catch (err) {
     console.warn('[Enrich] コンピ指数補完エラー（続行）:', err.message);
+  }
+}
+
+/**
+ * 既存のコンピ指数ファイルへ騎手/調教師/斤量/性齢を逆補完
+ * racebook 保存後、predictions/computer/ に同日同会場のファイルがあれば
+ * jockey/trainer/weight/ageGender を racebook 側の値で埋めて再保存する。
+ * これにより computer-manager → race-data-importer の順で保存しても
+ * 表示側 (predictions/computer/ 参照) に騎手・調教師が反映される。
+ */
+async function backfillComputerFile(data) {
+  const { date, trackCode, category } = data;
+  const cat = category || 'jra';
+  const [year, month] = date.split('-');
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+  const repo = 'apol0510/keiba-data-shared';
+
+  if (!token) {
+    console.log('[Backfill] token未設定、スキップ');
+    return;
+  }
+
+  const compiPath = `${cat}/predictions/computer/${year}/${month}/${date}-${trackCode}.json`;
+  const url = `https://api.github.com/repos/${repo}/contents/${compiPath}`;
+
+  try {
+    const getRes = await fetch(url, {
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (!getRes.ok) {
+      console.log(`[Backfill] コンピ指数ファイルなし、スキップ: ${compiPath}`);
+      return;
+    }
+
+    const fileData = await getRes.json();
+    const sha = fileData.sha;
+    const compiJson = JSON.parse(Buffer.from(fileData.content, 'base64').toString('utf-8'));
+
+    if (!compiJson?.races?.length) {
+      console.log('[Backfill] races配列なし、スキップ');
+      return;
+    }
+
+    let updated = 0;
+    for (const compiRace of compiJson.races) {
+      const rbRace = data.races.find(r => r.raceNumber === compiRace.raceNumber);
+      if (!rbRace) continue;
+
+      for (const compiHorse of compiRace.horses || []) {
+        let rbHorse = rbRace.horses.find(h => h.number === compiHorse.number);
+        if (!rbHorse) {
+          rbHorse = rbRace.horses.find(h => h.name && h.name === compiHorse.name);
+        }
+        if (!rbHorse) continue;
+
+        // racebook側が真値。空のフィールドを埋める（既存値も上書き）
+        if (rbHorse.jockey) { compiHorse.jockey = rbHorse.jockey; updated++; }
+        if (rbHorse.trainer) { compiHorse.trainer = rbHorse.trainer; }
+        if (rbHorse.weight != null) { compiHorse.weight = rbHorse.weight; }
+        const sa = rbHorse.sexAge || rbHorse.ageGender;
+        if (sa) { compiHorse.ageGender = sa; }
+      }
+    }
+
+    if (updated === 0) {
+      console.log('[Backfill] 補完対象なし、スキップ');
+      return;
+    }
+
+    compiJson.backfilledFrom = 'racebook';
+    compiJson.backfilledAt = new Date().toISOString();
+
+    const putPayload = {
+      message: `🔄 コンピ指数へ騎手/調教師を逆補完: ${date} ${data.track}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`,
+      content: Buffer.from(JSON.stringify(compiJson, null, 2)).toString('base64'),
+      branch: 'main',
+      sha
+    };
+
+    const putRes = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(putPayload)
+    });
+
+    if (putRes.ok) {
+      console.log(`[Backfill] コンピ指数更新成功: ${updated}頭補完`);
+    } else {
+      const errTxt = await putRes.text();
+      console.warn(`[Backfill] 更新失敗: ${putRes.status} ${errTxt}`);
+    }
+  } catch (err) {
+    console.warn('[Backfill] エラー（続行）:', err.message);
   }
 }
 

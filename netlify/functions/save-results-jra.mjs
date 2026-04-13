@@ -14,6 +14,8 @@
 // Netlify環境では環境変数は自動的に process.env に設定される
 // ローカル開発時は netlify dev コマンドが .env を自動読み込み
 
+import { dispatchToTargets } from '../lib/dispatch.mjs';
+
 export default async (req, context) => {
   // CORSヘッダー設定
   const headers = {
@@ -299,41 +301,14 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
       console.warn('⚠️ NETLIFY_BUILD_HOOK_URLが設定されていません。ビルドは自動トリガーされません。');
     }
 
-    // keiba-intelligenceへの自動判定トリガー（repository_dispatch）
-    // 非同期で実行（await しない）- 結果を待たずにすぐにレスポンスを返す
-    let intelligenceTriggered = false;
-    const KEIBA_INTELLIGENCE_TOKEN = process.env.KEIBA_INTELLIGENCE_TOKEN || GITHUB_TOKEN;
-
-    if (KEIBA_INTELLIGENCE_TOKEN) {
-      const dispatchUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/keiba-intelligence/dispatches`;
-      fetch(dispatchUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `token ${KEIBA_INTELLIGENCE_TOKEN}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          event_type: 'jra-results-updated',
-          client_payload: {
-            date: date,
-            venue: venue,
-            venueCode: venueCode
-          }
-        })
-      }).then((response) => {
-        if (response.ok) {
-          console.log(`✅ keiba-intelligenceに自動判定トリガーを送信しました (date: ${date})`);
-        } else {
-          console.error(`❌ keiba-intelligence トリガー送信失敗: ${response.status}`);
-        }
-      }).catch((dispatchError) => {
-        console.error('❌ keiba-intelligence トリガー送信エラー:', dispatchError);
-      });
-      intelligenceTriggered = true;
-    } else {
-      console.warn('⚠️ KEIBA_INTELLIGENCE_TOKENが設定されていません。keiba-intelligenceの自動判定はトリガーされません。');
-    }
+    // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
+    // 非同期で実行（await しない）
+    const { triggered: dispatchTriggered } = dispatchToTargets('jra-results-updated', {
+      date,
+      venue,
+      venueCode,
+    });
+    const intelligenceTriggered = dispatchTriggered.includes('keiba-intelligence');
 
     // 成功レスポンス
     let message = `${fileName} を keiba-data-shared に保存しました。全プロジェクトで利用可能です！`;

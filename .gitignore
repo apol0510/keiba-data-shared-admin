@@ -30,3 +30,6 @@ node_modules
 dist
 .astro
 .env.*
+
+# JV-Link CLI 出力
+/tmp/jra-shared/

@@ -1,0 +1,67 @@
+{
+  "date": "2026-04-15",
+  "venues": [
+    {
+      "code": "NAK",
+      "name": "中山",
+      "races": [
+        {
+          "raceNumber": 1,
+          "raceName": "3歳未勝利",
+          "raceSubtitle": "3歳　未勝利",
+          "distance": 1200,
+          "surface": "D",
+          "track": "右",
+          "startTime": "10:10",
+          "weather": "晴",
+          "trackCondition": "良",
+          "results": [
+            { "position": 1, "horseNumber": 3, "horseName": "テストホースA", "jockey": "騎手A", "popularity": 1, "odds": 2.1, "bracket": 2, "sexAge": "牡3", "weight": "56.0", "trainer": "調教師A", "time": "1:10.5", "margin": "-", "lastFurlong": "35.2" },
+            { "position": 2, "horseNumber": 7, "horseName": "テストホースB", "jockey": "騎手B", "popularity": 3, "odds": 5.8, "bracket": 5, "sexAge": "牡3", "weight": "56.0", "trainer": "調教師B", "time": "1:10.8", "margin": "2", "lastFurlong": "35.6" }
+          ],
+          "payouts": {
+            "tansho": [{ "number": 3, "payout": 210, "popularity": 1 }],
+            "fukusho": [
+              { "number": 3, "payout": 120, "popularity": 1 },
+              { "number": 7, "payout": 250, "popularity": 3 }
+            ],
+            "wakuren": [],
+            "wide": [{ "combination": "3-7", "payout": 580, "popularity": 4 }],
+            "umaren": [{ "combination": "3-7", "payout": 1120, "popularity": 5 }],
+            "umatan": [{ "combination": "3-7", "payout": 2340, "popularity": 9 }],
+            "sanrenpuku": [],
+            "sanrentan": []
+          }
+        }
+      ]
+    },
+    {
+      "code": "HAN",
+      "name": "阪神",
+      "races": [
+        {
+          "raceNumber": 1,
+          "raceName": "3歳未勝利",
+          "distance": 1400,
+          "surface": "T",
+          "trackCondition": "良",
+          "weather": "曇",
+          "startTime": "10:00",
+          "results": [
+            { "position": 1, "horseNumber": 5, "horseName": "阪神ホースA", "jockey": "騎手X", "popularity": 2, "odds": 3.4 }
+          ],
+          "payouts": {
+            "tansho": [{ "number": 5, "payout": 340, "popularity": 2 }],
+            "fukusho": [{ "number": 5, "payout": 150, "popularity": 2 }],
+            "wakuren": [],
+            "wide": [],
+            "umaren": [],
+            "umatan": [],
+            "sanrenpuku": [],
+            "sanrentan": []
+          }
+        }
+      ]
+    }
+  ]
+}

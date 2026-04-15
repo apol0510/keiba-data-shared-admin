@@ -10,7 +10,10 @@
     "check": "astro check",
     "preview": "astro preview",
     "astro": "astro",
-    "sync:data": "git -C /Users/apolon/Projects/keiba-data-shared pull origin main --quiet || echo 'keiba-data-shared sync skipped'"
+    "sync:data": "git -C /Users/apolon/Projects/keiba-data-shared pull origin main --quiet || echo 'keiba-data-shared sync skipped'",
+    "jra:transform": "node scripts/jra/transform-results.mjs",
+    "jra:save": "node scripts/jra/save-results.mjs",
+    "sync:jra-results": "node scripts/jra/sync-jra-results.mjs"
   },
   "dependencies": {
     "@astrojs/netlify": "^6.0.0",

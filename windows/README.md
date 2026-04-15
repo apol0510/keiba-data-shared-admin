@@ -66,10 +66,22 @@ $env:JVLINK_SID = "取得したID"
 |---|---|
 | `--date=YYYY-MM-DD` | 対象日（未指定なら今日） |
 | `--out=PATH` | 出力先（既定 `C:\jra-data\{date}.json`） |
-| `--option=1` | `JVOpen` option（1=通常, 2=セットアップ。既定1）|
+| `--dataspec=RACE` | `JVOpen` dataspec (既定 `RACE`) |
+| `--option=4` | `JVOpen` option (既定 **4**) |
 | `--dummy` | JV-Link呼ばずダミー出力 |
 | `--raw-dump` | 生レコードを stdout に流す |
 | `--dry` | JV-Link 呼ぶが JSON出力しない（疎通確認） |
+
+### JVOpen option の意味 (重要)
+| option | 意味 | 過去日の RA/SE/HR |
+|---|---|---|
+| 1 | 通常データ (diff) | ❌ 差分のみ (JG などの追補だけ返す) |
+| 2 | 今週データ | - |
+| 3 | セットアップ (ダイアログあり) | ✅ |
+| **4** | **セットアップ (ダイアログなし)** | **✅ 推奨** |
+
+過去日の結果取得（raw-dump / 通常モード）では **必ず `--option=4`** を使う。
+既定値を 4 にしているため明示不要だが、挙動が変な時は明示して切り分け。
 
 ## 出力JSON スキーマ（厳守）
 

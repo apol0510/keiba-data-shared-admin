@@ -16,9 +16,15 @@ public static class Program
         bool dummy = opts.ContainsKey("dummy");
         bool rawDump = opts.ContainsKey("raw-dump");
         bool dry = opts.ContainsKey("dry");
-        int option = opts.TryGetValue("option", out var optStr) && int.TryParse(optStr, out var ov) ? ov : 1;
+        // JVOpen option:
+        //   1 = 通常データ (diff)       過去日でも diff しか返さない (JGなど追補のみ)
+        //   2 = 今週データ
+        //   3 = セットアップ (ダイアログあり)
+        //   4 = セットアップ (ダイアログなし) ★ 過去日の RA/SE/HR 取得はこれ
+        int option = opts.TryGetValue("option", out var optStr) && int.TryParse(optStr, out var ov) ? ov : 4;
+        string dataspec = opts.TryGetValue("dataspec", out var ds) ? ds : "RACE";
 
-        Log($"📅 date={date}  out={outPath}  mode={(dummy ? "dummy" : rawDump ? "raw-dump" : dry ? "dry" : "real")}");
+        Log($"date={date} out={outPath} mode={(dummy ? "dummy" : rawDump ? "raw-dump" : dry ? "dry" : "real")} dataspec={dataspec} option={option}");
 
         try
         {
@@ -30,9 +36,9 @@ public static class Program
                 return 0;
             }
 
-            if (rawDump) return DoRawDump(date, option);
+            if (rawDump) return DoRawDump(date, option, dataspec);
 
-            return DoReal(date, option, outPath, dry);
+            return DoReal(date, option, outPath, dry, dataspec);
         }
         catch (Exception ex)
         {
@@ -42,7 +48,7 @@ public static class Program
         }
     }
 
-    private static int DoReal(string date, int option, string outPath, bool dry)
+    private static int DoReal(string date, int option, string outPath, bool dry, string dataspec)
     {
         var sid = Environment.GetEnvironmentVariable("JVLINK_SID");
         if (string.IsNullOrEmpty(sid))
@@ -56,11 +62,12 @@ public static class Program
         Log("✅ JVInit OK");
 
         var fromtime = date.Replace("-", "") + "000000";
-        var open = jv.Open("RACE", fromtime, option);
-        Log($"✅ JVOpen OK read={open.ReadCount} dl={open.DownloadCount} ts={open.LastFileTimestamp}");
+        var open = jv.Open(dataspec, fromtime, option);
+        Log($"[OK] JVOpen dataspec={dataspec} option={option} read={open.ReadCount} dl={open.DownloadCount} ts={open.LastFileTimestamp}");
 
         var agg = new Aggregator(date);
         int readTotal = 0, raCount = 0, seCount = 0, hrCount = 0, skip = 0;
+        var typeCounts = new Dictionary<string, int>();
 
         while (true)
         {
@@ -71,6 +78,7 @@ public static class Program
 
             readTotal++;
             var type = RecordParser.GetRecordType(res.Record);
+            typeCounts[type] = typeCounts.GetValueOrDefault(type, 0) + 1;
             switch (type)
             {
                 case "RA": agg.ApplyRa(RecordParser.ParseRa(res.Record)); raCount++; break;
@@ -80,7 +88,13 @@ public static class Program
             }
         }
 
-        Log($"📊 records: total={readTotal} RA={raCount} SE={seCount} HR={hrCount} skip={skip}");
+        Log($"[records] total={readTotal} RA={raCount} SE={seCount} HR={hrCount} skip={skip}");
+        var summary = string.Join(", ", typeCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}={kv.Value}"));
+        Log($"[by-type] {summary}");
+        if (raCount == 0 && seCount == 0 && hrCount == 0) {
+            Log("[WARN] RA/SE/HR がゼロ件です。option=4 を試してください (--option=4)");
+            Log("       また dataspec=RACE が正しいか確認 (--dataspec=RACE)");
+        }
 
         var day = agg.Finalize();
         Log($"🏟  venues={day.Venues.Count} races={day.Venues.Sum(v => v.Races.Count)}");
@@ -92,22 +106,31 @@ public static class Program
         return 0;
     }
 
-    private static int DoRawDump(string date, int option)
+    private static int DoRawDump(string date, int option, string dataspec)
     {
         var sid = Environment.GetEnvironmentVariable("JVLINK_SID") ?? "UNKNOWN";
         using var jv = new JvLinkClient();
         jv.Init(sid);
         var fromtime = date.Replace("-", "") + "000000";
-        jv.Open("RACE", fromtime, option);
+        var open = jv.Open(dataspec, fromtime, option);
+        Log($"[OK] JVOpen dataspec={dataspec} option={option} read={open.ReadCount} dl={open.DownloadCount}");
         int i = 0;
+        var typeCounts = new Dictionary<string, int>();
         while (true)
         {
             var res = jv.Read();
             if (res.ReturnCode == 0) break;
             if (res.ReturnCode == -1) { Log($"# file: {res.FileName}"); continue; }
-            if (res.ReturnCode < -1) break;
+            if (res.ReturnCode < -1) { Log($"[NG] JVRead ret={res.ReturnCode}"); break; }
             var type = RecordParser.GetRecordType(res.Record);
+            typeCounts[type] = typeCounts.GetValueOrDefault(type, 0) + 1;
             Console.WriteLine($"[{i++:D4}] {type}|len={res.Record.Length}|{res.Record}");
+        }
+        var summary = string.Join(", ", typeCounts.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}={kv.Value}"));
+        Log($"[by-type] {summary}");
+        if (!typeCounts.ContainsKey("RA")) {
+            Log("[WARN] RA が出ていません。過去日なら --option=4 (setup without dialog) を使ってください");
+            Log("       例: ...JvLinkExporter.exe --raw-dump --date=2026-04-11 --option=4");
         }
         return 0;
     }

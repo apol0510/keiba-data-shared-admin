@@ -173,22 +173,31 @@ public sealed class Aggregator
         Log($"[finalize] date distribution: {string.Join(", ", _dateCount.Select(kv => $"{kv.Key}:{kv.Value}"))}");
         Log($"[finalize] raceMap={_raceMap.Count} venueMap={_venueMap.Count}");
 
-        // 対象日のみ venue を抽出
+        // 採用する「開催日」を決定する。
+        //   - JV-Link setup は fromtime 以降の全レースを返すため、CLIで指定した
+        //     --date と実際の開催日が一致しないことがある (例: fromtime=4/11 だが
+        //     レースは 4/12 のみ)。
+        //   - 出力JSONの date は RA/SE/HR が実際に示す「開催日」に合わせるのが
+        //     Mac 側 mapper の期待に沿う。
+        string selectedDate;
+        if (_venueMap.Keys.Any(k => k.StartsWith(_targetDate + "|")))
+        {
+            selectedDate = _targetDate;
+        }
+        else if (_dateCount.Count > 0)
+        {
+            selectedDate = _dateCount.OrderByDescending(kv => kv.Value).First().Key;
+            Log($"[WARN] CLI --date='{_targetDate}' の venue 無し。実データの最多日 '{selectedDate}' を採用 (JV-Link setup は fromtime 以降を返すため)");
+        }
+        else
+        {
+            selectedDate = _targetDate;
+        }
+
         var targetVenues = _venueMap
-            .Where(kv => kv.Key.StartsWith(_targetDate + "|"))
+            .Where(kv => kv.Key.StartsWith(selectedDate + "|"))
             .Select(kv => kv.Value)
             .ToList();
-
-        // フォールバック: 対象日 venue が 0 件なら、最多件数の日付を採用してログ出す
-        if (targetVenues.Count == 0 && _venueMap.Count > 0)
-        {
-            var mostDate = _dateCount.OrderByDescending(kv => kv.Value).FirstOrDefault().Key;
-            Log($"[WARN] 指定日 '{_targetDate}' の venue なし。最多日 '{mostDate}' を採用します (offset要確認)");
-            targetVenues = _venueMap
-                .Where(kv => kv.Key.StartsWith(mostDate + "|"))
-                .Select(kv => kv.Value)
-                .ToList();
-        }
 
         // レース番号で昇順ソート
         foreach (var v in targetVenues)
@@ -197,9 +206,11 @@ public sealed class Aggregator
         foreach (var race in _raceMap.Values)
             race.Results.Sort((a, b) => (a.Position ?? 99).CompareTo(b.Position ?? 99));
 
+        Log($"[finalize] output.date='{selectedDate}' (CLI --date='{_targetDate}')  venues={targetVenues.Count}  races={targetVenues.Sum(v => v.Races.Count)}");
+
         return new IntermediateDay
         {
-            Date = _targetDate,
+            Date = selectedDate,
             Venues = targetVenues.OrderBy(v => v.Code).ToList(),
         };
     }

@@ -121,6 +121,10 @@ async function main() {
     process.exit(1);
   }
 
+  if (!fs.existsSync(inDir)) {
+    console.error(`❌ in-dir not found: ${inDir}`);
+    process.exit(1);
+  }
   const files = fs
     .readdirSync(inDir)
     .filter((f) => f.startsWith(`${date}-`) && f.endsWith('.json'))

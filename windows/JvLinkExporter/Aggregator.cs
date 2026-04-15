@@ -22,21 +22,32 @@ public sealed class Aggregator
 
     private static string? JyoToDate(string year, string monthDay)
     {
-        if (year.Length != 4 || monthDay.Length != 4) return null;
-        return $"{year}-{monthDay.Substring(0, 2)}-{monthDay.Substring(2, 2)}";
+        var y = (year ?? "").Trim();
+        var md = (monthDay ?? "").Trim();
+        if (y.Length != 4 || md.Length != 4) return null;
+        return $"{y}-{md.Substring(0, 2)}-{md.Substring(2, 2)}";
     }
 
-    // Key に日付も含めて、複数日混入でも衝突しないようにする
-    private static string RaceKey(string date, string jyoCd, string raceNum) => $"{date}|{jyoCd}-{raceNum}";
+    // Key に日付も含めて、複数日混入でも衝突しないようにする。
+    // jyoCd / raceNum はTrim＋2桁ゼロ埋めで完全正規化 (RA/SE/HR 間のズレを吸収)
+    private static string NormJyo(string s) => (s ?? "").Trim().PadLeft(2, '0');
+    private static string NormRace(string s)
+    {
+        var t = (s ?? "").Trim();
+        return t.Length == 0 ? "00" : t.PadLeft(2, '0');
+    }
+    private static string RaceKey(string date, string jyoCd, string raceNum) =>
+        $"{date}|{NormJyo(jyoCd)}-{NormRace(raceNum)}";
 
     private static void Log(string m) => Console.Error.WriteLine($"[aggregator] {m}");
 
     private IntermediateVenue EnsureVenue(string date, string jyoCd)
     {
-        var key = $"{date}|{jyoCd}";
+        var nj = NormJyo(jyoCd);
+        var key = $"{date}|{nj}";
         if (!_venueMap.TryGetValue(key, out var v))
         {
-            var (name, code) = VenueCode.Resolve(jyoCd);
+            var (name, code) = VenueCode.Resolve(nj);
             v = new IntermediateVenue { Code = code, Name = name };
             _venueMap[key] = v;
         }
@@ -49,14 +60,12 @@ public sealed class Aggregator
         var date = JyoToDate(ra.Year, ra.MonthDay) ?? "?";
         _dateCount[date] = _dateCount.GetValueOrDefault(date, 0) + 1;
 
+        var key = RaceKey(date, ra.JyoCD, ra.RaceNum);
         if (_debug && _raDbgLogged < 3)
         {
-            Log($"RA#{_raCalls} year='{ra.Year}' monthDay='{ra.MonthDay}' date={date} jyoCD='{ra.JyoCD}' raceNum='{ra.RaceNum}' kyori='{ra.Kyori}' track='{ra.TrackCD}'");
+            Log($"RA#{_raCalls} key='{key}' year='{ra.Year}' monthDay='{ra.MonthDay}' jyoCD='{ra.JyoCD}' raceNum='{ra.RaceNum}' kyori='{ra.Kyori}' track='{ra.TrackCD}'");
             _raDbgLogged++;
         }
-
-        // 日付フィルタは廃止 (offset未検証段階では全件処理し、最終 Finalize で対象日だけ出力)
-        var key = RaceKey(date, ra.JyoCD, ra.RaceNum);
         var race = new IntermediateRace
         {
             RaceNumber = RecordParser.ParseIntOrNull(ra.RaceNum) ?? 0,
@@ -77,12 +86,12 @@ public sealed class Aggregator
     {
         _seCalls++;
         var date = JyoToDate(se.Year, se.MonthDay) ?? "?";
+        var key = RaceKey(date, se.JyoCD, se.RaceNum);
         if (_debug && _seDbgLogged < 3)
         {
-            Log($"SE#{_seCalls} date={date} jyoCD='{se.JyoCD}' raceNum='{se.RaceNum}' umaban='{se.Umaban}' bamei='{se.Bamei}' jyuni='{se.KakuteiJyuni}'");
+            Log($"SE#{_seCalls} key='{key}' umaban='{se.Umaban}' bamei='{se.Bamei}' jyuni='{se.KakuteiJyuni}'");
             _seDbgLogged++;
         }
-        var key = RaceKey(date, se.JyoCD, se.RaceNum);
         if (!_raceMap.TryGetValue(key, out var race))
         {
             // RA未到着でもSEが先着する可能性を考慮して空枠生成
@@ -110,13 +119,27 @@ public sealed class Aggregator
     {
         _hrCalls++;
         var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
+        var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
+
+        // 完全一致で引けなかった場合、日付を無視した fallback を試す
+        IntermediateRace? race = null;
+        bool matched = _raceMap.TryGetValue(key, out race);
+        string matchMode = matched ? "exact" : "?";
+        if (!matched)
+        {
+            var tail = $"|{NormJyo(hr.JyoCD)}-{NormRace(hr.RaceNum)}";
+            var hit = _raceMap.FirstOrDefault(kv => kv.Key.EndsWith(tail));
+            if (hit.Value != null) { race = hit.Value; matched = true; matchMode = "date-ignored:" + hit.Key; }
+        }
+
         if (_debug && _hrDbgLogged < 3)
         {
-            Log($"HR#{_hrCalls} date={date} jyoCD='{hr.JyoCD}' raceNum='{hr.RaceNum}' rawTail.len={hr.RawTail.Length}");
+            var sampleKey = _raceMap.Keys.FirstOrDefault() ?? "(empty)";
+            Log($"HR#{_hrCalls} key='{key}' match={matchMode} raceMapSampleKey='{sampleKey}' raw.Year='{hr.Year}' raw.MonthDay='{hr.MonthDay}' raw.JyoCD='{hr.JyoCD}' raw.RaceNum='{hr.RaceNum}'");
             _hrDbgLogged++;
         }
-        var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
-        if (!_raceMap.TryGetValue(key, out var race)) return;
+
+        if (race == null) return;
         _hrMatched++;
         race.Payouts.Tansho = hr.Tansho;
         race.Payouts.Fukusho = hr.Fukusho;

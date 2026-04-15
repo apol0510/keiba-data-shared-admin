@@ -7,34 +7,56 @@ namespace JvLinkExporter;
 public sealed class Aggregator
 {
     private readonly string _targetDate;
+    private readonly bool _debug;
     private readonly Dictionary<string, IntermediateRace> _raceMap = new();
     private readonly Dictionary<string, IntermediateVenue> _venueMap = new();
+    private readonly Dictionary<string, int> _dateCount = new();
+    private int _raCalls, _seCalls, _hrCalls, _seMatched, _hrMatched;
+    private int _raDbgLogged, _seDbgLogged, _hrDbgLogged;
 
-    public Aggregator(string targetDate) { _targetDate = targetDate; }
+    public Aggregator(string targetDate, bool debug = false)
+    {
+        _targetDate = targetDate;
+        _debug = debug;
+    }
 
-    private string? JyoToDate(string year, string monthDay)
+    private static string? JyoToDate(string year, string monthDay)
     {
         if (year.Length != 4 || monthDay.Length != 4) return null;
         return $"{year}-{monthDay.Substring(0, 2)}-{monthDay.Substring(2, 2)}";
     }
 
-    private string RaceKey(string jyoCd, string raceNum) => $"{jyoCd}-{raceNum}";
+    // Key に日付も含めて、複数日混入でも衝突しないようにする
+    private static string RaceKey(string date, string jyoCd, string raceNum) => $"{date}|{jyoCd}-{raceNum}";
 
-    private IntermediateVenue EnsureVenue(string jyoCd)
+    private static void Log(string m) => Console.Error.WriteLine($"[aggregator] {m}");
+
+    private IntermediateVenue EnsureVenue(string date, string jyoCd)
     {
-        if (!_venueMap.TryGetValue(jyoCd, out var v))
+        var key = $"{date}|{jyoCd}";
+        if (!_venueMap.TryGetValue(key, out var v))
         {
             var (name, code) = VenueCode.Resolve(jyoCd);
             v = new IntermediateVenue { Code = code, Name = name };
-            _venueMap[jyoCd] = v;
+            _venueMap[key] = v;
         }
         return v;
     }
 
     public void ApplyRa(RaRecord ra)
     {
-        if (JyoToDate(ra.Year, ra.MonthDay) != _targetDate) return;
-        var key = RaceKey(ra.JyoCD, ra.RaceNum);
+        _raCalls++;
+        var date = JyoToDate(ra.Year, ra.MonthDay) ?? "?";
+        _dateCount[date] = _dateCount.GetValueOrDefault(date, 0) + 1;
+
+        if (_debug && _raDbgLogged < 3)
+        {
+            Log($"RA#{_raCalls} year='{ra.Year}' monthDay='{ra.MonthDay}' date={date} jyoCD='{ra.JyoCD}' raceNum='{ra.RaceNum}' kyori='{ra.Kyori}' track='{ra.TrackCD}'");
+            _raDbgLogged++;
+        }
+
+        // 日付フィルタは廃止 (offset未検証段階では全件処理し、最終 Finalize で対象日だけ出力)
+        var key = RaceKey(date, ra.JyoCD, ra.RaceNum);
         var race = new IntermediateRace
         {
             RaceNumber = RecordParser.ParseIntOrNull(ra.RaceNum) ?? 0,
@@ -47,21 +69,28 @@ public sealed class Aggregator
             StartTime = FormatTime(ra.HassoTime),
         };
         _raceMap[key] = race;
-        var venue = EnsureVenue(ra.JyoCD);
+        var venue = EnsureVenue(date, ra.JyoCD);
         if (!venue.Races.Contains(race)) venue.Races.Add(race);
     }
 
     public void ApplySe(SeRecord se)
     {
-        if (JyoToDate(se.Year, se.MonthDay) != _targetDate) return;
-        var key = RaceKey(se.JyoCD, se.RaceNum);
+        _seCalls++;
+        var date = JyoToDate(se.Year, se.MonthDay) ?? "?";
+        if (_debug && _seDbgLogged < 3)
+        {
+            Log($"SE#{_seCalls} date={date} jyoCD='{se.JyoCD}' raceNum='{se.RaceNum}' umaban='{se.Umaban}' bamei='{se.Bamei}' jyuni='{se.KakuteiJyuni}'");
+            _seDbgLogged++;
+        }
+        var key = RaceKey(date, se.JyoCD, se.RaceNum);
         if (!_raceMap.TryGetValue(key, out var race))
         {
             // RA未到着でもSEが先着する可能性を考慮して空枠生成
             race = new IntermediateRace { RaceNumber = RecordParser.ParseIntOrNull(se.RaceNum) ?? 0 };
             _raceMap[key] = race;
-            EnsureVenue(se.JyoCD).Races.Add(race);
+            EnsureVenue(date, se.JyoCD).Races.Add(race);
         }
+        else _seMatched++;
         race.Results.Add(new IntermediateResult
         {
             Position = RecordParser.ParseIntOrNull(se.KakuteiJyuni),
@@ -79,9 +108,16 @@ public sealed class Aggregator
 
     public void ApplyHr(HrRecord hr)
     {
-        if (JyoToDate(hr.Year, hr.MonthDay) != _targetDate) return;
-        var key = RaceKey(hr.JyoCD, hr.RaceNum);
+        _hrCalls++;
+        var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
+        if (_debug && _hrDbgLogged < 3)
+        {
+            Log($"HR#{_hrCalls} date={date} jyoCD='{hr.JyoCD}' raceNum='{hr.RaceNum}' rawTail.len={hr.RawTail.Length}");
+            _hrDbgLogged++;
+        }
+        var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
         if (!_raceMap.TryGetValue(key, out var race)) return;
+        _hrMatched++;
         race.Payouts.Tansho = hr.Tansho;
         race.Payouts.Fukusho = hr.Fukusho;
         race.Payouts.Wakuren = hr.Wakuren;
@@ -94,16 +130,39 @@ public sealed class Aggregator
 
     public IntermediateDay Finalize()
     {
+        Log($"[finalize] raCalls={_raCalls} seCalls={_seCalls} hrCalls={_hrCalls}");
+        Log($"[finalize] seMatched={_seMatched}/{_seCalls} hrMatched={_hrMatched}/{_hrCalls} (unmatched = race key 不一致)");
+        Log($"[finalize] date distribution: {string.Join(", ", _dateCount.Select(kv => $"{kv.Key}:{kv.Value}"))}");
+        Log($"[finalize] raceMap={_raceMap.Count} venueMap={_venueMap.Count}");
+
+        // 対象日のみ venue を抽出
+        var targetVenues = _venueMap
+            .Where(kv => kv.Key.StartsWith(_targetDate + "|"))
+            .Select(kv => kv.Value)
+            .ToList();
+
+        // フォールバック: 対象日 venue が 0 件なら、最多件数の日付を採用してログ出す
+        if (targetVenues.Count == 0 && _venueMap.Count > 0)
+        {
+            var mostDate = _dateCount.OrderByDescending(kv => kv.Value).FirstOrDefault().Key;
+            Log($"[WARN] 指定日 '{_targetDate}' の venue なし。最多日 '{mostDate}' を採用します (offset要確認)");
+            targetVenues = _venueMap
+                .Where(kv => kv.Key.StartsWith(mostDate + "|"))
+                .Select(kv => kv.Value)
+                .ToList();
+        }
+
         // レース番号で昇順ソート
-        foreach (var v in _venueMap.Values)
+        foreach (var v in targetVenues)
             v.Races.Sort((a, b) => a.RaceNumber.CompareTo(b.RaceNumber));
         // 着順ソート
         foreach (var race in _raceMap.Values)
             race.Results.Sort((a, b) => (a.Position ?? 99).CompareTo(b.Position ?? 99));
+
         return new IntermediateDay
         {
             Date = _targetDate,
-            Venues = _venueMap.Values.OrderBy(v => v.Code).ToList(),
+            Venues = targetVenues.OrderBy(v => v.Code).ToList(),
         };
     }
 

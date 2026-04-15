@@ -23,6 +23,7 @@ public static class Program
         //   4 = セットアップ (ダイアログなし) ★ 過去日の RA/SE/HR 取得はこれ
         int option = opts.TryGetValue("option", out var optStr) && int.TryParse(optStr, out var ov) ? ov : 4;
         string dataspec = opts.TryGetValue("dataspec", out var ds) ? ds : "RACE";
+        if (opts.ContainsKey("debug")) Environment.SetEnvironmentVariable("JV_DEBUG", "1");
 
         Log($"date={date} out={outPath} mode={(dummy ? "dummy" : rawDump ? "raw-dump" : dry ? "dry" : "real")} dataspec={dataspec} option={option}");
 
@@ -65,7 +66,8 @@ public static class Program
         var open = jv.Open(dataspec, fromtime, option);
         Log($"[OK] JVOpen dataspec={dataspec} option={option} read={open.ReadCount} dl={open.DownloadCount} ts={open.LastFileTimestamp}");
 
-        var agg = new Aggregator(date);
+        bool debug = Environment.GetEnvironmentVariable("JV_DEBUG") == "1";
+        var agg = new Aggregator(date, debug);
         int readTotal = 0, raCount = 0, seCount = 0, hrCount = 0, skip = 0;
         var typeCounts = new Dictionary<string, int>();
 

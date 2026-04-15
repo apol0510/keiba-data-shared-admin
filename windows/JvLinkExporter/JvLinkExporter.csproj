@@ -4,6 +4,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>JvLinkExporter</RootNamespace>
     <AssemblyName>JvLinkExporter</AssemblyName>
     <!-- COM相互運用を有効化 -->

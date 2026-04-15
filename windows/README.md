@@ -17,11 +17,25 @@ JV-Link (JRA-VAN Data Lab.) から JRA結果データを取得し、
 |---|---|---|
 | `JVLINK_SID` | ✅ | JRA-VAN 利用者ID（`JVInit` に渡す文字列） |
 
-## ビルド
+## ビルド (x86 固定・重要)
+
+JV-Link は 32bit COM なので **必ず x86 でビルド・実行**すること。
+AnyCPU / x64 / ARM では `REGDB_E_CLASSNOTREG` で失敗する。
 
 ```powershell
 cd windows\JvLinkExporter
-dotnet build -c Release
+dotnet clean
+dotnet build -c Release -r win-x86
+```
+
+### 実行 (`dotnet run` は使わない)
+
+`dotnet run` は RuntimeIdentifier を無視して AnyCPU 相当で走るため
+**生成された .exe を直接起動**する:
+
+```powershell
+.\bin\Release\net8.0-windows\win-x86\JvLinkExporter.exe --raw-dump --date=2026-04-11 > C:\jra-data\raw-2026-04-11.txt
+.\bin\Release\net8.0-windows\win-x86\JvLinkExporter.exe --dummy --date=2026-04-15 --out=C:\jra-data\2026-04-15.json
 ```
 
 ## 実行モード
@@ -29,22 +43,22 @@ dotnet build -c Release
 ### 1. ダミーモード（JV-Link 不要）
 Mac 側 transform CLI までの配管をまず確認する用。
 ```powershell
-dotnet run -- --dummy --date=2026-04-15 --out=C:\jra-data\2026-04-15.json
+.\bin\Release\net8.0-windows\win-x86\JvLinkExporter.exe --dummy --date=2026-04-15 --out=C:\jra-data\2026-04-15.json
 ```
 → `C:\jra-data\2026-04-15.json` にスキーマ準拠のダミーJSONを出力。
 そのまま Mac 側で `pnpm sync:jra-results --in=./2026-04-15.json --dispatch --dry-run` で検証可能。
 
 ### 2. 生レコードダンプ（オフセット検証用）
 ```powershell
-dotnet run -- --raw-dump --date=2026-04-15 > raw.txt
+.\bin\Release\net8.0-windows\win-x86\JvLinkExporter.exe --raw-dump --date=2026-04-15 > raw.txt
 ```
 → RA/SE/HR の生レコードを `[####] RA|len=xxx|...` 形式で全て stdout に出力。
 JV-Data仕様書のオフセット表と突合し、`RecordParser.cs` の TODO 項目を確定値に書き換える。
 
 ### 3. 通常モード（実データ取得）
 ```powershell
-set JVLINK_SID=取得したID
-dotnet run -- --date=2026-04-15 --out=C:\jra-data\2026-04-15.json
+$env:JVLINK_SID = "取得したID"
+.\bin\Release\net8.0-windows\win-x86\JvLinkExporter.exe --date=2026-04-15 --out=C:\jra-data\2026-04-15.json
 ```
 
 ### オプション

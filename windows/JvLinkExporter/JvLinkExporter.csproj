@@ -2,6 +2,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- JV-Link は 32bit COM のため x86 固定 (AnyCPU/x64/ARM は REGDB_E_CLASSNOTREG) -->
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <PlatformTarget>x86</PlatformTarget>
+    <Platforms>x86</Platforms>
+    <SelfContained>false</SelfContained>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

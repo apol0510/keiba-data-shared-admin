@@ -194,9 +194,10 @@ export const prerender = false;
         const totalHorses = results.reduce((s, r) => s + r.horses.length, 0);
         console.log(`[Import] 解析完了: ${results.length}R ${totalHorses}頭`);
 
-        // 日付がフォールバックの場合、コンピ指数から正確な日付を推定
+        // コンピ指数は日付確定後に先行保存される設計なので、常にコンピを真値として優先
+        // （ユーザー入力/XML検出は前日セッションの残留等でズレるケースがあるため）
         // 既にracebookが保存済みの日付はスキップし、未保存の日付を優先
-        if (dateSource === '今日フォールバック') {
+        {
           const track = results[0].raceInfo.track;
           const trackCode = ALL_VENUE_CODES[track];
           const category = JRA_VENUE_CODES[track] ? 'jra' : (NANKAN_VENUE_CODES[track] ? 'nankan' : 'local');
@@ -225,8 +226,12 @@ export const prerender = false;
                   if (!rbRes.ok) { bestDate = ds; break; } // 未保存→この日付を使う
                 } catch (e) { bestDate = ds; break; }
               }
+              const prevDate = document.getElementById('raceDate').value;
+              if (prevDate && prevDate !== bestDate) {
+                console.warn(`[Import] ⚠️ 日付上書き: ${prevDate} (${dateSource}) → ${bestDate} (コンピ指数)`);
+              }
               document.getElementById('raceDate').value = bestDate;
-              console.log(`[Import] 日付推定(コンピ指数): ${bestDate} (${track}=${trackCode}, 候補: ${candidates.join(',')})`);
+              console.log(`[Import] 日付確定(コンピ指数): ${bestDate} (${track}=${trackCode}, 候補: ${candidates.join(',')})`);
               parsedData = buildJSON(results);
               renderPreview(results);
             }

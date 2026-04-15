@@ -11,6 +11,7 @@ public sealed class Aggregator
     private readonly Dictionary<string, IntermediateRace> _raceMap = new();
     private readonly Dictionary<string, IntermediateVenue> _venueMap = new();
     private readonly Dictionary<string, int> _dateCount = new();
+    private readonly List<HrRecord> _hrBuffer = new();
     private int _raCalls, _seCalls, _hrCalls, _seMatched, _hrMatched;
     private int _raDbgLogged, _seDbgLogged, _hrDbgLogged;
 
@@ -117,44 +118,58 @@ public sealed class Aggregator
 
     public void ApplyHr(HrRecord hr)
     {
+        // HRは RA より先に来る場合があるため、ここでは必ず buffer に積むだけにする。
+        // 実際の race への紐付けは Finalize() で raceMap 確定後にまとめて行う。
         _hrCalls++;
-        var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
-        var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
-
-        // 完全一致で引けなかった場合、日付を無視した fallback を試す
-        IntermediateRace? race = null;
-        bool matched = _raceMap.TryGetValue(key, out race);
-        string matchMode = matched ? "exact" : "?";
-        if (!matched)
-        {
-            var tail = $"|{NormJyo(hr.JyoCD)}-{NormRace(hr.RaceNum)}";
-            var hit = _raceMap.FirstOrDefault(kv => kv.Key.EndsWith(tail));
-            if (hit.Value != null) { race = hit.Value; matched = true; matchMode = "date-ignored:" + hit.Key; }
-        }
-
+        _hrBuffer.Add(hr);
         if (_debug && _hrDbgLogged < 3)
         {
-            var sampleKey = _raceMap.Keys.FirstOrDefault() ?? "(empty)";
-            Log($"HR#{_hrCalls} key='{key}' match={matchMode} raceMapSampleKey='{sampleKey}' raw.Year='{hr.Year}' raw.MonthDay='{hr.MonthDay}' raw.JyoCD='{hr.JyoCD}' raw.RaceNum='{hr.RaceNum}'");
+            var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
+            var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
+            Log($"HR#{_hrCalls} buffered key='{key}' raw.Year='{hr.Year}' raw.MonthDay='{hr.MonthDay}' raw.JyoCD='{hr.JyoCD}' raw.RaceNum='{hr.RaceNum}'");
             _hrDbgLogged++;
         }
+    }
 
-        if (race == null) return;
-        _hrMatched++;
-        race.Payouts.Tansho = hr.Tansho;
-        race.Payouts.Fukusho = hr.Fukusho;
-        race.Payouts.Wakuren = hr.Wakuren;
-        race.Payouts.Umaren = hr.Umaren;
-        race.Payouts.Wide = hr.Wide;
-        race.Payouts.Umatan = hr.Umatan;
-        race.Payouts.Sanrenpuku = hr.Sanrenpuku;
-        race.Payouts.Sanrentan = hr.Sanrentan;
+    /// <summary>Finalize 内で呼び出される: buffered HR → raceMap への遅延紐付け</summary>
+    private void FlushHrBuffer()
+    {
+        int exact = 0, dateIgnored = 0, missed = 0;
+        foreach (var hr in _hrBuffer)
+        {
+            var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
+            var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
+
+            IntermediateRace? race = null;
+            if (_raceMap.TryGetValue(key, out race)) { exact++; }
+            else
+            {
+                var tail = $"|{NormJyo(hr.JyoCD)}-{NormRace(hr.RaceNum)}";
+                var hit = _raceMap.FirstOrDefault(kv => kv.Key.EndsWith(tail));
+                if (hit.Value != null) { race = hit.Value; dateIgnored++; }
+            }
+
+            if (race == null) { missed++; continue; }
+            _hrMatched++;
+            race.Payouts.Tansho = hr.Tansho;
+            race.Payouts.Fukusho = hr.Fukusho;
+            race.Payouts.Wakuren = hr.Wakuren;
+            race.Payouts.Umaren = hr.Umaren;
+            race.Payouts.Wide = hr.Wide;
+            race.Payouts.Umatan = hr.Umatan;
+            race.Payouts.Sanrenpuku = hr.Sanrenpuku;
+            race.Payouts.Sanrentan = hr.Sanrentan;
+        }
+        Log($"[hr-flush] buffered={_hrBuffer.Count} exact={exact} date-ignored={dateIgnored} missed={missed}");
     }
 
     public IntermediateDay Finalize()
     {
+        // HR は順序依存を避けるため、raceMap 確定後にまとめて紐付ける
+        FlushHrBuffer();
+
         Log($"[finalize] raCalls={_raCalls} seCalls={_seCalls} hrCalls={_hrCalls}");
-        Log($"[finalize] seMatched={_seMatched}/{_seCalls} hrMatched={_hrMatched}/{_hrCalls} (unmatched = race key 不一致)");
+        Log($"[finalize] seMatched={_seMatched}/{_seCalls} hrReMatched={_hrMatched}/{_hrCalls}");
         Log($"[finalize] date distribution: {string.Join(", ", _dateCount.Select(kv => $"{kv.Key}:{kv.Value}"))}");
         Log($"[finalize] raceMap={_raceMap.Count} venueMap={_venueMap.Count}");
 

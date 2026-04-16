@@ -1102,6 +1102,7 @@ export const prerender = false;
             startTime: im ? im[3] : null,
             surface: im ? im[4] : null,
             distance: im ? im[4] + im[5] + 'm' : null,
+            distanceMeters: im ? parseInt(im[5], 10) : null,
             headCount: im ? parseInt(im[6]) : null,
             lines: [],
             startLine: i
@@ -1191,6 +1192,7 @@ export const prerender = false;
           raceClass: block.raceClass || '',
           conditions: '',
           distance: block.distance || '',
+          distanceMeters: block.distanceMeters ?? null,
           startTime: block.startTime || null
         },
         horses,
@@ -1392,10 +1394,12 @@ export const prerender = false;
           if (numMatch) finish = numMatch[1];
         }
 
-        // クラス+距離: "Ｃ3 ダ2000"
-        const cdMatch = classDistLine.match(/^(.+?)\s+(ダ|芝)(\d+)/);
+        // クラス+距離: "Ｃ3 ダ2000" / "Ｃ3 ダ外2000"（内/外/右/左コース付き）にも対応
+        // 内/外などのコース記号は距離文字列から除外し、下流の数値パースに影響させない
+        const cdMatch = classDistLine.match(/^(.+?)\s+(ダ|芝|障)([内外右左])?(\d+)/);
         const raceClass = cdMatch ? cdMatch[1] : classDistLine;
-        const distance = cdMatch ? cdMatch[2] + cdMatch[3] : null;
+        const distance = cdMatch ? cdMatch[2] + cdMatch[4] : null;
+        const distanceMeters = cdMatch ? parseInt(cdMatch[4], 10) : null;
 
         // タイム
         const time = /^\d/.test(timeLine) ? timeLine : null;
@@ -1433,6 +1437,7 @@ export const prerender = false;
         pastRaces.push({
           venue, raceClass, finish, cond: null, courseNote: null,
           distance: distance || null,
+          distanceMeters,
           time, weight: prWeight ? parseInt(prWeight) : null,
           jockey: prJockey, bodyWeight, paceType, paceRank, final3F, winner
         });
@@ -1656,6 +1661,7 @@ export const prerender = false;
             raceClass: r.raceInfo.raceClass || null,
             conditions: r.raceInfo.conditions || null,
             distance: r.raceInfo.distance || null,
+            distanceMeters: r.raceInfo.distanceMeters ?? null,
             startTime: r.raceInfo.startTime || null,
             horseCount: r.horses.length,
             predictorCount: r.horses[0]?.predictorCount || null,
@@ -1697,6 +1703,7 @@ export const prerender = false;
                   cond: pr.cond || null,
                   courseNote: pr.courseNote || null,
                   distance: pr.distance || null,
+                  distanceMeters: pr.distanceMeters ?? null,
                   time: pr.time || null,
                   weight: pr.weight ? parseInt(pr.weight) : null,
                   jockey: normName(pr.jockey),

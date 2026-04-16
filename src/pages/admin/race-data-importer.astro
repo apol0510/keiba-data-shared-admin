@@ -1312,12 +1312,14 @@ export const prerender = false;
 
       // --- 斤量・騎手（"54 国分祐" パターンを探索） ---
       // 合計スコア行の位置がずれる場合があるため、広範囲で探索
+      // 減量記号（▲☆◆）が斤量直後に付くパターン（"51▲ 西優哉"）にも対応
+      // 外部所属記号（[J]/[金]/[北]）始まりの騎手名にも対応
       let weight = null, jockey = null;
       const wjEnd = Math.min(cursor + 10, hLines.length);
       for (let wi = cursor; wi < wjEnd; wi++) {
         const line = hLines[wi].trim();
-        // パターンA: 斤量(2桁) + スペース + 騎手名（漢字/カナで始まる）
-        const wjMatch = line.match(/^(\d{2})\s+([\u3000-\u9FFFa-zA-Zァ-ヺぁ-ん].+)/);
+        // パターンA: 斤量(2桁)[減量記号?] + 空白(半角/全角) + 騎手名（漢字/カナ/[で始まる）
+        const wjMatch = line.match(/^(\d{2})[▲☆◆◇]?[\s\u3000]+([\[\u3000-\u9FFFa-zA-Zァ-ヺぁ-ん].+)/);
         if (wjMatch) {
           weight = wjMatch[1];
           jockey = wjMatch[2].replace(/\s+/g, '').trim();
@@ -1345,15 +1347,24 @@ export const prerender = false;
         }
       }
 
-      // --- 調教師（"所属 名前" パターンを探索） ---
+      // --- 調教師 ---
+      // 南関出走表は "所属場 調教師名"（例: "大井 市村誠"）または "馬主略称 調教師名"（例: "小林 福田真"）のパターン。
+      // 過去走の "大井 12.29"（会場+日付）や "盛岡 1.24.5"（会場+タイム）は 2語目が数字始まりなので除外する。
       let trainer = null;
       for (let ti = cursor; ti < Math.min(cursor + 10, hLines.length); ti++) {
-        const trMatch = hLines[ti].trim().match(TRAINER_RE);
-        if (trMatch) {
-          trainer = trMatch[2].replace(/\s+/g, '');
-          cursor = ti + 1;
-          break;
-        }
+        const line = hLines[ti].trim();
+        // 厳密に2トークン構成の行のみを対象とする（"3.26 栗 172" や通算成績 "1 1 0 0" を自動除外）
+        const m = line.match(/^(\S+)[\s\u3000]+(\S+)$/);
+        if (!m) continue;
+        const word1 = m[1];
+        const word2 = m[2];
+        // 1語目が数字始まり（過去走タイム行など）は除外
+        if (/^\d/.test(word1)) continue;
+        // 2語目が数字・ドット・コロン始まり（日付/タイム）は除外
+        if (/^[\d.:]/.test(word2)) continue;
+        trainer = word2.replace(/\s+/g, '');
+        cursor = ti + 1;
+        break;
       }
 
       // --- 近走開始行（場名パターン）を直接検索 ---

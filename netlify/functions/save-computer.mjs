@@ -293,11 +293,11 @@ async function saveToGitHub(data) {
   const filePath = `${category}/predictions/computer/${year}/${month}/${date}-${venueCode}.json`;
 
   // GitHub APIで保存
-  const token = process.env.GITHUB_TOKEN;
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
   const repo = 'apol0510/keiba-data-shared';
 
   if (!token) {
-    throw new Error('GITHUB_TOKEN が設定されていません');
+    throw new Error('GITHUB_TOKEN_KEIBA_DATA_SHARED または GITHUB_TOKEN が設定されていません');
   }
 
   // 既存ファイルのSHA取得

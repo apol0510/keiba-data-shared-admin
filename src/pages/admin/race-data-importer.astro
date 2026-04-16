@@ -1071,21 +1071,33 @@ export const prerender = false;
         headerDate = `${y}-${m}-${d}`;
       }
 
-      // レース分割: "XR " で始まる行をレースヘッダーとする
+      // レース分割: "XR" で始まる行をレースヘッダーとする
+      // 同一行にクラスが続く形式（"1R 一般"）と、クラスが次行に独立する形式（"1R\nＣ３"）の両方に対応
       const raceBlocks = [];
       let currentBlock = null;
+      const INFO_RE = /(\S+?)(\d{1,2})R\s+(\d{1,2}:\d{2})発走\s*\/\s*(ダート|芝)(\d+)m\s*(\d+)頭/;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i].trim();
-        const rm = line.match(/^(\d{1,2})R\s+(.+)/);
+        const rm = line.match(/^(\d{1,2})R(?:\s+(.+))?$/);
         if (rm) {
-          // 次の行から詳細情報を取得 "川崎1R 14:45発走 / ダート1400m12頭"
-          const infoLine = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
-          const im = infoLine.match(/(\S+?)(\d{1,2})R\s+(\d{1,2}:\d{2})発走\s*\/\s*(ダート|芝)(\d+)m\s*(\d+)頭/);
+          let raceClass = (rm[2] || '').trim();
+          let im = null;
+
+          // 後続の非空行を最大10行先まで走査して
+          // - クラス未取得なら最初の非空行をクラスとして採用（ただし詳細情報行を除く）
+          // - 詳細情報行（"○○1R 14:30発走 / ダート1400m13頭"）を取得
+          for (let j = i + 1; j < Math.min(i + 11, lines.length); j++) {
+            const cand = lines[j].trim();
+            if (!cand) continue;
+            const m = cand.match(INFO_RE);
+            if (m) { im = m; break; }
+            if (!raceClass) raceClass = cand;
+          }
 
           currentBlock = {
             raceNumber: parseInt(rm[1]),
-            raceClass: rm[2],
+            raceClass: raceClass,
             track: im ? im[1] : headerTrack,
             startTime: im ? im[3] : null,
             surface: im ? im[4] : null,
@@ -1123,15 +1135,16 @@ export const prerender = false;
 
     function parseTextRace(block, headerTrack) {
       const { lines } = block;
-      const SEX_RE = /[牡牝セ騸]/;
+      // 性齢パターン: 牡/牝/セ/騸 + 年齢数字（血統行の途中にあってもOK、行末の数字は要求しない）
+      const SEX_AGE_RE = /[牡牝セ騸]\d+/;
 
-      // 馬データの開始行を検出: "馬番 馬名" の次行が "父名 性齢" パターン
+      // 馬データの開始行を検出: "馬番 馬名" の次行が "父名 性齢 …（母父）" パターン
       const horseStarts = [];
       let standaloneMode = false;
       for (let i = 0; i < lines.length; i++) {
         const curr = lines[i].trim();
         const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
-        if (/^\d{1,2}\s+[ァ-ヺー\u30A0-\u30FFぁ-んＡ-Ｚa-zA-Zア-ン]/.test(curr) && SEX_RE.test(next) && /\d$/.test(next)) {
+        if (/^\d{1,2}\s+[ァ-ヺー\u30A0-\u30FFぁ-んＡ-Ｚa-zA-Zア-ン]/.test(curr) && SEX_AGE_RE.test(next)) {
           const prev = (i > 0) ? lines[i - 1].trim() : '';
           const bracket = /^[1-8]$/.test(prev) ? parseInt(prev) : null;
           horseStarts.push({ idx: i, bracket });
@@ -1143,7 +1156,7 @@ export const prerender = false;
         for (let i = 0; i < lines.length; i++) {
           const curr = lines[i].trim();
           const next = (i + 1 < lines.length) ? lines[i + 1].trim() : '';
-          if (/^\d{1,2}$/.test(curr) && SEX_RE.test(next) && /\d$/.test(next)) {
+          if (/^\d{1,2}$/.test(curr) && SEX_AGE_RE.test(next)) {
             horseStarts.push({ idx: i, bracket: null });
           }
         }
@@ -1192,6 +1205,11 @@ export const prerender = false;
 
       const MARK_RE = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿]$/;
       const MARK_OR_ELLIPSIS = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]$/;
+      // 複数予想家の印が1行に並ぶ形式対応: 行全体が印/…/空白のみで構成され、少なくとも1つの印or…を含む
+      const MARK_CHARS_G = /[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿]/g;
+      const MARK_ROW_RE = /^[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…\s\u3000]+$/;
+      const hasMarkOrEllipsis = (s) => /[◎○▲△☆★×✕注穴❶❷❸❹❺❻❼❽❾❿…]/.test(s);
+      const isMarkRow = (s) => s.length > 0 && MARK_ROW_RE.test(s) && hasMarkOrEllipsis(s);
       const SEX_AGE_RE = /([牡牝セ騸]\d+)/;
       const VENUE_NAMES_RE = /^(大井|川崎|船橋|浦和|東京|中山|京都|阪神|中京|新潟|福島|小倉|札幌|函館|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|門別|帯広)\s+[\d.]+/;
       const TRAINER_RE = /^(大井|川崎|船橋|浦和|門別|盛岡|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広|美浦|栗東)\s+(.+)/;
@@ -1253,7 +1271,8 @@ export const prerender = false;
       let markStartIdx = -1;
       for (let i = damSearchStart; i < Math.min(hLines.length, 20); i++) {
         const t = hLines[i].trim();
-        if (MARK_OR_ELLIPSIS.test(t)) {
+        // 印行（1行1印 or 1行複数印スペース区切り）を検出
+        if (MARK_OR_ELLIPSIS.test(t) || isMarkRow(t)) {
           markStartIdx = i;
           break;
         }
@@ -1263,13 +1282,18 @@ export const prerender = false;
       }
       if (markStartIdx < 0) markStartIdx = Math.min(damSearchStart + 5, hLines.length);
 
-      // --- 印（…=なし、◎○▲△☆★×=あり） ---
+      // --- 印（…=なし、◎○▲△☆★×=あり）／1行に複数印（スペース区切り）も対応 ---
       const marks = [];
       let markEnd = markStartIdx;
       for (let i = markStartIdx; i < Math.min(hLines.length, markStartIdx + 15); i++) {
         const t = hLines[i].trim();
         if (t === '…' || MARK_RE.test(t)) {
           if (MARK_RE.test(t)) marks.push(t);
+          markEnd = i + 1;
+        } else if (isMarkRow(t)) {
+          // 複数予想家の印が1行にスペース区切りで並ぶケース（例: "… ◎ …"）
+          const found = t.match(MARK_CHARS_G);
+          if (found) marks.push(...found);
           markEnd = i + 1;
         } else {
           break;

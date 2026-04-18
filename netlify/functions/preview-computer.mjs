@@ -157,7 +157,7 @@ function parseComputerData(raceDate, venue, computerData) {
 
     // 馬データ行をパース
     if (inHorseData) {
-      if (line.match(/^[1-8]$/) && i + 4 < lines.length) {
+      if (line.match(/^[1-8]$/) && i + 3 < lines.length) {
         const bracket = parseInt(line);
         const numberLine = lines[i + 1].trim();
         const numberMatch = numberLine.match(/^(\d{1,2})$/);
@@ -173,12 +173,16 @@ function parseComputerData(raceDate, venue, computerData) {
 
           if (indexMatch) {
             const computerIndex = parseInt(indexMatch[1]);
+            // 人気欄は帯広など省略される場合あり。マッチ時のみ消費
             let popularity = null;
-            const popLine = lines[i + 4].trim();
-            const popMatch = popLine.match(/^(\d{1,2})位$/);
-
-            if (popMatch) {
-              popularity = parseInt(popMatch[1]);
+            let consumed = 3;
+            if (i + 4 < lines.length) {
+              const popLine = lines[i + 4].trim();
+              const popMatch = popLine.match(/^(\d{1,2})位$/);
+              if (popMatch) {
+                popularity = parseInt(popMatch[1]);
+                consumed = 4;
+              }
             }
 
             horses.push({
@@ -189,7 +193,7 @@ function parseComputerData(raceDate, venue, computerData) {
               popularity
             });
 
-            i += 4;
+            i += consumed;
           }
         }
       }

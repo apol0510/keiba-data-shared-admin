@@ -515,7 +515,26 @@ export const prerender = false;
       }
       console.log(`[Import] distance抽出: "${distance}" (元テキスト: "${distEl ? distEl.text : '㍍要素なし'}")`);
 
-      const classEls = elements.filter(e => e.height >= 30 && e.height <= 40 && e.width === 0 && e.text.trim());
+      // 通常レース: 縦書き文字 height 30〜40 / 重賞: フォントが大きく height が範囲外になりうる
+      let classEls = elements.filter(e => e.height >= 30 && e.height <= 40 && e.width === 0 && e.text.trim());
+      if (classEls.length === 0) {
+        // フォールバック: 重賞などフォント差異対応。印領域(>=141)より上のヘッダー域に限定
+        const widened = elements.filter(e =>
+          e.width === 0 &&
+          e.height >= 25 && e.height <= 80 &&
+          e.top >= 30 && e.top <= 140 &&
+          e.text.trim() &&
+          !/^[■□◯○●◆◇▲△▼▽☆★]+$/.test(e.text.trim())
+        );
+        if (widened.length > 0) {
+          console.log(`[Import] raceClassフォールバック発動: ${widened.length}件 候補=${widened.map(e => `[h=${e.height}f=${e.font}]${e.text.trim()}`).join(' / ')}`);
+          classEls = widened;
+        } else {
+          // 診断ログ: 何が候補にすらならなかったか確認
+          const headerEls = elements.filter(e => e.top >= 30 && e.top <= 140 && e.text.trim());
+          console.log(`[Import] raceClass未取得 ヘッダー域要素 ${headerEls.length}件:`, headerEls.slice(0, 20).map(e => `[h=${e.height}w=${e.width}f=${e.font}t=${e.top}]${e.text.trim()}`).join(' / '));
+        }
+      }
       classEls.sort((a, b) => a.top - b.top);
       raceClass = classEls.map(e => e.text.trim()).join('');
 

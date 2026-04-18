@@ -161,7 +161,7 @@ function parseComputerData(raceDate, venue, computerData) {
     // 馬データ行をパース
     if (inHorseData) {
       // 枠番の行（1-8の単独数字）
-      if (line.match(/^[1-8]$/) && i + 4 < lines.length) {
+      if (line.match(/^[1-8]$/) && i + 3 < lines.length) {
         const bracket = parseInt(line);
 
         // 次の行が馬番（1-18の数字）
@@ -184,13 +184,16 @@ function parseComputerData(raceDate, venue, computerData) {
           if (indexMatch) {
             const computerIndex = parseInt(indexMatch[1]);
 
-            // その次が人気
+            // その次が人気（帯広など人気欄がない競馬場は省略される）
             let popularity = null;
-            const popLine = lines[i + 4].trim();
-            const popMatch = popLine.match(/^(\d{1,2})位$/);
-
-            if (popMatch) {
-              popularity = parseInt(popMatch[1]);
+            let consumed = 3; // 枠→馬番→馬名→指数 の4行（i += 3 + loop i++ で5行目に進む）
+            if (i + 4 < lines.length) {
+              const popLine = lines[i + 4].trim();
+              const popMatch = popLine.match(/^(\d{1,2})位$/);
+              if (popMatch) {
+                popularity = parseInt(popMatch[1]);
+                consumed = 4; // 人気行も消費
+              }
             }
 
             horses.push({
@@ -201,8 +204,7 @@ function parseComputerData(raceDate, venue, computerData) {
               popularity
             });
 
-            // 5行スキップ（枠番→馬番→馬名→指数→人気）
-            i += 4;
+            i += consumed;
           }
         }
       }

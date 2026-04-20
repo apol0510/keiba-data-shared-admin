@@ -55,42 +55,117 @@ public sealed class Aggregator
         return v;
     }
 
-    public void ApplyRa(RaRecord ra)
+    public void ApplyRa(RaRecord ra, string? rawRecord = null)
     {
         _raCalls++;
+        if (_debug && _raDbgLogged < 3 && rawRecord != null)
+        {
+            var len = rawRecord.Length;
+            Log($"RA-RAW#{_raCalls} charLen={len}");
+            // SJIS バイト変換してバイト数を確認 + 主要エリアをダンプ
+            try
+            {
+                var sjisBytes = System.Text.Encoding.GetEncoding("shift_jis").GetBytes(rawRecord);
+                Log($"  sjisBytes={sjisBytes.Length}");
+                // 20byte 刻みでダンプ (byte 0..700 + 末尾50)
+                void DumpRange(int from, int to)
+                {
+                    var enc = System.Text.Encoding.GetEncoding("shift_jis");
+                    for (int pos = from; pos < to && pos < sjisBytes.Length; pos += 20)
+                    {
+                        int chunk = Math.Min(20, sjisBytes.Length - pos);
+                        var hex = BitConverter.ToString(sjisBytes, pos, chunk);
+                        var txt = enc.GetString(sjisBytes, pos, chunk).Replace('\r', '.').Replace('\n', '.').Replace('\0', '.');
+                        Log($"  [{pos,4}..{pos + chunk - 1,4}] {hex}  |{txt}|");
+                    }
+                }
+                DumpRange(0, 700);
+                DumpRange(Math.Max(0, sjisBytes.Length - 50), sjisBytes.Length);
+            }
+            catch (Exception ex) { Log($"  SJIS dump failed: {ex.Message}"); }
+        }
         var date = JyoToDate(ra.Year, ra.MonthDay) ?? "?";
         _dateCount[date] = _dateCount.GetValueOrDefault(date, 0) + 1;
 
         var key = RaceKey(date, ra.JyoCD, ra.RaceNum);
         if (_debug && _raDbgLogged < 3)
         {
-            Log($"RA#{_raCalls} key='{key}' year='{ra.Year}' monthDay='{ra.MonthDay}' jyoCD='{ra.JyoCD}' raceNum='{ra.RaceNum}' kyori='{ra.Kyori}' track='{ra.TrackCD}'");
+            // Tenko/Baba は末尾スキャン後、ApplyRa 末尾の [ra-meta] で別途出力する
+            Log($"RA#{_raCalls} key='{key}' year='{ra.Year}' monthDay='{ra.MonthDay}' jyoCD='{ra.JyoCD}' raceNum='{ra.RaceNum}' kyori='{ra.Kyori}' track='{ra.TrackCD}' hasso='{ra.HassoTime}' name='{ra.RaceName}' ryaku10='{ra.RaceNameRyakusho10}'");
             _raDbgLogged++;
         }
-        var race = new IntermediateRace
+        // RA は metadata の source of truth。
+        // SE が先着していた場合、既存 race object に metadata をマージし、
+        // venue.Races の重複追加を避ける（順序非依存集約）。
+        if (!_raceMap.TryGetValue(key, out var race))
         {
-            RaceNumber = RecordParser.ParseIntOrNull(ra.RaceNum) ?? 0,
-            RaceName = string.IsNullOrWhiteSpace(ra.RaceName) ? null : ra.RaceName,
-            RaceSubtitle = string.IsNullOrWhiteSpace(ra.RaceSubName) ? null : ra.RaceSubName,
-            Distance = RecordParser.ParseIntOrNull(ra.Kyori),
-            Surface = TrackCdToSurface(ra.TrackCD),
-            Weather = TenkoCdToName(ra.TenkoCD),
-            TrackCondition = BabaCdToName(ra.BabaCD_Shiba, ra.BabaCD_Dirt, ra.TrackCD),
-            StartTime = FormatTime(ra.HassoTime),
-        };
-        _raceMap[key] = race;
-        var venue = EnsureVenue(date, ra.JyoCD);
-        if (!venue.Races.Contains(race)) venue.Races.Add(race);
+            race = new IntermediateRace
+            {
+                RaceNumber = RecordParser.ParseIntOrNull(ra.RaceNum) ?? 0,
+            };
+            _raceMap[key] = race;
+            EnsureVenue(date, ra.JyoCD).Races.Add(race);
+        }
+        else
+        {
+            // raceNumber も RA を最優先（SE 由来の値は冗長に過ぎない）
+            var raN = RecordParser.ParseIntOrNull(ra.RaceNum);
+            if (raN.HasValue) race.RaceNumber = raN.Value;
+            EnsureVenue(date, ra.JyoCD); // venue 側も冪等に確保
+        }
+
+        // raceName fallback: 本題 > 副題 > 略称10 > 略称6 > 既存
+        var raName = string.IsNullOrWhiteSpace(ra.RaceName) ? null : ra.RaceName.Trim();
+        var raSub  = string.IsNullOrWhiteSpace(ra.RaceSubName) ? null : ra.RaceSubName.Trim();
+        var ry10   = string.IsNullOrWhiteSpace(ra.RaceNameRyakusho10) ? null : ra.RaceNameRyakusho10.Trim();
+        var ry6    = string.IsNullOrWhiteSpace(ra.RaceNameRyakusho6) ? null : ra.RaceNameRyakusho6.Trim();
+        var picked = raName ?? raSub ?? ry10 ?? ry6;
+        if (picked != null) race.RaceName = picked;
+        if (raSub != null) race.RaceSubtitle = raSub;
+
+        // 距離/馬場/天候/発走時刻は RA を source of truth として上書き（null は維持）
+        var dist = RecordParser.ParseIntOrNull(ra.Kyori);
+        if (dist.HasValue) race.Distance = dist;
+        var surf = TrackCdToSurface(ra.TrackCD);
+        if (surf != null) race.Surface = surf;
+        var wx = TenkoCdToName(ra.TenkoCD);
+        if (wx != null) race.Weather = wx;
+        var baba = BabaCdToName(ra.BabaCD_Shiba, ra.BabaCD_Dirt, ra.TrackCD);
+        if (baba != null) race.TrackCondition = baba;
+        if (_debug)
+        {
+            var surfTag = TrackCdToSurface(ra.TrackCD) ?? "?";
+            Log($"[ra-meta] key='{key}' track='{ra.TrackCD}'->surface='{surfTag}' tenko-raw='{ra.TenkoCD}'->'{wx ?? "null"}' babaShibaRaw='{ra.BabaCD_Shiba}' babaDirtRaw='{ra.BabaCD_Dirt}' baba='{baba ?? "null"}'");
+        }
+        var st = FormatTime(ra.HassoTime);
+        if (st != null) race.StartTime = st;
     }
 
-    public void ApplySe(SeRecord se)
+    public void ApplySe(SeRecord se, string? rawRecord = null)
     {
         _seCalls++;
         var date = JyoToDate(se.Year, se.MonthDay) ?? "?";
         var key = RaceKey(date, se.JyoCD, se.RaceNum);
         if (_debug && _seDbgLogged < 3)
         {
-            Log($"SE#{_seCalls} key='{key}' umaban='{se.Umaban}' bamei='{se.Bamei}' jyuni='{se.KakuteiJyuni}'");
+            Log($"SE#{_seCalls} key='{key}' umaban='{se.Umaban}' bamei='{se.Bamei}' kishu='{se.KishuName}' chokyo='{se.ChokyoshiName}' jyuni='{se.KakuteiJyuni}' futan='{se.Futan}'");
+            if (rawRecord != null)
+            {
+                try
+                {
+                    var sjisBytes = System.Text.Encoding.GetEncoding("shift_jis").GetBytes(rawRecord);
+                    Log($"  SE-RAW charLen={rawRecord.Length} sjisBytes={sjisBytes.Length}");
+                    var enc = System.Text.Encoding.GetEncoding("shift_jis");
+                    for (int pos = 0; pos < sjisBytes.Length; pos += 20)
+                    {
+                        int chunk = Math.Min(20, sjisBytes.Length - pos);
+                        var hex = BitConverter.ToString(sjisBytes, pos, chunk);
+                        var txt = enc.GetString(sjisBytes, pos, chunk).Replace('\r', '.').Replace('\n', '.').Replace('\0', '.');
+                        Log($"  [{pos,4}..{pos + chunk - 1,4}] {hex}  |{txt}|");
+                    }
+                }
+                catch (Exception ex) { Log($"  SE dump failed: {ex.Message}"); }
+            }
             _seDbgLogged++;
         }
         if (!_raceMap.TryGetValue(key, out var race))
@@ -116,7 +191,7 @@ public sealed class Aggregator
         });
     }
 
-    public void ApplyHr(HrRecord hr)
+    public void ApplyHr(HrRecord hr, string? rawRecord = null)
     {
         // HRは RA より先に来る場合があるため、ここでは必ず buffer に積むだけにする。
         // 実際の race への紐付けは Finalize() で raceMap 確定後にまとめて行う。
@@ -127,6 +202,23 @@ public sealed class Aggregator
             var date = JyoToDate(hr.Year, hr.MonthDay) ?? "?";
             var key = RaceKey(date, hr.JyoCD, hr.RaceNum);
             Log($"HR#{_hrCalls} buffered key='{key}' raw.Year='{hr.Year}' raw.MonthDay='{hr.MonthDay}' raw.JyoCD='{hr.JyoCD}' raw.RaceNum='{hr.RaceNum}'");
+            if (rawRecord != null)
+            {
+                try
+                {
+                    var sjisBytes = System.Text.Encoding.GetEncoding("shift_jis").GetBytes(rawRecord);
+                    Log($"  HR-RAW charLen={rawRecord.Length} sjisBytes={sjisBytes.Length}");
+                    var enc = System.Text.Encoding.GetEncoding("shift_jis");
+                    for (int pos = 0; pos < sjisBytes.Length; pos += 20)
+                    {
+                        int chunk = Math.Min(20, sjisBytes.Length - pos);
+                        var hex = BitConverter.ToString(sjisBytes, pos, chunk);
+                        var txt = enc.GetString(sjisBytes, pos, chunk).Replace('\r', '.').Replace('\n', '.').Replace('\0', '.');
+                        Log($"  [{pos,4}..{pos + chunk - 1,4}] {hex}  |{txt}|");
+                    }
+                }
+                catch (Exception ex) { Log($"  HR dump failed: {ex.Message}"); }
+            }
             _hrDbgLogged++;
         }
     }
@@ -234,8 +326,15 @@ public sealed class Aggregator
 
     private static string? BabaCdToName(string shiba, string dirt, string trackCd)
     {
-        // 芝レースなら shiba、ダートなら dirt を採用 (暫定)
-        var cd = TrackCdToSurface(trackCd) == "D" ? dirt : shiba;
+        // TrackCD で採用面を確定: 芝/障害 → shiba, ダート → dirt
+        var surface = TrackCdToSurface(trackCd);
+        string? cd = surface switch
+        {
+            "T" => shiba,
+            "O" => shiba, // 障害は芝扱い
+            "D" => dirt,
+            _   => null,  // surface 不明時は判定不能
+        };
         return cd switch { "1" => "良", "2" => "稍重", "3" => "重", "4" => "不良", _ => null };
     }
 

@@ -4,6 +4,8 @@ JV-Link (JRA-VAN Data Lab.) から JRA結果データを取得し、
 `keiba-data-shared-admin/src/lib/jra/jvlink-mapper.mjs` が受け取れる
 **中間JSON** を出力する Windows 専用 .NET 8 コンソールアプリ。
 
+> 📌 **現在の完成度・残タスク・Windows→Mac 受け渡し手順** は [`NEXT_STEPS.md`](./NEXT_STEPS.md) にまとめてあります。
+
 ## 動作要件
 
 - Windows 11 (Parallels 可)

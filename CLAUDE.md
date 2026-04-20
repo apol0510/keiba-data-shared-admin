@@ -70,10 +70,10 @@ ls -la /Users/apolon/Projects/keiba-data-shared/{category}/results/YYYY/MM/
 
 | 区分 | 対象 | 許可 |
 |------|------|------|
-| ✅ 許可 | `/Users/apolon/Projects/keiba-data-shared-admin/` 配下全て | 読み書き |
-| ✅ 例外 | `/Users/apolon/Projects/keiba-data-shared` | **読み取り専用** |
-| ❌ 禁止 | 上記以外のプロジェクトディレクトリ | アクセス不可 |
-| ❌ 禁止 | keiba-data-shared への直接書き込み | GitHub API経由のみ |
+| ✅ 許可 | `/Users/apolon/Projects/` 配下全て | 読み書き |
+| ✅ 許可 | `/Users/apolon/Projects/keiba-intelligence/` | 読み書き |
+| ✅ 許可 | `/Users/apolon/Projects/keiba-data-shared` | 読み書き |
+| ⚠️ 注意 | keiba-data-shared への直接書き込み | GitHub API経由推奨（ローカル編集も可） |
 
 ### 結果システム設計の参照義務
 

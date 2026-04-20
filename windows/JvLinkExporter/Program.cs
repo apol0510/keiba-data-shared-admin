@@ -83,9 +83,27 @@ public static class Program
             typeCounts[type] = typeCounts.GetValueOrDefault(type, 0) + 1;
             switch (type)
             {
-                case "RA": agg.ApplyRa(RecordParser.ParseRa(res.Record)); raCount++; break;
-                case "SE": agg.ApplySe(RecordParser.ParseSe(res.Record)); seCount++; break;
-                case "HR": agg.ApplyHr(RecordParser.ParseHr(res.Record)); hrCount++; break;
+                case "RA":
+                {
+                    var raRec = RecordParser.ParseRa(res.Record);
+                    // TrackCD → surface code ("T"/"D"/"O") を先に解決し、末尾スキャンに渡す
+                    string? surf = null;
+                    if (int.TryParse(raRec.TrackCD, out var tv))
+                    {
+                        if (tv >= 10 && tv <= 22) surf = "T";
+                        else if (tv >= 23 && tv <= 29) surf = "D";
+                        else if (tv >= 51) surf = "O";
+                    }
+                    var (tk, bs, bd) = RecordParser.RaTailScan(res.Record, surf);
+                    raRec.TenkoCD = tk;
+                    raRec.BabaCD_Shiba = bs;
+                    raRec.BabaCD_Dirt = bd;
+                    agg.ApplyRa(raRec, res.Record);
+                    raCount++;
+                    break;
+                }
+                case "SE": agg.ApplySe(RecordParser.ParseSe(res.Record), res.Record); seCount++; break;
+                case "HR": agg.ApplyHr(RecordParser.ParseHr(res.Record), res.Record); hrCount++; break;
                 default: skip++; break;
             }
         }

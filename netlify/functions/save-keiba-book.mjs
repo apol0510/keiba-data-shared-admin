@@ -55,9 +55,11 @@ export const handler = async (event) => {
     // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
     // JRA/南関とも prediction-updated に統一（category フィールドで受信側が分岐）
+    // Netlify Functions は handler return で freeze するため必ず await する
     const category = data.category || 'jra';
+    let dispatchResult = null;
     if (category === 'jra' || category === 'nankan') {
-      dispatchToTargets('prediction-updated', {
+      dispatchResult = await dispatchToTargets('prediction-updated', {
         date: data.date,
         track: data.track,
         trackCode: data.trackCode,
@@ -71,7 +73,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(result)
+      body: JSON.stringify({ ...result, dispatch: dispatchResult })
     };
 
   } catch (error) {

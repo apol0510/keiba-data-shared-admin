@@ -302,8 +302,8 @@ Co-Authored-By: Claude <noreply@anthropic.com>`;
     }
 
     // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
-    // 非同期で実行（await しない）
-    const { triggered: dispatchTriggered } = dispatchToTargets('jra-results-updated', {
+    // Netlify Functions は handler return で freeze するため必ず await する
+    const { triggered: dispatchTriggered } = await dispatchToTargets('jra-results-updated', {
       date,
       venue,
       venueCode,

@@ -2,7 +2,8 @@
  * repository_dispatch 共通ヘルパー
  *
  * keiba-intelligence と analytics-keiba の両方へ並列送信する。
- * 非同期 fire-and-forget（await 不要）。片方の失敗は他方に影響しない。
+ * Netlify Functions は handler return 直後にコンテナを freeze するため、
+ * 呼び出し側で必ず await してから return すること。
  */
 
 const OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
@@ -28,52 +29,51 @@ function resolveTargets() {
 }
 
 /**
- * 単一リポジトリへの dispatch 送信（fire-and-forget）
- * @returns {boolean} 送信を試みたか（トークンがあれば true）
+ * 単一リポジトリへの dispatch 送信
+ * @returns {Promise<{repo:string, ok:boolean, status?:number, skipped?:boolean, error?:string}>}
  */
-export function dispatchToRepo(repo, eventType, payload, token) {
+export async function dispatchToRepo(repo, eventType, payload, token) {
   if (!token) {
     console.warn(`⚠️ dispatch skip: token未設定 (repo: ${repo}, event_type: ${eventType})`);
-    return false;
+    return { repo, ok: false, skipped: true, error: 'token未設定' };
   }
   const url = `https://api.github.com/repos/${OWNER}/${repo}/dispatches`;
-  fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `token ${token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ event_type: eventType, client_payload: payload }),
-  })
-    .then(async (res) => {
-      const summary = payloadSummary(payload);
-      if (res.ok) {
-        console.log(`✅ dispatch成功: repo=${repo} event_type=${eventType} ${summary}`);
-      } else {
-        const text = await res.text().catch(() => '');
-        console.error(`❌ dispatch失敗: repo=${repo} event_type=${eventType} status=${res.status} body=${text}`);
-      }
-    })
-    .catch((err) => {
-      console.error(`❌ dispatchエラー: repo=${repo} event_type=${eventType} message=${err?.message || err}`);
+  const summary = payloadSummary(payload);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ event_type: eventType, client_payload: payload }),
     });
-  return true;
+    if (res.ok) {
+      console.log(`✅ dispatch成功: repo=${repo} event_type=${eventType} status=${res.status} ${summary}`);
+      return { repo, ok: true, status: res.status };
+    }
+    const text = await res.text().catch(() => '');
+    console.error(`❌ dispatch失敗: repo=${repo} event_type=${eventType} status=${res.status} body=${text}`);
+    return { repo, ok: false, status: res.status, error: text || `HTTP ${res.status}` };
+  } catch (err) {
+    console.error(`❌ dispatchエラー: repo=${repo} event_type=${eventType} message=${err?.message || err}`);
+    return { repo, ok: false, error: err?.message || String(err) };
+  }
 }
 
 /**
- * keiba-intelligence と analytics-keiba の両方へ並列 dispatch
- * @returns {{triggered: string[]}} 実際に送信を試みた repo 名のリスト
+ * keiba-intelligence と analytics-keiba の両方へ並列 dispatch。
+ * 両方の fetch 完了を待ってから resolve する（Netlify freeze 対策）。
+ * @returns {Promise<{triggered:string[], results:Array}>}
  */
-export function dispatchToTargets(eventType, payload) {
+export async function dispatchToTargets(eventType, payload) {
   const targets = resolveTargets();
-  const triggered = [];
-  for (const { repo, token } of targets) {
-    if (dispatchToRepo(repo, eventType, payload, token)) {
-      triggered.push(repo);
-    }
-  }
-  return { triggered };
+  const results = await Promise.all(
+    targets.map(({ repo, token }) => dispatchToRepo(repo, eventType, payload, token))
+  );
+  const triggered = results.filter(r => !r.skipped).map(r => r.repo);
+  return { triggered, results };
 }
 
 function payloadSummary(payload) {

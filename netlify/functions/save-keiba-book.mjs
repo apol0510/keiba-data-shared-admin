@@ -54,12 +54,10 @@ export const handler = async (event) => {
 
     // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
-    // JRA → prediction-jra-updated（importPredictionJra.jsを起動）
-    // 南関 → prediction-updated（importPrediction.jsを起動）
+    // JRA/南関とも prediction-updated に統一（category フィールドで受信側が分岐）
     const category = data.category || 'jra';
     if (category === 'jra' || category === 'nankan') {
-      const eventType = category === 'jra' ? 'prediction-jra-updated' : 'prediction-updated';
-      dispatchToTargets(eventType, {
+      dispatchToTargets('prediction-updated', {
         date: data.date,
         track: data.track,
         trackCode: data.trackCode,

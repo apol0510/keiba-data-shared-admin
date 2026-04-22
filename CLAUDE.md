@@ -47,6 +47,15 @@
 Gitリポジトリ: https://github.com/apol0510/keiba-data-shared-admin.git
 ```
 
+### 作業範囲（重要）
+
+**起動ディレクトリは `keiba-data-shared-admin` だが、作業対象は `/Users/apolon/Projects/` 配下の姉妹リポジトリ全てに及ぶ。**
+
+- 管理画面の修正だけでなく、`analytics-keiba` / `keiba-intelligence` / `keiba-data-shared` / `nankan-analytics` 等のスクリプト・workflow・データの編集も日常的に行う
+- 「この admin リポジトリの中だけで完結する作業」と仮定しないこと
+- 姉妹プロジェクトでの作業時は、そちらのディレクトリに移動 or 絶対パス指定で実行（cd を要求するのは姉妹プロジェクト側のみ）
+- 姉妹プロジェクトで commit/push する場合は、そのリポジトリ単位で完結させる（admin 側に巻き込まない）
+
 ### データ確認時の必須手順
 
 **❌ 禁止**: 「データが見つかりません」と即報告 / git pull せずにローカル確認

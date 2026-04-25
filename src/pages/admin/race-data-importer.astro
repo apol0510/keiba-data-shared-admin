@@ -158,7 +158,11 @@ export const prerender = false;
         const results = isXml ? parseAllRaces(inputText) : parseTextFormat(inputText);
         if (!results || results.length === 0) { showStatus('レースデータを検出できませんでした', 'error'); return; }
 
-        document.getElementById('trackName').value = results[0].raceInfo.track || '';
+        // 1R が取れていなくても他レースから補完して表示
+        const displayTrack = results[0].raceInfo.track
+          || (results.find(r => r.raceInfo.track && ALL_VENUE_CODES[r.raceInfo.track])?.raceInfo.track)
+          || '';
+        document.getElementById('trackName').value = displayTrack;
 
         // 日付自動セット: 既存入力 > XML検出 > 8桁日付 > コンピ指数推定 > 今日
         const existingDate = document.getElementById('raceDate').value;
@@ -198,7 +202,9 @@ export const prerender = false;
         // （ユーザー入力/XML検出は前日セッションの残留等でズレるケースがあるため）
         // 既にracebookが保存済みの日付はスキップし、未保存の日付を優先
         {
-          const track = results[0].raceInfo.track;
+          const track = results[0].raceInfo.track
+            || (results.find(r => r.raceInfo.track && ALL_VENUE_CODES[r.raceInfo.track])?.raceInfo.track)
+            || '';
           const trackCode = ALL_VENUE_CODES[track];
           const category = JRA_VENUE_CODES[track] ? 'jra' : (NANKAN_VENUE_CODES[track] ? 'nankan' : 'local');
           if (trackCode) {
@@ -470,6 +476,45 @@ export const prerender = false;
 
       const trackEl = elements.find(e => e.height >= 20 && e.height <= 30 && e.top >= 0 && e.top <= 15 && e.text.trim());
       if (trackEl) track = trackEl.text.trim();
+
+      // フォールバック1: 既知の競馬場名と完全一致する要素を上部から検索（位置・高さの個体差に強い）
+      if (!track) {
+        const KNOWN_VENUES = [
+          '東京','中山','京都','阪神','中京','新潟','福島','小倉','札幌','函館',
+          '大井','川崎','船橋','浦和',
+          '門別','盛岡','水沢','金沢','笠松','名古屋','園田','姫路','高知','佐賀','帯広'
+        ];
+        const fbEl = elements.find(e =>
+          e.top >= -5 && e.top <= 80 && KNOWN_VENUES.includes(e.text.trim())
+        );
+        if (fbEl) {
+          track = fbEl.text.trim();
+          console.log(`[Import] track抽出フォールバック1(完全一致): top=${fbEl.top} h=${fbEl.height} "${track}"`);
+        }
+      }
+
+      // フォールバック2: ページ全体から既知の競馬場名を含む要素を検索（最終手段）
+      if (!track) {
+        const KNOWN_VENUES = [
+          '東京','中山','京都','阪神','中京','新潟','福島','小倉','札幌','函館',
+          '大井','川崎','船橋','浦和',
+          '門別','盛岡','水沢','金沢','笠松','名古屋','園田','姫路','高知','佐賀','帯広'
+        ];
+        for (const v of KNOWN_VENUES) {
+          const fbEl = elements.find(e => e.top >= 0 && e.top <= 200 && e.text.trim().includes(v));
+          if (fbEl) {
+            track = v;
+            console.log(`[Import] track抽出フォールバック2(部分一致): top=${fbEl.top} text="${fbEl.text.trim()}" → "${track}"`);
+            break;
+          }
+        }
+      }
+
+      // 検出失敗時のデバッグログ（上部要素を全出力）
+      if (!track) {
+        const topEls = elements.filter(e => e.top >= -5 && e.top <= 80).sort((a, b) => a.top - b.top || a.left - b.left).slice(0, 20);
+        console.warn('[Import] track未検出。上部要素:', topEls.map(e => `[top=${e.top},left=${e.left},w=${e.width},h=${e.height}] "${e.text}"`).join(' / '));
+      }
 
       // 距離検出: レース条件欄（ページ上部 top<=120）に限定し、説明文を除外
       // 除外ワード: 標高・直線・中間・海抜など距離でない「㍍」表記
@@ -1623,7 +1668,15 @@ export const prerender = false;
 
     function buildJSON(results) {
       const date = document.getElementById('raceDate').value;
-      const track = results[0].raceInfo.track;
+      // 競馬場: 1R が取れていなくても他レースから補完（ページ毎の検出ばらつき対策）
+      let track = results[0].raceInfo.track;
+      if (!track || !ALL_VENUE_CODES[track]) {
+        const detected = results.find(r => r.raceInfo.track && ALL_VENUE_CODES[r.raceInfo.track]);
+        if (detected) {
+          track = detected.raceInfo.track;
+          console.log(`[Import] track補完: 1R空→${detected.raceNumber}Rから採用 "${track}"`);
+        }
+      }
       const category = detectCategory(track);
       const trackCode = ALL_VENUE_CODES[track] || 'UNK';
 

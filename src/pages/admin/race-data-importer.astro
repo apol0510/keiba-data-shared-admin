@@ -561,15 +561,16 @@ export const prerender = false;
       console.log(`[Import] distance抽出: "${distance}" (元テキスト: "${distEl ? distEl.text : '㍍要素なし'}")`);
 
       // 縦書きクラス文字: 通常height 30〜40、G1など重賞は41程度まで大きくなる
+      // PUA(U+E000-F8FF)は装飾用グリフのため normPUA で除去
       const classEls = elements.filter(e => e.height >= 30 && e.height <= 45 && e.width === 0 && e.text.trim());
       classEls.sort((a, b) => a.top - b.top);
-      raceClass = classEls.map(e => e.text.trim()).join('');
+      raceClass = normPUA(classEls.map(e => e.text).join(''));
 
       // フォールバック1: height範囲を緩めて再検索（重賞でheight46〜60の場合）
       if (!raceClass) {
         const wideEls = elements.filter(e => e.height >= 25 && e.height <= 70 && e.width === 0 && e.text.trim());
         wideEls.sort((a, b) => a.top - b.top);
-        const candidate = wideEls.map(e => e.text.trim()).join('');
+        const candidate = normPUA(wideEls.map(e => e.text).join(''));
         if (candidate) {
           raceClass = candidate;
           console.log(`[Import] raceClass フォールバック1(height拡張): h範囲${Math.min(...wideEls.map(e=>e.height))}〜${Math.max(...wideEls.map(e=>e.height))} "${raceClass}"`);
@@ -581,11 +582,11 @@ export const prerender = false;
         const RACE_NAME_RE = /(特別|ステークス|カップ|CUP|記念|杯|賞|優駿|S$)/;
         const fbEl = elements.find(e =>
           e.top >= 0 && e.top <= 250 && e.width > 0 &&
-          e.text.trim().length >= 3 && e.text.trim().length <= 30 &&
-          RACE_NAME_RE.test(e.text.trim())
+          normPUA(e.text).length >= 3 && normPUA(e.text).length <= 30 &&
+          RACE_NAME_RE.test(normPUA(e.text))
         );
         if (fbEl) {
-          raceClass = fbEl.text.trim();
+          raceClass = normPUA(fbEl.text);
           console.log(`[Import] raceClass フォールバック2(パターン): top=${fbEl.top} h=${fbEl.height} "${raceClass}"`);
         }
       }

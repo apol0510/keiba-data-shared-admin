@@ -4,6 +4,59 @@ using System.Text;
 namespace JvLinkExporter;
 
 /// <summary>
+/// JV-Link 受信文字列を Shift_JIS として正しく解釈するためのヘルパー。
+///
+/// 背景:
+///   JV-Link は内部で SJIS バイト列を返すが、COM の BSTR 経由で受け取る際に
+///   実行環境の ANSI codepage (CP_ACP) によって解釈が変わる。
+///     - 日本語Windows (CP_ACP=CP932/SJIS): 完全変換され U+3000 等の正しい UTF-16
+///     - 非日本語Windows (CP_ACP=CP1252等): SJIS 各バイトが U+00XX に展開された
+///       擬似 UTF-16（"?@?@" のように見える）
+///
+///   後者を検出し、低バイト列を Shift_JIS で再デコードして UTF-16 に直す。
+///   前者は識別子のみで何も変換せず通す（ラウンドトリップで破壊しない）。
+/// </summary>
+internal static class JvSjisDecoder
+{
+    private static readonly Encoding SJIS = InitSjis();
+    private static Encoding InitSjis()
+    {
+        // CodePagesEncodingProvider は Program.Main でも登録するが、
+        // JvLinkClient の static 初期化が先に走るケースに備えて二重登録（冪等）
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(932); // == "Shift_JIS"
+    }
+
+    /// <summary>
+    /// JV-Link から受け取った string を、SJIS bytes-as-chars 形式なら
+    /// 正しい UTF-16 に復元する。既に正しい UTF-16 ならそのまま返す。
+    /// </summary>
+    public static string Decode(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return raw ?? "";
+
+        // Case A 判定: U+0100 以上の文字が1つでも含まれていれば
+        //   COM 側で proper SJIS→UTF-16 変換が完了している（日本語Windows等）
+        //   → そのまま返す（再変換すると壊れる）
+        bool hasProperUnicode = false;
+        for (int i = 0; i < raw.Length; i++)
+        {
+            if (raw[i] > 0xFF) { hasProperUnicode = true; break; }
+        }
+        if (hasProperUnicode) return raw;
+
+        // Case B: 各 char の低位バイトを SJIS バイト列として復元してデコード
+        var bytes = new byte[raw.Length];
+        for (int i = 0; i < raw.Length; i++)
+        {
+            bytes[i] = (byte)(raw[i] & 0xFF);
+        }
+        try { return SJIS.GetString(bytes); }
+        catch { return raw; }
+    }
+}
+
+/// <summary>
 /// JV-Link COM 呼び出しラッパー。
 ///
 /// - ProgID: "JVDTLab.JVLink"
@@ -67,11 +120,20 @@ public sealed class JvLinkClient : IDisposable
         object oSize = bufSize;
         object oFile = new string(' ', 256);
         int ret = _jv.JVRead(ref oBuf, ref oSize, ref oFile);
+
+        // JV-Link は SJIS バイト列を返すため、非日本語Windowsでは BSTR 経由で
+        // 「各 SJIS バイトが U+00XX に展開された擬似UTF-16」が届くことがある。
+        // JvSjisDecoder.Decode で Shift_JIS として解釈しなおして UTF-16 に直す。
+        //
+        // 注: Record は固定オフセットでバイト位置参照する RecordParser に渡すため、
+        //     末尾NULトリムは行わない（FileName のみ末尾NUL/空白を除去する）。
+        var rawRecord = ret > 0 ? (oBuf?.ToString() ?? "") : "";
+        var rawFile = oFile?.ToString() ?? "";
         return new JvReadResult
         {
             ReturnCode = ret,
-            Record = ret > 0 ? (oBuf?.ToString() ?? "") : "",
-            FileName = oFile?.ToString()?.TrimEnd('\0', ' ') ?? "",
+            Record = JvSjisDecoder.Decode(rawRecord),
+            FileName = JvSjisDecoder.Decode(rawFile).TrimEnd('\0', ' '),
         };
     }
 

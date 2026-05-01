@@ -123,6 +123,10 @@ public sealed class Aggregator
         if (picked != null) race.RaceName = picked;
         if (raSub != null) race.RaceSubtitle = raSub;
 
+        // 条件戦名（3歳未勝利・4歳上1勝クラス・障害4歳上オープン 等）
+        var condition = BuildRaceConditionName(ra);
+        if (condition != null) race.RaceConditionName = condition;
+
         // 距離/馬場/天候/発走時刻は RA を source of truth として上書き（null は維持）
         var dist = RecordParser.ParseIntOrNull(ra.Kyori);
         if (dist.HasValue) race.Distance = dist;
@@ -365,5 +369,100 @@ public sealed class Aggregator
         if (string.IsNullOrWhiteSpace(s) || s.All(c => c == '0')) return null;
         if (!double.TryParse(s.Trim(), out var v)) return null;
         return v / 10.0; // 小数点省略補正 (暫定)
+    }
+
+    /// <summary>
+    /// 競走種別CD (RA SyubetuCD) から年齢区分の表示名を返す。
+    /// 仕様: 11=2歳, 12=3歳, 13=3歳上, 14=4歳上,
+    ///       18=障害2歳上, 19=障害3歳上, 20=障害4歳上
+    /// </summary>
+    private static (string ageLabel, bool isObstacle)? AgePrefixFromSyubetu(string syubetuCd)
+    {
+        return (syubetuCd ?? "").Trim() switch
+        {
+            "11" => ("2歳", false),
+            "12" => ("3歳", false),
+            "13" => ("3歳上", false),
+            "14" => ("4歳上", false),
+            "18" => ("障害2歳上", true),
+            "19" => ("障害3歳上", true),
+            "20" => ("障害4歳上", true),
+            _    => null,
+        };
+    }
+
+    /// <summary>
+    /// 競走条件CD（仕様書コード表 2003 抜粋） → 表示名
+    /// 005=1勝クラス, 010=2勝クラス, 015/016=3勝クラス, 999=オープン,
+    /// 701=新馬, 703=未勝利
+    /// 注: 015 と 016 は 3勝クラス相当として観測されている（要再検証）
+    /// </summary>
+    private static string? JokenCdToLabel(string code) => (code ?? "").Trim() switch
+    {
+        "701" => "新馬",
+        "703" => "未勝利",
+        "005" => "1勝クラス",
+        "010" => "2勝クラス",
+        "015" => "3勝クラス",
+        "016" => "3勝クラス",
+        "999" => "オープン",
+        _     => null,
+    };
+
+    /// <summary>
+    /// グレードCD → リステッド/G1〜G3 補助表示
+    /// オープン特別の場合に「リステッド」を優先したいので、Joken=999 のときに使用。
+    /// </summary>
+    private static string? GradeCdToOpenSuffix(string gradeCd) => (gradeCd ?? "").Trim() switch
+    {
+        "L" => "リステッド",
+        _   => null,
+    };
+
+    /// <summary>
+    /// JV-Link RA レコードから条件戦名を構築する。
+    ///
+    /// 優先順:
+    ///   1. JokenName が直接入っている場合はそれをそのまま返す（"3歳　未勝利" 等）
+    ///   2. SyubetuCD + JokenCD[1..5] から組み立てる（例: "3歳未勝利"）
+    ///   3. いずれも取れない場合は null
+    /// </summary>
+    public static string? BuildRaceConditionName(RaRecord ra)
+    {
+        if (ra == null) return null;
+
+        // ① JokenName 直書きがあれば最優先（中の全角空白は除去して整形）
+        var direct = (ra.JokenName ?? "").Replace('　', ' ').Trim();
+        if (direct.Length > 0)
+        {
+            // "3歳　未勝利" のような全角空白区切りはそのまま、空白を詰めて返す
+            return System.Text.RegularExpressions.Regex.Replace(direct, "\\s+", "");
+        }
+
+        // ② コードから構築
+        var age = AgePrefixFromSyubetu(ra.SyubetuCD);
+        if (age == null) return null;
+
+        // 5枠の中で最初に見つかった有効な条件CDをクラス名に変換
+        var codes = new[] { ra.JokenCD1, ra.JokenCD2, ra.JokenCD3, ra.JokenCD4, ra.JokenCD5 };
+        string? classLabel = null;
+        foreach (var c in codes)
+        {
+            var t = (c ?? "").Trim();
+            if (t.Length == 0 || t == "000") continue;
+            classLabel = JokenCdToLabel(t);
+            if (classLabel != null) break;
+        }
+
+        if (classLabel == null) return age.Value.ageLabel; // クラス未確定でも年齢区分は返す
+
+        // ③ オープン × Listed のときは「リステッド」を併記
+        if (classLabel == "オープン")
+        {
+            var suffix = GradeCdToOpenSuffix(ra.GradeCD);
+            if (suffix != null) classLabel = $"オープン({suffix})";
+        }
+
+        return age.Value.ageLabel + classLabel;
     }
 }

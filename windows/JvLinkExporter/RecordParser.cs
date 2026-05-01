@@ -33,6 +33,16 @@ public static class RecordParser
     private const int RA_OFF_KUBUN        = 610;  // (1)
     private const int RA_OFF_NKAI         = 611;  // (3)
     private const int RA_OFF_GRADE        = 614;  // (1)
+    // 競走条件系 (実測offset, 2026-04-11 raw dump で検証済)
+    private const int RA_OFF_SYUBETU      = 616;  // (2) 競走種別CD: 11=2歳, 12=3歳, 14=4歳上, 18-20=障害 等
+    private const int RA_OFF_KIGO         = 618;  // (3) 競走記号CD
+    private const int RA_OFF_JURYO        = 621;  // (1) 重量種別CD
+    private const int RA_OFF_JOKEN1       = 622;  // (3) 条件CD - 2歳
+    private const int RA_OFF_JOKEN2       = 625;  // (3) 条件CD - 3歳
+    private const int RA_OFF_JOKEN3       = 628;  // (3) 条件CD - 4歳
+    private const int RA_OFF_JOKEN4       = 631;  // (3) 条件CD - 5歳上
+    private const int RA_OFF_JOKEN5       = 634;  // (3) 条件CD - 混合
+    private const int RA_OFF_JOKENNAME    = 637;  // (60) 条件名（テキスト直、空のことも多い）
     // 2026-04-11 実測: Kyori/TrackCD/HassoTime は仕様推定値より大きくズレていた
     private const int RA_OFF_KYORI        = 697;  // (4) was 632 — RA 0890 で "1700" 確認
     private const int RA_OFF_TRACK        = 705;  // (2) was 640 — "24" (ダート左外) 確認
@@ -57,6 +67,15 @@ public static class RecordParser
             RaceNameRyakusho10 = SafeBytes(r, RA_OFF_RYAKU10, 20).Trim(),
             RaceNameRyakusho6  = SafeBytes(r, RA_OFF_RYAKU6, 12).Trim(),
             GradeCD      = SafeBytes(r, RA_OFF_GRADE, 1),
+            SyubetuCD    = SafeBytes(r, RA_OFF_SYUBETU, 2),
+            KigoCD       = SafeBytes(r, RA_OFF_KIGO, 3),
+            JuryoCD      = SafeBytes(r, RA_OFF_JURYO, 1),
+            JokenCD1     = SafeBytes(r, RA_OFF_JOKEN1, 3),
+            JokenCD2     = SafeBytes(r, RA_OFF_JOKEN2, 3),
+            JokenCD3     = SafeBytes(r, RA_OFF_JOKEN3, 3),
+            JokenCD4     = SafeBytes(r, RA_OFF_JOKEN4, 3),
+            JokenCD5     = SafeBytes(r, RA_OFF_JOKEN5, 3),
+            JokenName    = SafeBytes(r, RA_OFF_JOKENNAME, 60).Trim(),
             TrackCD      = SafeBytes(r, RA_OFF_TRACK, 2),
             Kyori        = SafeBytes(r, RA_OFF_KYORI, 4),
             HassoTime    = SafeBytes(r, RA_OFF_HASSO, 4),
@@ -382,6 +401,10 @@ public sealed class RaRecord
     public string RaceNameRyakusho10 = "", RaceNameRyakusho6 = "";
     public string GradeCD = "", TrackCD = "", Kyori = "";
     public string TenkoCD = "", BabaCD_Shiba = "", BabaCD_Dirt = "", HassoTime = "";
+    // 競走条件系
+    public string SyubetuCD = "", KigoCD = "", JuryoCD = "";
+    public string JokenCD1 = "", JokenCD2 = "", JokenCD3 = "", JokenCD4 = "", JokenCD5 = "";
+    public string JokenName = "";
 }
 
 public sealed class SeRecord

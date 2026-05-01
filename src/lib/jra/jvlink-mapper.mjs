@@ -64,6 +64,7 @@ function getVenueCode(name) {
  * @property {number} raceNumber
  * @property {string} [raceName]
  * @property {string} [raceSubtitle]
+ * @property {string} [raceConditionName]
  * @property {number} [distance]
  * @property {'芝'|'ダート'|'障害'|'T'|'D'|'O'} [surface]
  * @property {string} [track]
@@ -225,13 +226,17 @@ function mapResults(results) {
  * 中間JSON の1レース を shared races[i] に変換。
  */
 function mapRace(race, date, venueName) {
-  // raceName fallback: RA正式 > RA短縮 > "{venue}{N}R" (絶対 null にしない)
+  // raceName 解決の優先順:
+  //   1. 正式名/特別競走名 (race.raceName)
+  //   2. 副題 (race.raceSubtitle)
+  //   3. 条件戦名 (race.raceConditionName: 「3歳未勝利」等。Aggregator が SyubetuCD/JokenCD から構築)
+  //   4. fallback "{venue}{N}R"
   const rn = Number(race.raceNumber);
   const fallbackName = `${venueName}${Number.isFinite(rn) ? rn : '?'}R`;
-  const resolvedName =
-    normalizeText(race.raceName) ||
-    normalizeText(race.raceSubtitle) ||
-    fallbackName;
+  const officialName = normalizeText(race.raceName);
+  const subName = normalizeText(race.raceSubtitle);
+  const conditionName = normalizeText(race.raceConditionName);
+  const resolvedName = officialName || subName || conditionName || fallbackName;
 
   const dist = race.distance != null ? Number(race.distance) : null;
   const surf = normalizeSurface(race.surface);
@@ -240,9 +245,13 @@ function mapRace(race, date, venueName) {
   const mappedResults = mapResults(race.results);
 
   // ── raceName の source 判定 ──
-  const raceNameSource =
-    normalizeText(race.raceName) ? 'RA' :
-    normalizeText(race.raceSubtitle) ? 'RA-sub' : 'fallback';
+  // official: 正式名 or 副題（特別競走・重賞名 等）
+  // condition: 条件戦名（3歳未勝利・4歳上1勝クラス 等）
+  // fallback : 上記いずれも空 → 「{venue}{N}R」
+  let raceNameSource;
+  if (officialName || subName) raceNameSource = 'official';
+  else if (conditionName) raceNameSource = 'condition';
+  else raceNameSource = 'fallback';
 
   // ── metadataSource: 各フィールドがどのレコードに由来するか ──
   const metadataSource = {
@@ -276,6 +285,7 @@ function mapRace(race, date, venueName) {
     raceNumber: rn,
     raceName: resolvedName,
     raceSubtitle: race.raceSubtitle ?? null,
+    raceConditionName: conditionName || null,
     distance: dist,
     surface: surf,
     track: race.track ?? null,

@@ -21,6 +21,7 @@ public sealed class IntermediateRace
     [JsonPropertyName("raceNumber")] public int RaceNumber { get; set; }
     [JsonPropertyName("raceName")] public string? RaceName { get; set; }
     [JsonPropertyName("raceSubtitle")] public string? RaceSubtitle { get; set; }
+    [JsonPropertyName("raceConditionName")] public string? RaceConditionName { get; set; }
     [JsonPropertyName("distance")] public int? Distance { get; set; }
     // 'T' | 'D' | 'O' (Mac側で 芝/ダート/障害 に正規化される)
     [JsonPropertyName("surface")] public string? Surface { get; set; }

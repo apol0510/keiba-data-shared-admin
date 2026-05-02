@@ -224,16 +224,109 @@ internal static class JvSjisDecoder
 ///      0 : 終端
 ///    <-1 : エラー
 /// </summary>
+// ── IDispatch / VARIANT 直叩き用の P/Invoke と構造体定義 ──────────────────
+//
+// JV-Link は string パラメータを BSTR で受け取る。.NET の自動 marshalling は
+// 実行環境の CP_ACP (システム ANSI codepage) を介して BSTR を string に変換するため、
+// 非日本語 Windows やロケール周りに不整合があるとバイトレベルで情報が失われる
+// （raceName が "”a?C?R..." 等にロッシー化）。
+//
+// 本クラスは JVRead 呼び出しを動的バインディングではなく IDispatch::Invoke 経由に
+// 切り替え、SysAllocStringByteLen で確保した BSTR の生バイトを直接 Shift_JIS で
+// デコードすることで、CP_ACP 依存を回避する。
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct DISPPARAMS
+{
+    public IntPtr rgvarg;
+    public IntPtr rgdispidNamedArgs;
+    public int cArgs;
+    public int cNamedArgs;
+}
+
+// VARIANT (16 bytes on x86 / x86-target build)
+//   0:  vt (ushort)
+//   2:  wReserved1 (ushort)
+//   4:  wReserved2 (ushort)
+//   6:  wReserved3 (ushort)
+//   8:  data union (8 bytes - x86 では IntPtr + IntPtr で 8 bytes)
+[StructLayout(LayoutKind.Sequential)]
+internal struct VARIANT
+{
+    public ushort vt;
+    public ushort wReserved1;
+    public ushort wReserved2;
+    public ushort wReserved3;
+    public IntPtr data;
+    public IntPtr data2;
+}
+
+internal static class VtConst
+{
+    public const ushort VT_EMPTY = 0;
+    public const ushort VT_I4    = 3;
+    public const ushort VT_BSTR  = 8;
+    public const ushort VT_BYREF = 0x4000;
+
+    public const ushort DISPATCH_METHOD = 1;
+
+    // VARIANT 内の data フィールド開始オフセット (x86 / x64 とも 8)
+    public const int VARIANT_DATA_OFFSET = 8;
+}
+
+[ComImport]
+[Guid("00020400-0000-0000-C000-000000000046")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IDispatchRaw
+{
+    [PreserveSig] int GetTypeInfoCount(out int pctinfo);
+    [PreserveSig] int GetTypeInfo(int iTInfo, int lcid, out IntPtr ppTInfo);
+    [PreserveSig] int GetIDsOfNames(
+        [In] ref Guid riid,
+        [In, MarshalAs(UnmanagedType.LPArray, ArraySubType = UnmanagedType.LPWStr)] string[] rgszNames,
+        int cNames,
+        int lcid,
+        [Out, MarshalAs(UnmanagedType.LPArray)] int[] rgDispId);
+    [PreserveSig] int Invoke(
+        int dispIdMember,
+        [In] ref Guid riid,
+        int lcid,
+        ushort wFlags,
+        [In] ref DISPPARAMS pDispParams,
+        IntPtr pVarResult,
+        IntPtr pExcepInfo,
+        IntPtr puArgErr);
+}
+
+internal static class OleAut32
+{
+    /// <summary>引数 strIn が IntPtr.Zero の場合、cb バイトのゼロ初期化 BSTR を確保する。</summary>
+    [DllImport("oleaut32.dll", PreserveSig = false)]
+    public static extern IntPtr SysAllocStringByteLen(IntPtr strIn, uint cb);
+
+    [DllImport("oleaut32.dll")]
+    public static extern uint SysStringByteLen(IntPtr bstr);
+
+    [DllImport("oleaut32.dll")]
+    public static extern void SysFreeString(IntPtr bstr);
+}
+
+// ────────────────────────────────────────────────────────────────────────
+
 public sealed class JvLinkClient : IDisposable
 {
     private readonly dynamic _jv;
+    private readonly IDispatchRaw _disp;
+    private int _readDispId = -1;
     private bool _initialized;
 
     public JvLinkClient()
     {
         var t = Type.GetTypeFromProgID("JVDTLab.JVLink")
             ?? throw new InvalidOperationException("ProgID 'JVDTLab.JVLink' が見つかりません。JV-Linkが未登録です。");
-        _jv = Activator.CreateInstance(t)!;
+        var instance = Activator.CreateInstance(t)!;
+        _jv = instance;
+        _disp = (IDispatchRaw)instance;
     }
 
     /// <summary>
@@ -269,20 +362,39 @@ public sealed class JvLinkClient : IDisposable
 
     /// <summary>
     /// 1レコードずつ読み出す。ret==0 で終端、ret==-1 でファイル切替（ループ継続）、ret&lt;-1 でエラー。
+    ///
+    /// 通常は IDispatch::Invoke 経由でバイトレベル取得し、Shift_JIS で直接デコードする
+    /// （.NET の BSTR 自動 marshalling = CP_ACP 依存 を回避）。
+    /// 万一 IDispatch 直叩きで失敗したら、従来の dynamic 呼び出し + JvSjisDecoder に
+    /// fallback する。環境変数 JV_FORCE_LEGACY_READ=1 で強制 fallback も可能。
     /// </summary>
     public JvReadResult Read(int bufSize = 110000)
+    {
+        bool forceLegacy = Environment.GetEnvironmentVariable("JV_FORCE_LEGACY_READ") == "1";
+        if (!forceLegacy)
+        {
+            try { return ReadViaIDispatch(bufSize); }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[JvLinkClient] IDispatch read failed, fallback to dynamic: {ex.Message}");
+                // fallthrough to legacy path
+            }
+        }
+        return ReadViaDynamic(bufSize);
+    }
+
+    /// <summary>
+    /// 旧来の dynamic + BSTR 自動 marshalling 経路（fallback 用）。
+    /// CP_ACP 依存のため特別競走名等で文字化けすることがあるが、JvSjisDecoder で
+    /// 多段復元を試みる。
+    /// </summary>
+    private JvReadResult ReadViaDynamic(int bufSize)
     {
         object oBuf = new string(' ', bufSize);
         object oSize = bufSize;
         object oFile = new string(' ', 256);
         int ret = _jv.JVRead(ref oBuf, ref oSize, ref oFile);
 
-        // JV-Link は SJIS バイト列を返すため、非日本語Windowsでは BSTR 経由で
-        // 「各 SJIS バイトが U+00XX に展開された擬似UTF-16」が届くことがある。
-        // JvSjisDecoder.Decode で Shift_JIS として解釈しなおして UTF-16 に直す。
-        //
-        // 注: Record は固定オフセットでバイト位置参照する RecordParser に渡すため、
-        //     末尾NULトリムは行わない（FileName のみ末尾NUL/空白を除去する）。
         var rawRecord = ret > 0 ? (oBuf?.ToString() ?? "") : "";
         var rawFile = oFile?.ToString() ?? "";
         return new JvReadResult
@@ -293,6 +405,148 @@ public sealed class JvLinkClient : IDisposable
         };
     }
 
+    /// <summary>
+    /// IDispatch::Invoke 経由で JVRead を呼び、BSTR の生バイトを Shift_JIS でデコードする。
+    /// 失敗時は例外送出。動的バインディング (string 経由) には fallback しない:
+    /// なぜなら fallback すると CP_ACP 経由のロッシー変換が発生して特別競走名が壊れるため。
+    /// </summary>
+    private JvReadResult ReadViaIDispatch(int bufSize)
+    {
+        if (_readDispId < 0) _readDispId = ResolveDispId("JVRead");
+
+        // ── BSTR を SysAllocStringByteLen で手動確保（生バイト境界を保つ）──
+        IntPtr bstrBuf = OleAut32.SysAllocStringByteLen(IntPtr.Zero, (uint)bufSize);
+        IntPtr bstrFile = OleAut32.SysAllocStringByteLen(IntPtr.Zero, 256);
+
+        // BSTR ポインタのアドレスを保持するヒープ (VT_BYREF|VT_BSTR の data フィールド用)
+        IntPtr bufHolder = Marshal.AllocCoTaskMem(IntPtr.Size);
+        Marshal.WriteIntPtr(bufHolder, bstrBuf);
+        IntPtr fileHolder = Marshal.AllocCoTaskMem(IntPtr.Size);
+        Marshal.WriteIntPtr(fileHolder, bstrFile);
+        IntPtr sizeHolder = Marshal.AllocCoTaskMem(4);
+        Marshal.WriteInt32(sizeHolder, bufSize);
+
+        int variantSize = Marshal.SizeOf<VARIANT>();
+        IntPtr vargsPtr = Marshal.AllocCoTaskMem(variantSize * 3);
+        IntPtr resultVar = Marshal.AllocCoTaskMem(variantSize);
+
+        try
+        {
+            // IDispatch::Invoke は引数を逆順に並べる（rightmost から）。
+            // JVRead(buf, size, filename) → vargs[0]=filename, [1]=size, [2]=buf
+            WriteVariantByRef(vargsPtr + 0 * variantSize, VtConst.VT_BSTR, fileHolder);
+            WriteVariantByRef(vargsPtr + 1 * variantSize, VtConst.VT_I4,   sizeHolder);
+            WriteVariantByRef(vargsPtr + 2 * variantSize, VtConst.VT_BSTR, bufHolder);
+
+            DISPPARAMS dp = new DISPPARAMS
+            {
+                rgvarg = vargsPtr,
+                rgdispidNamedArgs = IntPtr.Zero,
+                cArgs = 3,
+                cNamedArgs = 0,
+            };
+
+            // 結果 VARIANT 初期化 (VT_EMPTY)
+            for (int i = 0; i < variantSize; i++) Marshal.WriteByte(resultVar, i, 0);
+
+            Guid empty = Guid.Empty;
+            int hr = _disp.Invoke(_readDispId, ref empty, 0, VtConst.DISPATCH_METHOD,
+                                   ref dp, resultVar, IntPtr.Zero, IntPtr.Zero);
+            if (hr < 0) throw new JvLinkException($"IDispatch::Invoke(JVRead) failed: HRESULT 0x{hr:X8}");
+
+            // 戻り値 (VT_I4 を期待)
+            ushort resVt = (ushort)Marshal.ReadInt16(resultVar);
+            int retCode = 0;
+            if (resVt == VtConst.VT_I4)
+            {
+                retCode = Marshal.ReadInt32(resultVar + VtConst.VARIANT_DATA_OFFSET);
+            }
+            else if (resVt == (VtConst.VT_BYREF | VtConst.VT_I4))
+            {
+                IntPtr p = Marshal.ReadIntPtr(resultVar + VtConst.VARIANT_DATA_OFFSET);
+                retCode = p != IntPtr.Zero ? Marshal.ReadInt32(p) : 0;
+            }
+
+            // JV-Link が再確保した BSTR ポインタを取得（reallocation 対応）
+            IntPtr finalBstrBuf = Marshal.ReadIntPtr(bufHolder);
+            IntPtr finalBstrFile = Marshal.ReadIntPtr(fileHolder);
+
+            // ── BSTR 生バイトを取得 → SJIS で直接デコード ──
+            byte[] recordBytes = ReadBstrBytes(finalBstrBuf);
+            byte[] fileBytes   = ReadBstrBytes(finalBstrFile);
+
+            // RecordParser は固定オフセットでバイト位置参照するため、
+            // SJIS バイト列を SJIS で UTF-16 化したものを Record として渡す。
+            // SafeBytes() 側で UTF-16 → SJIS 再エンコード → スライス → SJIS デコード
+            // のラウンドトリップが行われるため、proper UTF-16 文字列であれば破壊されない。
+            string record = (retCode > 0) ? SJIS.GetString(recordBytes) : "";
+            string filename = SJIS.GetString(fileBytes).TrimEnd('\0', ' ');
+
+            return new JvReadResult
+            {
+                ReturnCode = retCode,
+                Record = record,
+                FileName = filename,
+            };
+        }
+        finally
+        {
+            // BSTR 解放（JV-Link が reallocate した可能性があるので最終ポインタを使用）
+            IntPtr finalBstrBuf = Marshal.ReadIntPtr(bufHolder);
+            IntPtr finalBstrFile = Marshal.ReadIntPtr(fileHolder);
+            if (finalBstrBuf != IntPtr.Zero) OleAut32.SysFreeString(finalBstrBuf);
+            if (finalBstrFile != IntPtr.Zero) OleAut32.SysFreeString(finalBstrFile);
+            Marshal.FreeCoTaskMem(bufHolder);
+            Marshal.FreeCoTaskMem(fileHolder);
+            Marshal.FreeCoTaskMem(sizeHolder);
+            Marshal.FreeCoTaskMem(vargsPtr);
+            Marshal.FreeCoTaskMem(resultVar);
+        }
+    }
+
+    private static readonly Encoding SJIS = InitSjis();
+    private static Encoding InitSjis()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return Encoding.GetEncoding(932);
+    }
+
+    private static byte[] ReadBstrBytes(IntPtr bstr)
+    {
+        if (bstr == IntPtr.Zero) return Array.Empty<byte>();
+        int byteLen = (int)OleAut32.SysStringByteLen(bstr);
+        if (byteLen <= 0) return Array.Empty<byte>();
+        var bytes = new byte[byteLen];
+        Marshal.Copy(bstr, bytes, 0, byteLen);
+        // SysAllocStringByteLen はゼロ初期化バッファを返す。
+        // JV-Link は実データの後ろに 0x00 padding を残すため、末尾の連続 0x00 を切り詰める。
+        int trimEnd = bytes.Length;
+        while (trimEnd > 0 && bytes[trimEnd - 1] == 0x00) trimEnd--;
+        if (trimEnd == bytes.Length) return bytes;
+        var trimmed = new byte[trimEnd];
+        Buffer.BlockCopy(bytes, 0, trimmed, 0, trimEnd);
+        return trimmed;
+    }
+
+    private static void WriteVariantByRef(IntPtr variantPtr, ushort innerType, IntPtr dataHolder)
+    {
+        // VARIANT 全体をゼロ初期化
+        int sz = Marshal.SizeOf<VARIANT>();
+        for (int i = 0; i < sz; i++) Marshal.WriteByte(variantPtr, i, 0);
+        Marshal.WriteInt16(variantPtr, (short)(VtConst.VT_BYREF | innerType));
+        Marshal.WriteIntPtr(variantPtr + VtConst.VARIANT_DATA_OFFSET, dataHolder);
+    }
+
+    private int ResolveDispId(string memberName)
+    {
+        Guid empty = Guid.Empty;
+        string[] names = { memberName };
+        int[] ids = new int[1];
+        int hr = _disp.GetIDsOfNames(ref empty, names, 1, 0, ids);
+        if (hr < 0) throw new JvLinkException($"GetIDsOfNames('{memberName}') failed: 0x{hr:X8}");
+        return ids[0];
+    }
+
     public void Close()
     {
         try { _jv.JVClose(); } catch { /* noop */ }
@@ -301,6 +555,7 @@ public sealed class JvLinkClient : IDisposable
     public void Dispose()
     {
         if (_initialized) Close();
+        // _disp と _jv は同一の COM オブジェクトを指す。FinalReleaseComObject は片方だけ呼べばよい。
         try { Marshal.FinalReleaseComObject(_jv); } catch { /* noop */ }
     }
 }

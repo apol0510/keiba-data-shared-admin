@@ -523,42 +523,106 @@ public sealed class JvLinkClient : IDisposable
     }
 
     /// <summary>
-    /// BSTR バイト列をデコード。
-    /// BSTR は仕様上 UTF-16LE だが、JV-Link の実装によっては SysAllocStringByteLen で
-    /// SJIS 生バイトをそのまま入れているケースもあるため、両方に対応する:
-    ///   1. 先頭バイトパターンが「ASCII + 0x00」 → UTF-16LE と判定 → Encoding.Unicode で読む
-    ///   2. それ以外 → Shift_JIS と判定 → CP932 で読む
-    /// 復号後に末尾の NUL や全角空白等の padding を string.TrimEnd で除去し、
-    /// 残った文字化けに備えて JvSjisDecoder.Decode を最終段で適用する。
+    /// BSTR バイト列を 3段階でデコードし、最良の結果を返す。
+    ///
+    /// 順序:
+    ///   ① UTF-16LE 試行 (BSTR の正規仕様)
+    ///      → 結果に文字化けマーカー (鬟/逶/蛻/繝/縺/豁/譌/蜻/荵/U+FFFD) が無ければ採用
+    ///   ② UTF-8 試行 (環境によっては BSTR 内に UTF-8 バイトが混入している)
+    ///      → 厳密 UTF-8 (invalid bytes で throw) で復号
+    ///      → 結果が日本語として valid かつ文字化けマーカー無しなら採用
+    ///   ③ Shift_JIS フォールバック (生 SJIS バイト列のケース)
+    ///      → 必ず復号成功させる最終段
+    /// 復号後に末尾の NUL/空白 padding を string.TrimEnd し、
+    /// 残った環境固有 corruption 対策に JvSjisDecoder.Decode を通す。
     /// </summary>
     private static string DecodeBstrPayload(byte[] bytes)
     {
         if (bytes.Length == 0) return "";
-        string decoded = LooksLikeUtf16Le(bytes)
-            ? Encoding.Unicode.GetString(bytes)
-            : SJIS.GetString(bytes);
-        // 末尾の NUL 文字 padding をトリム
-        decoded = decoded.TrimEnd('\0');
-        // 環境固有の文字化け（CP1252 経由等）が残っている場合に備えて最終段でデコーダ通す
-        return JvSjisDecoder.Decode(decoded);
+
+        // ① UTF-16LE 試行
+        if (LooksLikeUtf16Le(bytes))
+        {
+            string utf16 = Encoding.Unicode.GetString(bytes).TrimEnd('\0');
+            if (IsAcceptableDecode(utf16))
+            {
+                return JvSjisDecoder.Decode(utf16);
+            }
+        }
+
+        // ② UTF-8 試行（厳密モード: invalid bytes は例外）
+        try
+        {
+            var strictUtf8 = new UTF8Encoding(false, true);
+            string utf8 = strictUtf8.GetString(bytes).TrimEnd('\0');
+            // UTF-8 は invalid bytes で throw するためここに来た時点で構文的には valid。
+            // ただし「SJIS バイトを UTF-8 として偶然読めた」というケースを除外するため、
+            // 文字化けマーカーが残っていない かつ ある程度日本語要素を含む場合のみ採用。
+            if (IsAcceptableDecode(utf8) && ContainsKanaKanji(utf8))
+            {
+                return JvSjisDecoder.Decode(utf8);
+            }
+        }
+        catch { /* invalid UTF-8 → フォールスルー */ }
+
+        // ③ Shift_JIS フォールバック
+        string sjis = SJIS.GetString(bytes).TrimEnd('\0');
+        return JvSjisDecoder.Decode(sjis);
     }
 
     /// <summary>
     /// バイト列が UTF-16LE で書かれているか判定する。
     /// JV-Data レコードは先頭が必ず ASCII (RA / SE / HR / H1 / O1 等) で始まるため、
     /// UTF-16LE なら先頭4バイトが「ASCII値, 0x00, ASCII値, 0x00」のパターンになる。
-    /// SJIS 生バイトなら先頭バイトの直後に 0x00 は来ない (連続 ASCII or SJIS 第2バイト)。
-    /// この単純な検査で確実に判別できる。
     /// </summary>
     private static bool LooksLikeUtf16Le(byte[] bytes)
     {
         if (bytes.Length < 4) return false;
-        if ((bytes.Length & 1) != 0) return false;  // UTF-16LE は必ず偶数バイト
-        if (bytes[0] < 0x20 || bytes[0] >= 0x80) return false; // 先頭は ASCII 印字可能
+        if ((bytes.Length & 1) != 0) return false;
+        if (bytes[0] < 0x20 || bytes[0] >= 0x80) return false;
         if (bytes[1] != 0x00) return false;
         if (bytes[2] < 0x20 || bytes[2] >= 0x80) return false;
         if (bytes[3] != 0x00) return false;
         return true;
+    }
+
+    /// <summary>
+    /// デコード結果に「明らかな文字化け痕跡」が無ければ true。
+    /// SJIS バイトを UTF-8 として誤解釈した時に頻出する漢字や半角カタカナ、
+    /// および U+FFFD (replacement) を検出する。文字化け痕跡があれば false → 次の戦略へ。
+    /// </summary>
+    private static bool IsAcceptableDecode(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return true;
+        foreach (var c in s)
+        {
+            // U+FFFD: replacement char
+            if (c == '�') return false;
+            // SJIS-as-UTF-8 / UTF-8-as-SJIS の典型化け文字
+            if (c == '鬟' || c == '逶' || c == '蛻' || c == '繝' || c == '縺' ||
+                c == '豁' || c == '譌' || c == '蜻' || c == '荵' || c == '窶' ||
+                c == '繧' || c == '繪' || c == '繡' || c == '繞' || c == '繦' ||
+                c == '譖' || c == '謇' || c == '蛟' || c == '蛛' || c == '蜈')
+                return false;
+        }
+        return true;
+    }
+
+    /// <summary>仮名・漢字・半角カタカナ いずれかを含むか（日本語データの判定）</summary>
+    private static bool ContainsKanaKanji(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return false;
+        foreach (var c in s)
+        {
+            int cp = c;
+            if ((cp >= 0x3040 && cp <= 0x309F) ||  // Hiragana
+                (cp >= 0x30A0 && cp <= 0x30FF) ||  // Katakana
+                (cp >= 0x3400 && cp <= 0x9FFF) ||  // CJK Unified
+                (cp >= 0xF900 && cp <= 0xFAFF) ||  // CJK Compat
+                (cp >= 0xFF66 && cp <= 0xFF9F))    // 半角カタカナ
+                return true;
+        }
+        return false;
     }
 
     private static void WriteVariantByRef(IntPtr variantPtr, ushort innerType, IntPtr dataHolder)

@@ -53,10 +53,41 @@ async function getExistingFile(filePath, token) {
   return { sha: j.sha, data: JSON.parse(content) };
 }
 
+/**
+ * 値が「実質的に空」かを判定する（field-level merge で incoming を採用するか決めるのに使う）
+ *   - null / undefined / "" → 空
+ *   - 空配列 [] → 空
+ *   - 空オブジェクト {} → 空
+ *   - その他は非空
+ */
+function isEmptyValue(v) {
+  if (v === null || v === undefined) return true;
+  if (typeof v === 'string') return v.trim() === '';
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === 'object') return Object.keys(v).length === 0;
+  return false;
+}
+
+/**
+ * race オブジェクト同士を field-level に enrichment マージ。
+ *   - incoming に非空の値があれば incoming を採用（古いfallback値を新しい正規値で上書きできる）
+ *   - incoming が空なら existing を維持（incoming が一部フィールドを欠いていても既存データは失われない）
+ * これにより raceConditionName のような「あとから追加された fields」が
+ * 既存レースに非破壊的に追加される。
+ */
+function enrichRaceFields(existing, incoming) {
+  const merged = { ...existing };
+  for (const [k, v] of Object.entries(incoming)) {
+    if (!isEmptyValue(v)) merged[k] = v;
+  }
+  return merged;
+}
+
 function mergeRaces(existing, incoming, forceOverwrite) {
   if (!existing?.races) return incoming;
   const merged = { ...existing, ...incoming };
   if (forceOverwrite) {
+    // 完全上書き: incoming の race オブジェクトをそのまま採用、existingのみのraceは保持
     const newMap = new Map(incoming.races.map((r) => [r.raceNumber, r]));
     const races = existing.races.map((r) => (newMap.has(r.raceNumber) ? newMap.get(r.raceNumber) : r));
     for (const r of incoming.races) {
@@ -64,9 +95,18 @@ function mergeRaces(existing, incoming, forceOverwrite) {
     }
     merged.races = races.sort((a, b) => a.raceNumber - b.raceNumber);
   } else {
-    const existingNums = new Set(existing.races.map((r) => r.raceNumber));
-    const added = incoming.races.filter((r) => !existingNums.has(r.raceNumber));
-    merged.races = [...existing.races, ...added].sort((a, b) => a.raceNumber - b.raceNumber);
+    // デフォルト: 同一raceNumberはfield-level enrichment（incomingの非空値が wins、空なら既存維持）
+    // raceConditionName 等のあとから追加されたフィールドが非破壊的に取り込まれる。
+    const incomingMap = new Map(incoming.races.map((r) => [r.raceNumber, r]));
+    const races = existing.races.map((r) => {
+      const inc = incomingMap.get(r.raceNumber);
+      return inc ? enrichRaceFields(r, inc) : r;
+    });
+    // 既存にないraceNumberは追加
+    for (const r of incoming.races) {
+      if (!existing.races.some((er) => er.raceNumber === r.raceNumber)) races.push(r);
+    }
+    merged.races = races.sort((a, b) => a.raceNumber - b.raceNumber);
   }
   return merged;
 }

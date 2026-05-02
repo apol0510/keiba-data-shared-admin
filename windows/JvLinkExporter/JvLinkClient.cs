@@ -471,16 +471,12 @@ public sealed class JvLinkClient : IDisposable
             IntPtr finalBstrBuf = Marshal.ReadIntPtr(bufHolder);
             IntPtr finalBstrFile = Marshal.ReadIntPtr(fileHolder);
 
-            // ── BSTR 生バイトを取得 → SJIS で直接デコード ──
-            byte[] recordBytes = ReadBstrBytes(finalBstrBuf);
-            byte[] fileBytes   = ReadBstrBytes(finalBstrFile);
+            // ── BSTR 生バイトを取得 → UTF-16LE / SJIS のどちらで書かれているか判定してデコード ──
+            byte[] recordBytes = ReadBstrBytesRaw(finalBstrBuf);
+            byte[] fileBytes   = ReadBstrBytesRaw(finalBstrFile);
 
-            // RecordParser は固定オフセットでバイト位置参照するため、
-            // SJIS バイト列を SJIS で UTF-16 化したものを Record として渡す。
-            // SafeBytes() 側で UTF-16 → SJIS 再エンコード → スライス → SJIS デコード
-            // のラウンドトリップが行われるため、proper UTF-16 文字列であれば破壊されない。
-            string record = (retCode > 0) ? SJIS.GetString(recordBytes) : "";
-            string filename = SJIS.GetString(fileBytes).TrimEnd('\0', ' ');
+            string record = (retCode > 0) ? DecodeBstrPayload(recordBytes) : "";
+            string filename = DecodeBstrPayload(fileBytes).TrimEnd('\0', ' ');
 
             return new JvReadResult
             {
@@ -511,21 +507,58 @@ public sealed class JvLinkClient : IDisposable
         return Encoding.GetEncoding(932);
     }
 
-    private static byte[] ReadBstrBytes(IntPtr bstr)
+    /// <summary>
+    /// BSTR の生バイト列を取得する（バイト境界のトリムは行わない）。
+    /// UTF-16LE データでは ASCII 文字の高位バイトが 0x00 なので、末尾 0x00 を雑に切ると
+    /// データ自体が壊れる。デコード後の文字列レベルで NUL/空白をトリムすること。
+    /// </summary>
+    private static byte[] ReadBstrBytesRaw(IntPtr bstr)
     {
         if (bstr == IntPtr.Zero) return Array.Empty<byte>();
         int byteLen = (int)OleAut32.SysStringByteLen(bstr);
         if (byteLen <= 0) return Array.Empty<byte>();
         var bytes = new byte[byteLen];
         Marshal.Copy(bstr, bytes, 0, byteLen);
-        // SysAllocStringByteLen はゼロ初期化バッファを返す。
-        // JV-Link は実データの後ろに 0x00 padding を残すため、末尾の連続 0x00 を切り詰める。
-        int trimEnd = bytes.Length;
-        while (trimEnd > 0 && bytes[trimEnd - 1] == 0x00) trimEnd--;
-        if (trimEnd == bytes.Length) return bytes;
-        var trimmed = new byte[trimEnd];
-        Buffer.BlockCopy(bytes, 0, trimmed, 0, trimEnd);
-        return trimmed;
+        return bytes;
+    }
+
+    /// <summary>
+    /// BSTR バイト列をデコード。
+    /// BSTR は仕様上 UTF-16LE だが、JV-Link の実装によっては SysAllocStringByteLen で
+    /// SJIS 生バイトをそのまま入れているケースもあるため、両方に対応する:
+    ///   1. 先頭バイトパターンが「ASCII + 0x00」 → UTF-16LE と判定 → Encoding.Unicode で読む
+    ///   2. それ以外 → Shift_JIS と判定 → CP932 で読む
+    /// 復号後に末尾の NUL や全角空白等の padding を string.TrimEnd で除去し、
+    /// 残った文字化けに備えて JvSjisDecoder.Decode を最終段で適用する。
+    /// </summary>
+    private static string DecodeBstrPayload(byte[] bytes)
+    {
+        if (bytes.Length == 0) return "";
+        string decoded = LooksLikeUtf16Le(bytes)
+            ? Encoding.Unicode.GetString(bytes)
+            : SJIS.GetString(bytes);
+        // 末尾の NUL 文字 padding をトリム
+        decoded = decoded.TrimEnd('\0');
+        // 環境固有の文字化け（CP1252 経由等）が残っている場合に備えて最終段でデコーダ通す
+        return JvSjisDecoder.Decode(decoded);
+    }
+
+    /// <summary>
+    /// バイト列が UTF-16LE で書かれているか判定する。
+    /// JV-Data レコードは先頭が必ず ASCII (RA / SE / HR / H1 / O1 等) で始まるため、
+    /// UTF-16LE なら先頭4バイトが「ASCII値, 0x00, ASCII値, 0x00」のパターンになる。
+    /// SJIS 生バイトなら先頭バイトの直後に 0x00 は来ない (連続 ASCII or SJIS 第2バイト)。
+    /// この単純な検査で確実に判別できる。
+    /// </summary>
+    private static bool LooksLikeUtf16Le(byte[] bytes)
+    {
+        if (bytes.Length < 4) return false;
+        if ((bytes.Length & 1) != 0) return false;  // UTF-16LE は必ず偶数バイト
+        if (bytes[0] < 0x20 || bytes[0] >= 0x80) return false; // 先頭は ASCII 印字可能
+        if (bytes[1] != 0x00) return false;
+        if (bytes[2] < 0x20 || bytes[2] >= 0x80) return false;
+        if (bytes[3] != 0x00) return false;
+        return true;
     }
 
     private static void WriteVariantByRef(IntPtr variantPtr, ushort innerType, IntPtr dataHolder)

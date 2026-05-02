@@ -210,7 +210,7 @@ internal static class JvSjisDecoder
         if (!IsCleanJapanese(candidate)) return false;
         return true;
     }
-}}
+}
 
 /// <summary>
 /// JV-Link COM 呼び出しラッパー。

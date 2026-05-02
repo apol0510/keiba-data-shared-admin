@@ -29,6 +29,7 @@ import * as cheerio from 'cheerio';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { dispatchToTargets } from '../../netlify/lib/dispatch.mjs';
 
 // ───────────────────────────────────────────────────────────
 // JYO コード (JRA場コード) → 短コード対応表
@@ -52,11 +53,83 @@ const FETCH_TIMEOUT_MS = 10000;
 
 // ───── CLI ─────
 function parseArgs(argv) {
-  const args = { date: null };
+  const args = { date: null, dispatch: false, dryRun: false };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--date=')) args.date = a.slice('--date='.length);
+    else if (a === '--dispatch') args.dispatch = true;
+    else if (a === '--dry-run') args.dryRun = true;
   }
   return args;
+}
+
+// ───── keiba-data-shared への保存 ─────
+const GITHUB_OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
+const GITHUB_REPO = 'keiba-data-shared';
+const GITHUB_BRANCH = 'main';
+
+/**
+ * keiba-data-shared に live-results JSON を PUT で保存。
+ * 既存ファイルがあれば上書き（live は常に最新が正義）。
+ */
+async function pushLiveResultsToShared(date, jsonText) {
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
+  if (!token) {
+    throw new Error('GITHUB_TOKEN_KEIBA_DATA_SHARED または GITHUB_TOKEN 環境変数が未設定');
+  }
+  const year = date.slice(0, 4);
+  const month = date.slice(5, 7);
+  const filePath = `jra/live-results/${year}/${month}/${date}.json`;
+
+  // 既存 SHA 取得（あれば上書き、なければ新規）
+  const getUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}?ref=${GITHUB_BRANCH}`;
+  let sha = null;
+  const getRes = await fetch(getUrl, {
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'keiba-live-cli',
+    },
+  });
+  if (getRes.ok) {
+    const j = await getRes.json();
+    sha = j.sha;
+  }
+
+  const message = `📡 ${date} JRA速報結果 ${sha ? '更新' : '追加'}
+
+【live-results】
+- 開催日: ${date}
+- ファイル: ${filePath}
+- ソース: netkeiba
+- 注意: 速報データ。確定データは jra/results/ に別途保存される
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+
+  const putUrl = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${filePath}`;
+  const body = {
+    message,
+    content: Buffer.from(jsonText, 'utf-8').toString('base64'),
+    branch: GITHUB_BRANCH,
+    ...(sha && { sha }),
+  };
+  const putRes = await fetch(putUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'keiba-live-cli',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!putRes.ok) {
+    const text = await putRes.text().catch(() => '');
+    throw new Error(`GitHub PUT failed: ${putRes.status} ${text}`);
+  }
+  const result = await putRes.json();
+  return { filePath, commitUrl: result.commit?.html_url, commitSha: result.commit?.sha };
 }
 
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -281,7 +354,61 @@ async function main() {
   console.log(`  HTTPエラー: ${ngCount}R`);
   console.log(`  未確定/skip: ${skipCount}R`);
   console.log(`  venues with data: ${venuesOut.length}/${byVenue.size}`);
-  console.log(`💾 出力: ${outPath}`);
+  console.log(`💾 tmp出力: ${outPath}`);
+
+  // ── Step 5: --dispatch 指定時のみ keiba-data-shared に push + dispatch ──
+  if (!args.dispatch) {
+    console.log('');
+    console.log('ℹ️  --dispatch 未指定のため tmp出力のみで終了 (保存・通知なし)');
+    return;
+  }
+  if (okCount === 0) {
+    console.log('');
+    console.log('⚠️  取得成功 0R のため push/dispatch をスキップ');
+    return;
+  }
+
+  console.log('');
+  if (args.dryRun) {
+    console.log(`🟡 DRY-RUN: would push ${outPath} → keiba-data-shared/jra/live-results/...`);
+    console.log(`🟡 DRY-RUN: would dispatch jra-live-results-updated to keiba-intelligence + analytics-keiba`);
+    return;
+  }
+
+  console.log(`📤 keiba-data-shared に push 中...`);
+  let putResult;
+  try {
+    putResult = await pushLiveResultsToShared(args.date, JSON.stringify(output, null, 2));
+    console.log(`✅ saved: ${putResult.filePath}`);
+    if (putResult.commitUrl) console.log(`   commit: ${putResult.commitUrl}`);
+  } catch (e) {
+    console.error(`❌ keiba-data-shared push 失敗: ${e.message}`);
+    process.exit(4);
+  }
+
+  console.log(`📡 dispatch jra-live-results-updated 送信中...`);
+  try {
+    const result = await dispatchToTargets('jra-live-results-updated', {
+      date: args.date,
+      type: 'jra-live-results',
+      source: 'netkeiba-scrape',
+      racesAvailable: okCount,
+      racesTotal: raceIds.length,
+    });
+    const triggered = Array.isArray(result?.triggered) ? result.triggered : [];
+    if (triggered.length === 0) {
+      console.warn(`⚠️  dispatch 送信先 0件 (token未設定?)`);
+    } else {
+      console.log(`✅ dispatch success: ${triggered.join(', ')}`);
+    }
+    const failed = (result?.results || []).filter((r) => !r.ok && !r.skipped);
+    if (failed.length > 0) {
+      console.warn(`⚠️  一部 dispatch 失敗: ${failed.map((r) => `${r.repo}=${r.error}`).join(', ')}`);
+    }
+  } catch (e) {
+    console.error(`❌ dispatch エラー: ${e.message}`);
+    // dispatch 失敗でもファイル保存は成功しているので exit 0 のまま
+  }
 }
 
 main().catch((e) => {

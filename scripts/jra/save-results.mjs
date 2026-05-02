@@ -10,9 +10,13 @@
  *   GITHUB_TOKEN_KEIBA_DATA_SHARED=... \
  *   node scripts/jra/save-results.mjs --date=2026-04-15 [--in-dir=./tmp/jra-shared] [--dispatch] [--force-overwrite] [--dry-run]
  *
+ *   # ファイルは触らず dispatch だけ再送信したい場合（保存成功後に dispatch 失敗した時の復旧用）
+ *   node scripts/jra/save-results.mjs --date=2026-04-26 --dispatch-only
+ *
  * Dispatch:
  *   --dispatch を付けた場合のみ netlify/lib/dispatch.mjs 経由で
  *   keiba-intelligence / analytics-keiba へ jra-results-updated を送信。
+ *   --dispatch-only の場合はファイル走査・保存を完全にスキップして dispatch のみ実行。
  */
 
 import fs from 'node:fs';
@@ -109,10 +113,35 @@ async function main() {
   const doDispatch = !!args.dispatch;
   const force = !!args['force-overwrite'];
   const dryRun = !!args['dry-run'];
+  const dispatchOnly = !!args['dispatch-only'];
 
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     console.error('❌ --date=YYYY-MM-DD required');
     process.exit(1);
+  }
+
+  // --dispatch-only: ファイル走査・保存を完全スキップして dispatch のみ実行
+  // 保存成功後に dispatch 側だけ失敗した場合の復旧経路（保存済みデータには触れない）
+  if (dispatchOnly) {
+    console.log(`📅 対象日: ${date} (dispatch-only mode)`);
+    if (dryRun) {
+      console.log(`🟡 DRY-RUN: would dispatch jra-results-updated for date=${date}`);
+      return;
+    }
+    console.log(`📡 dispatch: jra-results-updated`);
+    const result = (await dispatchToTargets('jra-results-updated', {
+      date,
+      source: 'jv-link-cli',
+      mode: 'redispatch',
+    })) ?? {};
+    const triggered = Array.isArray(result.triggered) ? result.triggered : [];
+    const dispatchResults = Array.isArray(result.results) ? result.results : [];
+    console.log(`   → 送信試行: ${triggered.join(', ') || '(なし: tokenなし?)'}`);
+    for (const r of dispatchResults) {
+      const tag = r.ok ? '✅' : r.skipped ? '⏭' : '❌';
+      console.log(`   ${tag} ${r.repo}${r.status ? ` (HTTP ${r.status})` : ''}${r.error ? ` ${r.error}` : ''}`);
+    }
+    return;
   }
 
   const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
@@ -183,10 +212,21 @@ async function main() {
 
   if (doDispatch && !dryRun && savedCount > 0) {
     console.log(`\n📡 dispatch: jra-results-updated`);
-    const { triggered } = dispatchToTargets('jra-results-updated', { date, source: 'jv-link-cli' });
+    const venueCodes = files
+      .map((p) => path.basename(p).match(/-([A-Z]{3})\.json$/)?.[1])
+      .filter(Boolean);
+    const result = (await dispatchToTargets('jra-results-updated', {
+      date,
+      source: 'jv-link-cli',
+      venueCodes,
+    })) ?? {};
+    const triggered = Array.isArray(result.triggered) ? result.triggered : [];
+    const dispatchResults = Array.isArray(result.results) ? result.results : [];
     console.log(`   → 送信試行: ${triggered.join(', ') || '(なし: tokenなし?)'}`);
-    // dispatch は fire-and-forget なので少し待つ
-    await new Promise((r) => setTimeout(r, 1500));
+    for (const r of dispatchResults) {
+      const tag = r.ok ? '✅' : r.skipped ? '⏭' : '❌';
+      console.log(`   ${tag} ${r.repo}${r.status ? ` (HTTP ${r.status})` : ''}${r.error ? ` ${r.error}` : ''}`);
+    }
   } else if (doDispatch) {
     console.log(`\n⏭  dispatch: skipped (dry-run or 0 saved)`);
   } else {

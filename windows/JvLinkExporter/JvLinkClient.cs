@@ -361,6 +361,35 @@ public sealed class JvLinkClient : IDisposable
     }
 
     /// <summary>
+    /// 速報系API: JVRTOpen(dataspec, key)
+    ///
+    /// JVOpen（蓄積系）と異なり、レース当日のリアルタイムデータ取得に使用。
+    /// 主要 dataspec（実機検証で確定済み or 推定。要 JV-Link Programmer's Guide 参照）:
+    ///   "0B11" 速報・馬体重               → date-level key, WH レコード
+    ///   "0B12" 速報・払戻                 → race-level key 必須 (yyyymmddJJKKHHRR)
+    ///   "0B14" 速報・票数                 → race-level
+    ///   "0B15" 速報・オッズ(単複/馬連)     → race-level
+    ///   "0B17" 速報・出走取消・競走除外    → date-level
+    ///   "0B20" 速報・成績                 → 候補(date-level OK?)、要検証
+    ///   "0B30" 速報・確定オッズ            → 要検証
+    ///   "0B41" 速報・オッズ馬単            → race-level
+    ///   "0B51" 速報・オッズ三連単          → race-level
+    ///
+    /// 着順（KakuteiJyuni）+ 払戻を含む RA/SE/HR 系を返す dataspec は実機で確定要。
+    /// -202 (key形式不正) が返ったら race-level key で再試行する Phase2 処理を呼び元で行う。
+    /// </summary>
+    public RtOpenResult RtOpen(string dataspec, string key)
+    {
+        int ret = _jv.JVRTOpen(dataspec, key);
+        if (ret != 0) throw new JvLinkException($"JVRTOpen failed (ret={ret}) dataspec={dataspec} key={key}");
+        return new RtOpenResult {
+            ReturnCode = ret,
+            Dataspec = dataspec,
+            Key = key
+        };
+    }
+
+    /// <summary>
     /// 1レコードずつ読み出す。ret==0 で終端、ret==-1 でファイル切替（ループ継続）、ret&lt;-1 でエラー。
     ///
     /// 通常は IDispatch::Invoke 経由でバイトレベル取得し、Shift_JIS で直接デコードする
@@ -662,6 +691,13 @@ public sealed class OpenResult
     public int ReadCount { get; set; }
     public int DownloadCount { get; set; }
     public string LastFileTimestamp { get; set; } = "";
+}
+
+public sealed class RtOpenResult
+{
+    public int ReturnCode { get; set; }
+    public string Dataspec { get; set; } = "";
+    public string Key { get; set; } = "";
 }
 
 public sealed class JvReadResult

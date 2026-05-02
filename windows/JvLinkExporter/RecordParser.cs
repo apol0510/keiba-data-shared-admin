@@ -351,6 +351,29 @@ public static class RecordParser
         return s.Substring(start, actual);
     }
 
+    // ==================================================================
+    // WH: 馬体重レコード (速報・dataspec=0B11)
+    // 共通ヘッダオフセットは RA/SE/HR と同じレイアウトを想定。
+    // 馬番別の体重明細は本クラスでは未パース（race key 抽出のみ用途）。
+    // ==================================================================
+    public static WhRecord ParseWh(string r)
+    {
+        return new WhRecord
+        {
+            RecordType = Safe(r, 0, 2),
+            DataKubun  = Safe(r, 2, 1),
+            MakeDate   = Safe(r, 3, 8),
+            Year       = Safe(r, 11, 4),
+            MonthDay   = Safe(r, 15, 4),
+            JyoCD      = Safe(r, 19, 2),
+            Kaiji      = Safe(r, 21, 2),
+            Nichiji    = Safe(r, 23, 2),
+            RaceNum    = Safe(r, 25, 2),
+            HappyoTime = Safe(r, 27, 4),
+            Raw        = r,
+        };
+    }
+
     // ================================================================
     // Shift_JIS バイトオフセット対応
     // JV-Link COM は Shift_JIS → Unicode 変換済みの string を返す。
@@ -434,4 +457,45 @@ public sealed class HrRecord
     public List<PayoutEntry> Sanrentan { get; set; } = new();
     /// <summary>払戻領域のoffset確定後は未使用。互換のため残置。</summary>
     public string RawTail { get; set; } = "";
+}
+
+/// <summary>
+/// WH: 馬体重レコード（速報・dataspec=0B11）
+///
+/// JV-Data 仕様（JV-Linkリファレンス）:
+///   [0:2]    "WH"
+///   [2:3]    DataKubun (1)
+///   [3:11]   MakeDate "yyyymmdd" (8) ← データ作成日
+///   [11:15]  Year (4)
+///   [15:19]  MonthDay (4)
+///   [19:21]  JyoCD (2)
+///   [21:23]  Kaiji (2)
+///   [23:25]  Nichiji (2)
+///   [25:27]  RaceNum (2)
+///   [27:31]  HappyoTime (HHMM, 4 bytes)
+///   [31:]    馬番別の体重データ (繰り返し: Umaban(2) + BaTaiju(3) + ZogenFugo(1) + ZogenSa(3) = 9bytes/頭)
+///
+/// 主用途: 0B11 でWHレコードしか返らない場合、ここから race key を抽出して
+///         0B12 等の race-level key 必須 dataspec を再呼び出しするための情報源として使う。
+/// </summary>
+public sealed class WhRecord
+{
+    public string RecordType = "";
+    public string DataKubun = "";
+    public string MakeDate = "";   // [3:11] 8桁
+    public string Year = "", MonthDay = "", JyoCD = "", Kaiji = "", Nichiji = "", RaceNum = "";
+    public string HappyoTime = "";
+
+    /// <summary>WHレコードの生 charデータ (key variant のraw切り出しに使用)。</summary>
+    public string Raw = "";
+
+    /// <summary>race-level key 形式 "yyyymmddJJKKHHRR" (16桁)</summary>
+    public string RaceKey16
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(Year) || string.IsNullOrEmpty(MonthDay)) return "";
+            return $"{Year}{MonthDay}{JyoCD}{Kaiji}{Nichiji}{RaceNum}";
+        }
+    }
 }

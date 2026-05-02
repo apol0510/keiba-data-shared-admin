@@ -12,8 +12,21 @@ public sealed class Aggregator
     private readonly Dictionary<string, IntermediateVenue> _venueMap = new();
     private readonly Dictionary<string, int> _dateCount = new();
     private readonly List<HrRecord> _hrBuffer = new();
-    private int _raCalls, _seCalls, _hrCalls, _seMatched, _hrMatched;
-    private int _raDbgLogged, _seDbgLogged, _hrDbgLogged;
+    private readonly Dictionary<string, WhRecord> _whByRaceKey16 = new();
+    private int _raCalls, _seCalls, _hrCalls, _whCalls, _seMatched, _hrMatched;
+    private int _raDbgLogged, _seDbgLogged, _hrDbgLogged, _whDbgLogged;
+
+    /// <summary>
+    /// 0B11 等で取得した WH レコードから抽出した race-level key 一覧
+    /// (yyyymmddJJKKHHRR 16桁)。0B12 等の race-level key 必須 dataspec を
+    /// 後段で再呼び出しする際に使用する。
+    /// </summary>
+    public IReadOnlyCollection<string> CollectedRaceKeys16 => _whByRaceKey16.Keys;
+
+    /// <summary>
+    /// 収集した WH レコード一覧。複数キーフォーマットを生成するための原本。
+    /// </summary>
+    public IReadOnlyCollection<WhRecord> CollectedWhRecords => _whByRaceKey16.Values;
 
     public Aggregator(string targetDate, bool debug = false)
     {
@@ -193,6 +206,43 @@ public sealed class Aggregator
             Time = FormatRunTime(se.Time),
             LastFurlong = FormatFurlong(se.HaronTimeL3),
         });
+    }
+
+    /// <summary>
+    /// 0B11 で返る WH レコードを処理。馬体重情報自体は IntermediateRace に入れず、
+    /// race-level key (yyyymmddJJKKHHRR) を抽出して内部に蓄積する。
+    /// 後段で <see cref="CollectedRaceKeys16"/> を取得し 0B12 等の再呼び出しに使う。
+    /// </summary>
+    public void ApplyWh(WhRecord wh, string? rawRecord = null)
+    {
+        _whCalls++;
+        var raceKey16 = wh.RaceKey16;
+        if (!string.IsNullOrEmpty(raceKey16) && raceKey16.Length == 16)
+        {
+            _whByRaceKey16[raceKey16] = wh;
+        }
+        if (_debug && _whDbgLogged < 3)
+        {
+            Log($"WH#{_whCalls} raceKey16='{raceKey16}' Y='{wh.Year}' MD='{wh.MonthDay}' Jyo='{wh.JyoCD}' Kai='{wh.Kaiji}' Nichi='{wh.Nichiji}' R='{wh.RaceNum}' time='{wh.HappyoTime}'");
+            if (rawRecord != null)
+            {
+                try
+                {
+                    var sjisBytes = System.Text.Encoding.GetEncoding("shift_jis").GetBytes(rawRecord);
+                    Log($"  WH-RAW charLen={rawRecord.Length} sjisBytes={sjisBytes.Length}");
+                    var enc = System.Text.Encoding.GetEncoding("shift_jis");
+                    for (int pos = 0; pos < sjisBytes.Length; pos += 20)
+                    {
+                        int chunk = Math.Min(20, sjisBytes.Length - pos);
+                        var hex = BitConverter.ToString(sjisBytes, pos, chunk);
+                        var txt = enc.GetString(sjisBytes, pos, chunk).Replace('\r', '.').Replace('\n', '.').Replace('\0', '.');
+                        Log($"  [{pos,4}..{pos + chunk - 1,4}] {hex}  |{txt}|");
+                    }
+                }
+                catch (Exception ex) { Log($"  WH dump failed: {ex.Message}"); }
+            }
+            _whDbgLogged++;
+        }
     }
 
     public void ApplyHr(HrRecord hr, string? rawRecord = null)

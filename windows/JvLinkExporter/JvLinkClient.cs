@@ -34,107 +34,163 @@ internal static class JvSjisDecoder
         return Encoding.GetEncoding(codepage);
     }
 
-    /// <summary>CJK / 仮名 / 全角記号 を含む文字数をカウント（日本語らしさ指標）</summary>
-    private static int CountCjkLike(string s)
+    /// <summary>仮名/漢字 含有数（日本語らしさ指標）</summary>
+    private static int CountKanaKanji(string s)
     {
         if (string.IsNullOrEmpty(s)) return 0;
         int n = 0;
         foreach (var c in s)
         {
             int cp = c;
-            if ((cp >= 0x3000 && cp <= 0x303F) ||  // CJK Symbols (全角空白等)
-                (cp >= 0x3040 && cp <= 0x309F) ||  // Hiragana
+            if ((cp >= 0x3040 && cp <= 0x309F) ||  // Hiragana
                 (cp >= 0x30A0 && cp <= 0x30FF) ||  // Katakana
                 (cp >= 0x3400 && cp <= 0x9FFF) ||  // CJK Unified Ideographs
                 (cp >= 0xF900 && cp <= 0xFAFF) ||  // CJK Compatibility
-                (cp >= 0xFF00 && cp <= 0xFFEF))    // Halfwidth / Fullwidth Forms
+                (cp >= 0xFF66 && cp <= 0xFF9F))    // 半角カタカナ
                 n++;
         }
         return n;
     }
 
     /// <summary>
-    /// 文字化けらしさを検出（CP1252経由の崩れや「?@」連続パターン等）。
-    /// CJK が含まれていても、これらの兆候があれば「壊れている」と判断する。
+    /// 「すでに正しい日本語文字列」かを判定する。仕様（ユーザー指定）:
+    ///   正常:
+    ///     - 平仮名・片仮名・漢字 が含まれる
+    ///     - 不自然な記号列がない
+    ///   1つでも以下に該当 → 文字化けと判定（再デコードを必須にする）:
+    ///     - "?" / "@" が多い、または連続
+    ///     - "�" を含む
+    ///     - 文字化けマーカー (窶/繝/蜻/荵 等)
+    ///     - smart quote / em dash / bullet 等の異常記号
+    ///     - U+0080-U+009F (CP1252 由来) を含む
+    ///     - U+0100 以上で kana/kanji 範囲外の文字を含む
+    ///     - 仮名・漢字が1つも無い（全部 ASCII / 記号）
     /// </summary>
-    private static bool LooksLikeMojibake(string s)
+    private static bool IsCleanJapanese(string s)
     {
-        if (string.IsNullOrEmpty(s)) return false;
+        if (string.IsNullOrEmpty(s)) return true;
+
+        int kanaKanji = 0;
         int suspicious = 0;
-        int qatPairs = 0;          // "?@" 連続 = SJIS 0x81 0x40 (全角空白) の典型崩れ
+        int qatPairs = 0;
+        int questionCount = 0;
+        int atCount = 0;
+        int currQ = 0, currA = 0, maxQ = 0, maxA = 0;
+        bool hasReplacement = false;
         bool hasMojibakeMarker = false;
+        bool hasOutOfRangeHigh = false;
+
         for (int i = 0; i < s.Length; i++)
         {
             char c = s[i];
-            // よく出現する文字化けマーカー
-            if (c == '�' ||                                  // U+FFFD replacement
-                c == '窶' || c == '繝' || c == '蜻' || c == '荵' || // よくあるUTF-8as-SJIS文字化け
-                c == 'Â' || c == 'ã' || c == ' ')   // Latin-1 supplementの典型崩れ
-            { hasMojibakeMarker = true; suspicious++; continue; }
-            // CP1252 由来のスマートクォート/ダッシュ系
-            if ((c >= '‘' && c <= '‟') ||
-                (c >= '–' && c <= '—') ||
-                c == '…' || c == '•' || c == '‰')
-            { suspicious++; continue; }
-            // U+0080-U+009F (C1 control) は通常テキストに出ない
-            if (c >= '\u0080' && c <= '\u009F') { suspicious++; continue; }
-            // "?@" 連続検出
-            if (c == '?' && i + 1 < s.Length && s[i + 1] == '@') { qatPairs++; suspicious += 2; i++; continue; }
+            int cp = c;
+
+            // ① 仮名・漢字
+            if ((cp >= 0x3040 && cp <= 0x309F) ||
+                (cp >= 0x30A0 && cp <= 0x30FF) ||
+                (cp >= 0x3400 && cp <= 0x9FFF) ||
+                (cp >= 0xF900 && cp <= 0xFAFF) ||
+                (cp >= 0xFF66 && cp <= 0xFF9F))
+            { kanaKanji++; currQ = 0; currA = 0; continue; }
+
+            // ② 全角空白・全角ASCII（数字・英字・記号）→ 中立
+            if (cp == 0x3000 || (cp >= 0xFF00 && cp <= 0xFF65) || (cp >= 0xFFA0 && cp <= 0xFFEF))
+            { currQ = 0; currA = 0; continue; }
+
+            // ③ 文字化けマーカー
+            if (c == '�') { hasReplacement = true; continue; }
+            if (c == '窶' || c == '繝' || c == '蜻' || c == '荵') { hasMojibakeMarker = true; continue; }
+
+            // ④ "?@" 連続検出
+            if (c == '?' && i + 1 < s.Length && s[i + 1] == '@')
+            {
+                qatPairs++; suspicious += 2; i++;
+                currQ = 0; currA = 0;
+                continue;
+            }
+
+            // ⑤ "?" / "@" 個数・連続性
+            if (c == '?')
+            {
+                questionCount++;
+                currQ++; if (currQ > maxQ) maxQ = currQ;
+                currA = 0;
+                continue;
+            }
+            if (c == '@')
+            {
+                atCount++;
+                currA++; if (currA > maxA) maxA = currA;
+                currQ = 0;
+                continue;
+            }
+
+            // ⑥ CP1252 由来の C1 control 域 / smart quote / dash / bullet
+            if (cp >= 0x0080 && cp <= 0x009F) { suspicious++; currQ = 0; currA = 0; continue; }
+            if (cp >= 0x2013 && cp <= 0x2026) { suspicious++; currQ = 0; currA = 0; continue; }
+            if (c == '“' || c == '”' || c == '„' || c == '‟' ||
+                c == '‘' || c == '’' || c == '‚' || c == '‛' ||
+                c == '•' || c == '‰')
+            { suspicious++; currQ = 0; currA = 0; continue; }
+
+            // ⑦ U+0100 以上で kana/kanji 範囲外 → 異常コードポイント
+            if (cp >= 0x0100) { hasOutOfRangeHigh = true; currQ = 0; currA = 0; continue; }
+
+            // ASCII / 数字 / 半角記号 / 制御文字
+            currQ = 0; currA = 0;
         }
-        if (hasMojibakeMarker) return true;
-        if (qatPairs >= 3) return true;                    // "?@" が3回以上 → 全角空白の連続崩れ
-        if (s.Length > 0 && (suspicious * 100 / s.Length) >= 25) return true; // 25%以上が文字化け候補
-        return false;
+
+        // ── 異常判定（1つでも当てはまれば NG = 再デコード必須）──
+        if (hasReplacement) return false;
+        if (hasMojibakeMarker) return false;
+        if (qatPairs >= 2) return false;                       // "?@" 2回以上
+        if (maxQ >= 3 || maxA >= 3) return false;              // "?" / "@" が3連続以上
+        if (questionCount + atCount >= 3) return false;        // "?" / "@" 合計3個以上
+        if (suspicious >= 1) return false;                     // smart quote 等が1個でも
+        if (hasOutOfRangeHigh) return false;                   // U+0100以上で kana/kanji 範囲外
+        if (kanaKanji == 0) return false;                      // 仮名・漢字が無い
+
+        return true;
     }
 
     /// <summary>
-    /// JV-Link から受け取った string を、SJIS の各種文字化けパターンから復元する。
-    ///   1. 既に CJK 多数 ＋ mojibake 痕跡なし → そのまま（CaseA: 日本語Windows）
-    ///   2. 各 char 低位バイト → SJIS デコード（CaseB-1: identity マッピング）
-    ///   3. CP1252 経由 → SJIS デコード（CaseB-2: smart quote 等が混入したケース）
-    ///   最も CJK チャンクが多い結果を採用。すべて失敗時は原文を返す。
+    /// JV-Link 受信文字列を文字化けから復元する。
+    /// 「既に正しい日本語」と判定された文字列は破壊しない。
+    /// それ以外は必ず Shift_JIS 再デコードを試みる:
+    ///   戦略A: 各 char の低位バイトを SJIS バイト列とみなしてデコード
+    ///   戦略B: CP1252 経由でバイト復元 → SJIS デコード
+    /// 復元結果は IsBetterRecovery（既存より仮名/漢字が増え、かつクリーン判定をパス）の場合のみ採用。
     /// </summary>
     public static string Decode(string raw)
     {
         if (string.IsNullOrEmpty(raw)) return raw ?? "";
 
-        int origCjk = CountCjkLike(raw);
-        bool origMojibake = LooksLikeMojibake(raw);
-
-        // CJK が含まれていて、かつ文字化け兆候が無ければ proper UTF-16 として素通し
-        if (origCjk > 0 && !origMojibake) return raw;
+        if (IsCleanJapanese(raw)) return raw;
 
         string best = raw;
-        int bestScore = origCjk;
+        int bestScore = CountKanaKanji(raw);
 
-        // ── 戦略A: 低位バイト識別マッピング → SJIS デコード ──
-        // U+00FF 以下のみで構成される場合に有効（COM が identity 1-byte-per-char）
-        bool allLow = true;
-        for (int i = 0; i < raw.Length; i++) if (raw[i] > 0xFF) { allLow = false; break; }
-        if (allLow)
+        // 戦略A: 低位バイト → SJIS
+        try
         {
-            try
+            var bytes = new byte[raw.Length];
+            for (int i = 0; i < raw.Length; i++) bytes[i] = (byte)(raw[i] & 0xFF);
+            var dec = SJIS.GetString(bytes);
+            if (IsBetterRecovery(dec, bestScore))
             {
-                var bytes = new byte[raw.Length];
-                for (int i = 0; i < raw.Length; i++) bytes[i] = (byte)(raw[i] & 0xFF);
-                var dec = SJIS.GetString(bytes);
-                if (IsBetterRecovery(dec, bestScore))
-                {
-                    best = dec; bestScore = CountCjkLike(dec);
-                }
+                best = dec; bestScore = CountKanaKanji(dec);
             }
-            catch { /* fallthrough */ }
         }
+        catch { /* fallthrough */ }
 
-        // ── 戦略B: CP1252 経由 → SJIS デコード ──
-        // smart quote 等の高位コードポイントが混じった文字化けに有効
+        // 戦略B: CP1252 → SJIS
         try
         {
             var bytes = CP1252.GetBytes(raw);
             var dec = SJIS.GetString(bytes);
             if (IsBetterRecovery(dec, bestScore))
             {
-                best = dec; bestScore = CountCjkLike(dec);
+                best = dec; bestScore = CountKanaKanji(dec);
             }
         }
         catch { /* fallthrough */ }
@@ -143,19 +199,18 @@ internal static class JvSjisDecoder
     }
 
     /// <summary>
-    /// 復元結果を採用するかの判定。
-    /// 既存より CJK が多く、かつ mojibake 兆候が無い場合のみ「より良い」とみなす。
-    /// （部分復元で間違った CJK が混じる lossy 変換を防ぐため厳しめに判定する）
+    /// 復元結果の安全性チェック。誤った CJK 出力（lossy 変換による偽復元）を排除するため
+    /// 「仮名/漢字 数が増える」かつ「クリーン日本語判定をパス」の場合のみ採用する。
     /// </summary>
     private static bool IsBetterRecovery(string candidate, int currentBestScore)
     {
-        int score = CountCjkLike(candidate);
+        int score = CountKanaKanji(candidate);
         if (score == 0) return false;
         if (score <= currentBestScore) return false;
-        if (LooksLikeMojibake(candidate)) return false;
+        if (!IsCleanJapanese(candidate)) return false;
         return true;
     }
-}
+}}
 
 /// <summary>
 /// JV-Link COM 呼び出しラッパー。

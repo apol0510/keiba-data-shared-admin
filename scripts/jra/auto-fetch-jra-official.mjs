@@ -525,41 +525,144 @@ async function main() {
   if (args.dryRun) {
     console.log('');
     console.log('🟡 --dry-run: 以下の操作はスキップされます');
-    venueJsonPaths.forEach(v => console.log(`   would POST ${v.path} → save-results-jra`));
+    venueJsonPaths.forEach(v => {
+      const { date, venueCode } = v.venueData;
+      const [year, month] = date.split('-');
+      console.log(`   would PUT keiba-data-shared/jra/results/${year}/${month}/${date}-${venueCode}.json`);
+    });
+    console.log(`   would dispatch jra-results-updated to keiba-intelligence + analytics-keiba`);
     return;
   }
 
   console.log('');
-  console.log('📤 admin save-results-jra に POST 中...');
+  console.log('📤 keiba-data-shared に直接 push 中 (GitHub API)...');
 
-  const ADMIN_BASE = process.env.ADMIN_NETLIFY_URL
-    || 'https://keiba-data-shared-admin.netlify.app';
-  const endpoint = `${ADMIN_BASE}/.netlify/functions/save-results-jra`;
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.error('❌ GITHUB_TOKEN_KEIBA_DATA_SHARED 環境変数が未設定');
+    console.error('   例: GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx node scripts/jra/auto-fetch-jra-official.mjs --urls=urls.txt --dispatch');
+    process.exit(3);
+  }
 
+  let pushedCount = 0;
   for (const { venueData } of venueJsonPaths) {
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resultsJSON: JSON.stringify(venueData),
-          forceOverwrite: true,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) {
-        console.log(`✅ ${venueData.venue}(${venueData.venueCode}): ${body.message || 'saved'}`);
-      } else {
-        console.error(`❌ ${venueData.venue}: HTTP ${res.status} ${body.error || ''}`);
-      }
+      await pushToKeibaDataShared(venueData, token);
+      console.log(`✅ ${venueData.venue}(${venueData.venueCode}): keiba-data-shared に saved`);
+      pushedCount++;
     } catch (e) {
       console.error(`❌ ${venueData.venue}: ${e.message}`);
     }
-    await sleep(1000);
+    await sleep(1500); // GitHub API rate limit 対策
+  }
+
+  if (pushedCount === 0) {
+    console.error('❌ どの venue も push 成功せず → dispatch スキップ');
+    process.exit(4);
+  }
+
+  // ── dispatch jra-results-updated を keiba-intelligence + analytics-keiba に送信 ──
+  console.log('');
+  console.log('📡 dispatch jra-results-updated 送信中...');
+  try {
+    const result = await dispatchToTargets('jra-results-updated', {
+      date: targetDate,
+      source: 'jra-official-scrape',
+      venues: venueJsonPaths.map(v => v.venueData.venueCode),
+    });
+    const triggered = Array.isArray(result?.triggered) ? result.triggered : [];
+    if (triggered.length === 0) {
+      console.warn(`⚠️  dispatch 送信先 0 件 (token未設定?)`);
+    } else {
+      console.log(`✅ dispatch success: ${triggered.join(', ')}`);
+    }
+    const failed = (result?.results || []).filter((r) => !r.ok && !r.skipped);
+    if (failed.length > 0) {
+      console.warn(`⚠️  一部 dispatch 失敗: ${failed.map((r) => `${r.repo}=${r.error}`).join(', ')}`);
+    }
+  } catch (e) {
+    console.error(`❌ dispatch error: ${e.message}`);
   }
 
   console.log('');
   console.log('✅ 完了');
+}
+
+/**
+ * keiba-data-shared に GitHub API で直接 push。
+ * Netlify Functions が Basic Auth で守られているため CLI からは Functions 経由不可。
+ *
+ * 保存先: jra/results/YYYY/MM/YYYY-MM-DD-{VENUE}.json
+ * 既存ファイルがあれば races[] を raceNumber でマージして上書き (forceOverwrite 同等動作)。
+ */
+async function pushToKeibaDataShared(venueData, token) {
+  const OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
+  const REPO = 'keiba-data-shared';
+  const BRANCH = 'main';
+  const { date, venue, venueCode } = venueData;
+  const [year, month] = date.split('-');
+  const filePath = `jra/results/${year}/${month}/${date}-${venueCode}.json`;
+
+  // 既存ファイル取得 (SHA + content for merge)
+  const getUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${filePath}?ref=${BRANCH}`;
+  let sha = null;
+  let existing = null;
+  const getRes = await fetch(getUrl, {
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'jra-auto-fetch',
+    },
+  });
+  if (getRes.ok) {
+    const j = await getRes.json();
+    sha = j.sha;
+    try { existing = JSON.parse(Buffer.from(j.content, 'base64').toString('utf-8')); } catch {}
+  }
+
+  // races[] をマージ: 同じ raceNumber は incoming で上書き、新規は追加
+  if (existing?.races) {
+    const incomingMap = new Map(venueData.races.map((r) => [r.raceNumber, r]));
+    const merged = existing.races.map((r) =>
+      incomingMap.has(r.raceNumber) ? incomingMap.get(r.raceNumber) : r
+    );
+    for (const r of venueData.races) {
+      if (!existing.races.some((er) => er.raceNumber === r.raceNumber)) merged.push(r);
+    }
+    venueData.races = merged.sort((a, b) => a.raceNumber - b.raceNumber);
+  }
+
+  const raceNumbers = venueData.races.map((r) => `${r.raceNumber}R`).join('・');
+  const message = `✨ ${date} ${venue} ${raceNumbers} 結果${sha ? '更新' : '追加'}
+
+【JRA 結果データ / JRA公式 auto-fetch】
+- 開催日: ${date}
+- 競馬場: ${venue}（${venueCode}）
+- ファイル: ${filePath}
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+
+  const putUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${filePath}`;
+  const putRes = await fetch(putUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'jra-auto-fetch',
+    },
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(JSON.stringify(venueData, null, 2), 'utf-8').toString('base64'),
+      branch: BRANCH,
+      ...(sha && { sha }),
+    }),
+  });
+  if (!putRes.ok) {
+    const text = await putRes.text().catch(() => '');
+    throw new Error(`GitHub PUT failed: HTTP ${putRes.status} ${text}`);
+  }
+  return putRes.json();
 }
 
 main().catch((e) => {

@@ -224,34 +224,50 @@ async function fetchRaceHtml(raceId) {
 //         <td class="Result_Num"><div class="Rank">1</div></td>   ← 着順
 //         <td class="Num Waku1"><div>1</div></td>                 ← 枠番
 //         <td class="Num Txt_C"><div>1</div></td>                 ← 馬番
-//         ...
+//
+// 払戻テーブル (Payout_Detail_Table) には 馬単行 <tr class="Umatan">:
+//   <td class="Result"><ul><li><span>5</span></li><li><span>11</span></li>...</ul></td>
+//   <td class="Payout"><span>460円</span></td>
 function parseResults(html) {
   const $ = cheerio.load(html);
   const $table = $('#All_Result_Table').first();
-  if ($table.length === 0) return { results: null, reason: 'table-not-found' };
+  if ($table.length === 0) return { results: null, umatan: null, reason: 'table-not-found' };
 
   const $rows = $table.find('tbody tr.HorseList');
-  if ($rows.length === 0) return { results: null, reason: 'rows-empty' };
+  if ($rows.length === 0) return { results: null, umatan: null, reason: 'rows-empty' };
 
   const results = [];
   $rows.each((_idx, el) => {
     if (results.length >= 3) return false;
     const $row = $(el);
-    // 着順
     const rankText = $row.find('td.Result_Num .Rank').first().text().trim();
     const rankNum = parseInt(rankText, 10);
     if (!Number.isFinite(rankNum) || rankNum < 1 || rankNum > 3) return;
-    // 馬番 (Num.Txt_C は 馬番列に固有。Num.Waku* は 枠番列なので除外される)
     const umabanText = $row.find('td.Num.Txt_C').first().text().trim();
     const umaban = parseInt(umabanText, 10);
     if (!Number.isFinite(umaban)) return;
     results.push({ position: rankNum, number: umaban });
   });
 
-  if (results.length === 0) return { results: null, reason: 'no-valid-rows' };
-
+  if (results.length === 0) return { results: null, umatan: null, reason: 'no-valid-rows' };
   results.sort((a, b) => a.position - b.position);
-  return { results, reason: null };
+
+  // 馬単払戻
+  let umatan = null;
+  const $uma = $('tr.Umatan').first();
+  if ($uma.length > 0) {
+    const nums = $uma.find('td.Result li span').map((_i, e) => parseInt($(e).text().trim(), 10)).get().filter(Number.isFinite);
+    const payText = $uma.find('td.Payout span').first().text().trim();
+    const payNum = parseInt(payText.replace(/[^0-9]/g, ''), 10);
+    if (nums.length >= 2 && Number.isFinite(payNum) && payNum > 0) {
+      umatan = {
+        combination: `${nums[0]}-${nums[1]}`,
+        payout: payNum,
+      };
+    }
+  }
+
+  return { results, umatan, reason: null };
 }
 
 // ───── main ─────
@@ -308,14 +324,17 @@ async function main() {
           console.warn(`  ⚠️  ${venue.name} ${p.raceNum}R race_id=${p.raceId} HTTP ${fr.status} → skip`);
           ngCount++;
         } else {
-          const { results, reason } = parseResults(fr.html);
+          const { results, umatan, reason } = parseResults(fr.html);
           if (!results) {
             console.warn(`  ⏭  ${venue.name} ${p.raceNum}R race_id=${p.raceId} 未確定 (${reason}) → skip`);
             skipCount++;
           } else {
-            racesOut.push({ raceNumber: p.raceNum, results });
+            const raceOut = { raceNumber: p.raceNum, results };
+            if (umatan) raceOut.umatan = umatan;
+            racesOut.push(raceOut);
             const tops = results.map((x) => `${x.position}着=${x.number}`).join(' ');
-            console.log(`  ✓ ${venue.name} ${p.raceNum}R: ${tops}`);
+            const umaStr = umatan ? ` 馬単${umatan.combination} ¥${umatan.payout.toLocaleString()}` : '';
+            console.log(`  ✓ ${venue.name} ${p.raceNum}R: ${tops}${umaStr}`);
             okCount++;
           }
         }

@@ -173,8 +173,14 @@ function parseRacePage(html, parsedCname) {
   const babaDirt = $('.date_line .baba .durt .txt').first().text().trim() || null;
   const trackCondition = babaTurf || babaDirt || null;
 
-  // 発走時刻
-  const startTime = $('.date_line .cell.time strong').first().text().trim() || null;
+  // 発走時刻 — JRA公式は「9時50分」表記なので H:MM (zero-padded) に正規化
+  const startTimeRaw = $('.date_line .cell.time strong').first().text().trim() || null;
+  const startTime = (() => {
+    if (!startTimeRaw) return null;
+    const m = startTimeRaw.match(/(\d{1,2})\s*[時:]\s*(\d{1,2})/);
+    if (!m) return startTimeRaw;
+    return `${m[1].padStart(2, '0')}:${m[2].padStart(2, '0')}`;
+  })();
 
   // ── 結果テーブル ──
   const results = [];
@@ -341,6 +347,11 @@ function buildVenueResultsJSON(venueRaces, parsedR1) {
       startTime: r.startTime,
       weather: r.weather,
       trackCondition: r.trackCondition,
+      // race-level に venue/venueCode/date を含める
+      // (会場別ファイルをマージするimporterが必要とするため)
+      venue: r.venue || venue,
+      venueCode: r.venueCode || venueCode,
+      date: r.date || date,
       results: r.results,
       halonTime: r.halonTime,
       upper: r.upper,

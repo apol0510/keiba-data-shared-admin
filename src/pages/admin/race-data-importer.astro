@@ -164,14 +164,15 @@ export const prerender = false;
           || '';
         document.getElementById('trackName').value = displayTrack;
 
-        // 日付自動セット: 既存入力 > XML検出 > 8桁日付 > コンピ指数推定 > 今日
+        // 日付自動セット: 既存入力 > データ検出 > 8桁日付 > 今日フォールバック
         const existingDate = document.getElementById('raceDate').value;
+        const headerDate = results._headerDate || null;
         let dateSource = '';
         if (existingDate) {
           dateSource = 'ユーザー入力維持';
-        } else if (results._headerDate) {
-          document.getElementById('raceDate').value = results._headerDate;
-          dateSource = 'データ検出';
+        } else if (headerDate) {
+          document.getElementById('raceDate').value = headerDate;
+          dateSource = 'header_detected';
         } else {
           const inputText8 = document.getElementById('xmlInput').value;
           const fn8Match = inputText8.match(/(\d{4})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/);
@@ -189,7 +190,6 @@ export const prerender = false;
 
         const raceDateValue = document.getElementById('raceDate').value;
         console.log(`[Import] 日付セット(${dateSource}): ${raceDateValue}`);
-        console.log('[Import] 使用開催日:', raceDateValue);
 
         parsedData = buildJSON(results);
         renderPreview(results);
@@ -198,10 +198,16 @@ export const prerender = false;
         const totalHorses = results.reduce((s, r) => s + r.horses.length, 0);
         console.log(`[Import] 解析完了: ${results.length}R ${totalHorses}頭`);
 
-        // コンピ指数は日付確定後に先行保存される設計なので、常にコンピを真値として優先
-        // （ユーザー入力/XML検出は前日セッションの残留等でズレるケースがあるため）
+        // 日付補正ロジック:
+        // - ヘッダー検出 (_headerDate) または ユーザー入力維持 が成功していれば override 完全スキップ
+        // - フォールバック (8桁検出 / 今日フォールバック) のときだけコンピ指数で補正可
         // 既にracebookが保存済みの日付はスキップし、未保存の日付を優先
-        {
+        const overrideAllowed = !headerDate && !existingDate;
+        let overrideApplied = false;
+        let overrideReason = headerDate ? 'header_detected' : (existingDate ? 'user_input' : null);
+        let candidatesLog = [];
+
+        if (overrideAllowed) {
           const track = results[0].raceInfo.track
             || (results.find(r => r.raceInfo.track && ALL_VENUE_CODES[r.raceInfo.track])?.raceInfo.track)
             || '';
@@ -221,6 +227,7 @@ export const prerender = false;
                 if (res.ok) candidates.push(ds);
               } catch (e) { /* continue */ }
             }
+            candidatesLog = candidates;
             if (candidates.length > 0) {
               // 未保存の日付を優先（既にracebookがある日はスキップ）
               let bestDate = candidates[0];
@@ -229,20 +236,31 @@ export const prerender = false;
                 const rbUrl = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/racebook/${y}/${m}/${ds}-${trackCode}.json`;
                 try {
                   const rbRes = await fetch(rbUrl, { method: 'HEAD' });
-                  if (!rbRes.ok) { bestDate = ds; break; } // 未保存→この日付を使う
+                  if (!rbRes.ok) { bestDate = ds; break; }
                 } catch (e) { bestDate = ds; break; }
               }
               const prevDate = document.getElementById('raceDate').value;
-              if (prevDate && prevDate !== bestDate) {
-                console.warn(`[Import] ⚠️ 日付上書き: ${prevDate} (${dateSource}) → ${bestDate} (コンピ指数)`);
+              if (prevDate !== bestDate) {
+                document.getElementById('raceDate').value = bestDate;
+                overrideApplied = true;
+                overrideReason = 'computer_match';
+                parsedData = buildJSON(results);
+                renderPreview(results);
               }
-              document.getElementById('raceDate').value = bestDate;
-              console.log(`[Import] 日付確定(コンピ指数): ${bestDate} (${track}=${trackCode}, 候補: ${candidates.join(',')})`);
-              parsedData = buildJSON(results);
-              renderPreview(results);
             }
           }
         }
+
+        const finalDate = document.getElementById('raceDate').value;
+        console.log('[DATE]', JSON.stringify({
+          headerDate: headerDate || null,
+          dateSource,
+          finalDate,
+          overrideAllowed,
+          overrideApplied,
+          reason: overrideApplied ? overrideReason : (overrideReason || 'fallback_kept'),
+          computerCandidates: candidatesLog
+        }));
 
         showStatus(`✅ ${results.length}レース・${totalHorses}頭を検出`, 'success');
 

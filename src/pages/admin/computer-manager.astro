@@ -909,11 +909,192 @@
         html += `
               </tbody>
             </table>
+        `;
+
+        // 穴馬候補セクション（同じレースカード内に追加）
+        try {
+          html += renderDarkHorseSection(race);
+        } catch (err) {
+          console.warn('[DarkHorse] レンダリング失敗 R' + race.raceNumber + ':', err);
+        }
+
+        html += `
           </div>
         `;
       });
 
       return html;
+    }
+
+    /**
+     * 穴馬候補抽出ロジック
+     * - 人気順位 - 指数順位 が正の馬を候補化（指数の方が上位）
+     * - 前走着順が悪いほど加点 / 1〜3着など好走馬は減点して「指数妙味馬」扱い
+     * - データ欠損時はフィールドを null のまま安全にスキップする
+     */
+    function extractDarkHorses(race) {
+      const horses = Array.isArray(race?.horses) ? race.horses : [];
+      if (horses.length < 2) return [];
+
+      // 指数順位を計算（高い指数 = 上位）。指数欠損馬は順位対象外
+      const indexed = horses
+        .filter(h => h.computerIndex != null && !isNaN(parseFloat(h.computerIndex)))
+        .map(h => ({ ...h, _ci: parseFloat(h.computerIndex) }))
+        .sort((a, b) => b._ci - a._ci);
+
+      const indexRankMap = new Map();
+      indexed.forEach((h, i) => indexRankMap.set(String(h.number), i + 1));
+
+      const candidates = [];
+      for (const h of horses) {
+        const popularityRank = h.popularity != null ? parseInt(h.popularity) : null;
+        const indexRank = indexRankMap.get(String(h.number)) || null;
+        if (popularityRank == null || indexRank == null) continue;
+
+        const gap = popularityRank - indexRank; // 正なら指数が上位
+        if (gap <= 0) continue;
+
+        // 前走着順を取得（pastRaces[0] から複数候補キーで吸収。除外/取消/中止など数値化不可は null）
+        let lastFinish = null;
+        const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0 ? h.pastRaces[0] : null;
+        if (pr) {
+          const rawFinish =
+            pr.finish ??
+            pr.finishPosition ??
+            pr.position ??
+            pr.rank ??
+            pr.chakujun ??
+            pr.result ??
+            null;
+          if (rawFinish != null) {
+            const digits = String(rawFinish).replace(/[^\d]/g, '');
+            if (digits.length > 0) {
+              const n = parseInt(digits, 10);
+              if (!isNaN(n) && n > 0) lastFinish = n;
+            }
+          }
+        }
+
+        // スコア計算
+        const gapScore = gap * 10;
+        let finishScore = 0;
+        let category = 'darkhorse'; // 'darkhorse' | 'value'
+        if (lastFinish != null) {
+          if (lastFinish >= 8) finishScore = 30;
+          else if (lastFinish >= 5) finishScore = 15;
+          else if (lastFinish === 4) finishScore = 5;
+          else if (lastFinish <= 3) {
+            // 前走好走馬は穴馬感が弱いため、指数妙味馬扱いに切替＋減点
+            finishScore = -20;
+            category = 'value';
+          }
+        }
+
+        // 人気1〜2位の本命級は穴馬扱いから除外（指数妙味馬として残す余地はある）
+        if (popularityRank <= 2) {
+          if (lastFinish != null && lastFinish <= 3) continue; // 完全に対象外
+          category = 'value';
+        }
+
+        const score = gapScore + finishScore;
+
+        // 理由文の組み立て
+        const reasons = [];
+        reasons.push(`人気${popularityRank}位／指数${indexRank}位（差${gap}）`);
+        if (lastFinish != null) {
+          if (lastFinish >= 8) reasons.push('前走凡走で人気を落としている可能性');
+          else if (lastFinish >= 5) reasons.push('前走伸び切れず指数上は巻き返し余地あり');
+          else if (lastFinish === 4) reasons.push('前走僅差4着、指数は上位');
+          else if (lastFinish <= 3) reasons.push('前走好走、指数も裏付け（妙味タイプ）');
+        } else {
+          reasons.push('前走データなし、指数差のみで判定');
+        }
+
+        candidates.push({
+          number: h.number,
+          name: h.name,
+          popularityRank,
+          indexRank,
+          gap,
+          lastFinish,
+          score,
+          category,
+          computerIndex: h.computerIndex
+        });
+      }
+
+      // スコア降順
+      candidates.sort((a, b) => b.score - a.score);
+
+      // 穴馬候補が0件かつ指数妙味馬しか居ない場合も柔軟に表示できるよう、最低限の数を出す
+      // 上位5頭を返却
+      return candidates.slice(0, 5);
+    }
+
+    // 穴馬候補セクションを HTML として描画
+    function renderDarkHorseSection(race) {
+      const candidates = extractDarkHorses(race);
+      if (candidates.length === 0) return '';
+
+      const darkhorses = candidates.filter(c => c.category === 'darkhorse');
+      const values = candidates.filter(c => c.category === 'value');
+
+      const renderRow = (c) => {
+        const tag = c.category === 'darkhorse'
+          ? '<span style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 8px; border-radius: 5px; font-size: 0.75rem; border: 1px solid rgba(239, 68, 68, 0.3);">穴馬</span>'
+          : '<span style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; padding: 2px 8px; border-radius: 5px; font-size: 0.75rem; border: 1px solid rgba(245, 158, 11, 0.3);">指数妙味</span>';
+
+        const reasons = [];
+        reasons.push(`人気${c.popularityRank}位／指数${c.indexRank}位（差${c.gap}）`);
+        if (c.lastFinish != null) {
+          if (c.lastFinish >= 8) reasons.push('前走凡走で人気を落としている可能性');
+          else if (c.lastFinish >= 5) reasons.push('前走伸び切れず巻き返し余地');
+          else if (c.lastFinish === 4) reasons.push('前走4着、指数は上位');
+          else reasons.push('前走好走、指数も裏付け');
+        } else {
+          reasons.push('前走データなし');
+        }
+        const lastFinishDisplay = c.lastFinish != null ? `${c.lastFinish}着` : '-';
+
+        return `
+          <tr style="border-bottom: 1px solid #475569;">
+            <td style="padding: 8px; text-align: center; color: #e2e8f0; font-weight: bold;">${c.number}</td>
+            <td style="padding: 8px; color: #e2e8f0;">${c.name || '-'}</td>
+            <td style="padding: 8px; text-align: center;">${tag}</td>
+            <td style="padding: 8px; text-align: center; color: #cbd5e1;">${c.popularityRank}位</td>
+            <td style="padding: 8px; text-align: center; color: #a5b4fc; font-weight: bold;">${c.indexRank}位</td>
+            <td style="padding: 8px; text-align: center; color: #cbd5e1;">${lastFinishDisplay}</td>
+            <td style="padding: 8px; color: #94a3b8; font-size: 0.85rem;">${reasons.join(' / ')}</td>
+          </tr>
+        `;
+      };
+
+      return `
+        <div style="margin-top: 18px; padding: 15px; background: rgba(15, 23, 42, 0.6); border: 1px dashed rgba(239, 68, 68, 0.35); border-radius: 10px;">
+          <h5 style="margin: 0 0 10px 0; color: #fca5a5; font-size: 1rem;">
+            🐴 穴馬候補（指数 &gt; 人気 + 前走凡走優先）
+            <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 400; margin-left: 8px;">
+              穴馬 ${darkhorses.length}頭 ／ 指数妙味 ${values.length}頭
+            </span>
+          </h5>
+          <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="background: rgba(51, 65, 85, 0.6);">
+                <th style="padding: 8px; text-align: center; color: #e2e8f0;">馬番</th>
+                <th style="padding: 8px; text-align: left; color: #e2e8f0;">馬名</th>
+                <th style="padding: 8px; text-align: center; color: #e2e8f0;">区分</th>
+                <th style="padding: 8px; text-align: center; color: #e2e8f0;">人気</th>
+                <th style="padding: 8px; text-align: center; color: #e2e8f0;">指数順位</th>
+                <th style="padding: 8px; text-align: center; color: #e2e8f0;">前走着順</th>
+                <th style="padding: 8px; text-align: left; color: #e2e8f0;">理由</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${candidates.map(renderRow).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
     }
 
     // 保存確認＆実行

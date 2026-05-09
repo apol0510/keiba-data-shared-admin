@@ -3,6 +3,8 @@
  * 保存前に補完結果を確認できる
  */
 
+import { fetchRacebookData, findRacebookHorse, applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
+
 export const handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -281,12 +283,9 @@ async function enrichWithPredictionData(computerData) {
     ]);
 
     if (!predictionData) {
-      console.log('[Preview Enrich] 予想データなし（補完スキップ）');
-      // racebook だけはあるかもしれないので pastRaces のみ補完を試みる
-      if (racebookData) {
-        return mergePastRacesOnly(computerData, racebookData);
-      }
-      return computerData;
+      console.log('[Preview Enrich] 予想データなし（穴馬抽出のみ実行）');
+      // 予想データなしでも racebook + コンピデータから穴馬抽出は可能
+      return applyDarkHorsesToComputerData(computerData, racebookData);
     }
 
     console.log('[Preview Enrich] 予想データ取得成功、補完開始');
@@ -480,69 +479,16 @@ async function enrichWithPredictionData(computerData) {
       console.log(JSON.stringify(enrichedResult.races[0].horses[0], null, 2));
     }
 
-    return enrichedResult;
+    // 穴馬抽出を適用（pastRaces 不足分を racebook から補完しつつ darkHorses を埋める）
+    const withDarkHorses = applyDarkHorsesToComputerData(enrichedResult, racebookData);
+    console.log(`[Preview Enrich] 穴馬抽出完了: ${withDarkHorses.races.reduce((s, r) => s + (r.darkHorses?.length || 0), 0)}件`);
+    return withDarkHorses;
 
   } catch (error) {
     console.error('[Preview Enrich] 補完エラー:', error);
     console.log('[Preview Enrich] 補完なしで続行');
     return computerData;
   }
-}
-
-/**
- * racebook JSON を取得（穴馬抽出用に pastRaces を取得する目的）
- * 取得失敗時は null を返す（呼び出し側でハンドリング）
- */
-async function fetchRacebookData(date, category, venueCode) {
-  if (!date || !category || !venueCode) return null;
-  const [year, month] = date.split('-');
-  const url = `https://raw.githubusercontent.com/apol0510/keiba-data-shared/main/${category}/racebook/${year}/${month}/${date}-${venueCode}.json`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) {
-      console.log(`[Preview Fetch Racebook] 404 or error: ${url} (status=${r.status})`);
-      return null;
-    }
-    const data = await r.json();
-    console.log(`[Preview Fetch Racebook] ✅ 取得成功: ${date}-${venueCode}.json`);
-    return data;
-  } catch (e) {
-    console.warn('[Preview Fetch Racebook] 取得エラー:', e.message);
-    return null;
-  }
-}
-
-/**
- * racebook データから対象レース・馬の pastRaces を引き当てる
- * raceNumber と horseNumber/horseName で照合
- */
-function findRacebookHorse(racebookData, raceNumber, computerHorse) {
-  if (!racebookData || !Array.isArray(racebookData.races)) return null;
-  const race = racebookData.races.find(r => parseInt(r.raceNumber) === parseInt(raceNumber));
-  if (!race || !Array.isArray(race.horses)) return null;
-  let h = race.horses.find(x => String(x.number) === String(computerHorse.number));
-  if (!h && computerHorse.name) {
-    h = race.horses.find(x => x.name === computerHorse.name);
-  }
-  return h || null;
-}
-
-/**
- * 予想データが取得できなかった場合、racebook の pastRaces のみマージする
- * （既存の computerHorse の他フィールドは保持）
- */
-function mergePastRacesOnly(computerData, racebookData) {
-  const enrichedRaces = computerData.races.map(race => ({
-    ...race,
-    horses: race.horses.map(h => {
-      const rh = findRacebookHorse(racebookData, race.raceNumber, h);
-      return {
-        ...h,
-        pastRaces: rh?.pastRaces || []
-      };
-    })
-  }));
-  return { ...computerData, races: enrichedRaces, enrichedAt: new Date().toISOString() };
 }
 
 /**

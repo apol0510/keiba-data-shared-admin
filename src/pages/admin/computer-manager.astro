@@ -1033,7 +1033,10 @@
 
     // 穴馬候補セクションを HTML として描画
     function renderDarkHorseSection(race) {
-      const candidates = extractDarkHorses(race);
+      // サーバーで事前計算済みなら優先（preview-computer.mjs / save-computer.mjs と一致）
+      const candidates = (Array.isArray(race?.darkHorses) && race.darkHorses.length > 0)
+        ? race.darkHorses
+        : extractDarkHorses(race);
       if (candidates.length === 0) return '';
 
       const darkhorses = candidates.filter(c => c.category === 'darkhorse');
@@ -1044,15 +1047,21 @@
           ? '<span style="background: rgba(239, 68, 68, 0.2); color: #fca5a5; padding: 2px 8px; border-radius: 5px; font-size: 0.75rem; border: 1px solid rgba(239, 68, 68, 0.3);">穴馬</span>'
           : '<span style="background: rgba(245, 158, 11, 0.2); color: #fcd34d; padding: 2px 8px; border-radius: 5px; font-size: 0.75rem; border: 1px solid rgba(245, 158, 11, 0.3);">指数妙味</span>';
 
-        const reasons = [];
-        reasons.push(`人気${c.popularityRank}位／指数${c.indexRank}位（差${c.gap}）`);
-        if (c.lastFinish != null) {
-          if (c.lastFinish >= 8) reasons.push('前走凡走で人気を落としている可能性');
-          else if (c.lastFinish >= 5) reasons.push('前走伸び切れず巻き返し余地');
-          else if (c.lastFinish === 4) reasons.push('前走4着、指数は上位');
-          else reasons.push('前走好走、指数も裏付け');
+        // 候補オブジェクトに reasons 配列がある（サーバー計算）ならそれを優先
+        let reasons;
+        if (Array.isArray(c.reasons) && c.reasons.length > 0) {
+          reasons = c.reasons;
         } else {
-          reasons.push('前走データなし');
+          reasons = [];
+          reasons.push(`人気${c.popularityRank}位／指数${c.indexRank}位（差${c.gap}）`);
+          if (c.lastFinish != null) {
+            if (c.lastFinish >= 8) reasons.push('前走凡走で人気を落としている可能性');
+            else if (c.lastFinish >= 5) reasons.push('前走伸び切れず巻き返し余地');
+            else if (c.lastFinish === 4) reasons.push('前走4着、指数は上位');
+            else reasons.push('前走好走、指数も裏付け');
+          } else {
+            reasons.push('前走データなし');
+          }
         }
         const lastFinishDisplay = c.lastFinish != null ? `${c.lastFinish}着` : '-';
 

@@ -3,6 +3,8 @@
  * keiba-data-sharedリポジトリに保存
  */
 
+import { fetchRacebookData, findRacebookHorse, applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
+
 export const handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -101,12 +103,15 @@ async function enrichWithPredictionData(computerData) {
   }
 
   try {
-    // 予想データを取得
-    const predictionData = await fetchPredictionData(date, category, venueCode);
+    // 予想データと racebook を並列取得（穴馬抽出用に pastRaces も使う）
+    const [predictionData, racebookData] = await Promise.all([
+      fetchPredictionData(date, category, venueCode),
+      fetchRacebookData(date, category, venueCode),
+    ]);
 
     if (!predictionData) {
-      console.log('[Enrich] 予想データなし（補完スキップ）');
-      return computerData;
+      console.log('[Enrich] 予想データなし（穴馬抽出のみ実行）');
+      return applyDarkHorsesToComputerData(computerData, racebookData);
     }
 
     console.log('[Enrich] 予想データ取得成功、補完開始');
@@ -186,6 +191,12 @@ async function enrichWithPredictionData(computerData) {
           return computerHorse;
         }
 
+        // racebook から pastRaces を取得（穴馬抽出用）
+        const racebookHorse = findRacebookHorse(racebookData, computerRace.raceNumber, computerHorse);
+        const pastRaces = (predictionHorse.pastRaces && predictionHorse.pastRaces.length > 0)
+          ? predictionHorse.pastRaces
+          : (racebookHorse?.pastRaces || []);
+
         // 補完実行
         const enrichedHorse = {
           ...computerHorse,
@@ -194,6 +205,7 @@ async function enrichWithPredictionData(computerData) {
           weight: predictionHorse.kinryo ? parseFloat(predictionHorse.kinryo) : null,
           ageGender: predictionHorse.seirei || null,
           umacd: predictionHorse.umacd || null,
+          pastRaces,
           enrichedFrom: 'predictions'
         };
 
@@ -211,11 +223,17 @@ async function enrichWithPredictionData(computerData) {
       };
     });
 
-    return {
+    const enrichedResult = {
       ...computerData,
       races: enrichedRaces,
       enrichedAt: new Date().toISOString()
     };
+
+    // 穴馬抽出を適用（pastRaces 不足分を racebook から補完しつつ darkHorses を埋める）
+    const withDarkHorses = applyDarkHorsesToComputerData(enrichedResult, racebookData);
+    const totalDarkHorses = withDarkHorses.races.reduce((s, r) => s + (r.darkHorses?.length || 0), 0);
+    console.log(`[Enrich] 穴馬抽出完了: ${totalDarkHorses}件 (across ${withDarkHorses.races.length} races)`);
+    return withDarkHorses;
 
   } catch (error) {
     console.error('[Enrich] 補完エラー:', error);

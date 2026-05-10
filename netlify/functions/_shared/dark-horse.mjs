@@ -164,7 +164,60 @@ export function extractDarkHorses(race) {
   }
 
   candidates.sort((a, b) => b.score - a.score);
+
+  // フォールバック: 通常抽出で 0 件（人気と指数順位が完全一致するレース等）の場合、
+  // 中位指数（3〜5位優先、不足分は 6〜7位）から最大 3 頭をピックアップ。
+  // 候補ゼロのままだとカードが「該当馬なし」になり情報量が乏しくなるための救済処置。
+  if (candidates.length === 0) {
+    return buildFallbackPicks(horses, indexRankMap);
+  }
+
   return candidates.slice(0, 3);
+}
+
+/**
+ * 通常抽出で候補ゼロの場合の救済ピック
+ * 指数3〜5位の中位馬から最大3頭。前走3着以内なら category=value（妙味馬）、
+ * それ以外は category=darkhorse として返す。スコアは 50 固定（★★★相当）。
+ */
+function buildFallbackPicks(horses, indexRankMap) {
+  if (!Array.isArray(horses) || horses.length === 0) return [];
+
+  const annotated = horses
+    .map(h => {
+      const indexRank = indexRankMap.get(String(h.number));
+      if (!indexRank) return null;
+      const popularityRank = h.popularity != null ? parseInt(h.popularity, 10) : null;
+      return { h, indexRank, popularityRank };
+    })
+    .filter(Boolean);
+
+  if (annotated.length === 0) return [];
+
+  // 優先順位: 3〜5位 → 6〜7位
+  const tier1 = annotated.filter(x => x.indexRank >= 3 && x.indexRank <= 5);
+  const tier2 = annotated.filter(x => x.indexRank >= 6 && x.indexRank <= 7);
+  const sortByRank = (a, b) => a.indexRank - b.indexRank;
+  const picks = [...tier1.sort(sortByRank), ...tier2.sort(sortByRank)].slice(0, 3);
+
+  return picks.map(({ h, indexRank, popularityRank }) => {
+    const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0 ? h.pastRaces[0] : null;
+    const lastFinish = extractLastFinish(pr);
+    const isValue = lastFinish != null && lastFinish <= 3;
+    return {
+      number: h.number,
+      name: h.name,
+      popularityRank: popularityRank || indexRank,
+      indexRank,
+      gap: 0,
+      lastFinish,
+      score: 50,
+      category: isValue ? 'value' : 'darkhorse',
+      computerIndex: h.computerIndex,
+      reasons: ['人気と指数評価が拮抗するレースのため中位指数から抽出', '中位指数の妙味候補'],
+      fallback: true,
+    };
+  });
 }
 
 /**

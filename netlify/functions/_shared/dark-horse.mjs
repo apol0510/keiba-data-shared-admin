@@ -88,7 +88,7 @@ export function extractLastFinish(pastRace) {
  *     データなし → 0（理由文に「前走データなし」を記載）
  *
  * @param {object} race - { horses: [{ number, name, computerIndex, popularity, pastRaces }] }
- * @returns {Array<object>} 穴馬候補（最大5頭、score 降順）
+ * @returns {Array<object>} 穴馬候補（最大3頭、score 降順）
  */
 export function extractDarkHorses(race) {
   const horses = Array.isArray(race?.horses) ? race.horses : [];
@@ -164,7 +164,7 @@ export function extractDarkHorses(race) {
   }
 
   candidates.sort((a, b) => b.score - a.score);
-  return candidates.slice(0, 5);
+  return candidates.slice(0, 3);
 }
 
 /**

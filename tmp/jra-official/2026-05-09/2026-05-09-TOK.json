@@ -1,0 +1,4719 @@
+{
+  "date": "2026-05-09",
+  "venue": "東京",
+  "venueCode": "TOK",
+  "races": [
+    {
+      "raceNumber": 1,
+      "raceName": "3歳未勝利",
+      "raceCategory": "3歳",
+      "raceClass": "未勝利",
+      "distance": 1300,
+      "trackInfo": "ダート・左",
+      "startTime": "10:05",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 7,
+          "number": 14,
+          "name": "ショコラキュイ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:19.7",
+          "margin": null,
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "37.5",
+          "horseWeight": 496,
+          "horseWeightDiff": 0,
+          "trainer": "森 一誠",
+          "popularity": 2
+        },
+        {
+          "position": 2,
+          "bracket": 8,
+          "number": 16,
+          "name": "フェイスリフト",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "M.ディー",
+          "time": "1:19.9",
+          "margin": "１",
+          "cornerPass": [
+            "7",
+            "7"
+          ],
+          "lastFurlong": "37.4",
+          "horseWeight": 460,
+          "horseWeightDiff": -4,
+          "trainer": "嘉藤 貴行",
+          "popularity": 1
+        },
+        {
+          "position": 3,
+          "bracket": 4,
+          "number": 8,
+          "name": "コウソクルリアン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:20.5",
+          "margin": "４",
+          "cornerPass": [
+            "3",
+            "2"
+          ],
+          "lastFurlong": "38.9",
+          "horseWeight": 476,
+          "horseWeightDiff": 10,
+          "trainer": "武藤 善則",
+          "popularity": 3
+        },
+        {
+          "position": 4,
+          "bracket": 7,
+          "number": 13,
+          "name": "サリーアン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 武史",
+          "time": "1:21.0",
+          "margin": "３",
+          "cornerPass": [
+            "9",
+            "7"
+          ],
+          "lastFurlong": "38.4",
+          "horseWeight": 458,
+          "horseWeightDiff": 2,
+          "trainer": "鈴木 伸尋",
+          "popularity": 6
+        },
+        {
+          "position": 5,
+          "bracket": 3,
+          "number": 6,
+          "name": "ブレイブシュガー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "吉田 豊",
+          "time": "1:21.3",
+          "margin": "１ 3/4",
+          "cornerPass": [
+            "14",
+            "11"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 474,
+          "horseWeightDiff": 0,
+          "trainer": "高橋 文雅",
+          "popularity": 9
+        },
+        {
+          "position": 6,
+          "bracket": 8,
+          "number": 15,
+          "name": "ロジシーザ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "岩田 康誠",
+          "time": "1:21.3",
+          "margin": "クビ",
+          "cornerPass": [
+            "12",
+            "9"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 490,
+          "horseWeightDiff": 2,
+          "trainer": "古賀 慎明",
+          "popularity": 14
+        },
+        {
+          "position": 7,
+          "bracket": 6,
+          "number": 11,
+          "name": "スピニンググローブ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "木幡 巧也",
+          "time": "1:21.8",
+          "margin": "３",
+          "cornerPass": [
+            "11",
+            "11"
+          ],
+          "lastFurlong": "38.2",
+          "horseWeight": 496,
+          "horseWeightDiff": 2,
+          "trainer": "黒岩 陽一",
+          "popularity": 13
+        },
+        {
+          "position": 8,
+          "bracket": 1,
+          "number": 2,
+          "name": "ミッキースワン",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "横山 和生",
+          "time": "1:22.1",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "15",
+            "15"
+          ],
+          "lastFurlong": "38.0",
+          "horseWeight": 450,
+          "horseWeightDiff": 4,
+          "trainer": "菊沢 隆徳",
+          "popularity": 11
+        },
+        {
+          "position": 9,
+          "bracket": 4,
+          "number": 7,
+          "name": "ノリキング",
+          "sexAge": "牡3",
+          "weight": "54.0",
+          "jockey": "佐藤 翔馬",
+          "time": "1:22.2",
+          "margin": "１／２",
+          "cornerPass": [
+            "10",
+            "11"
+          ],
+          "lastFurlong": "38.7",
+          "horseWeight": 522,
+          "horseWeightDiff": 2,
+          "trainer": "伊藤 大士",
+          "popularity": 8
+        },
+        {
+          "position": 10,
+          "bracket": 6,
+          "number": 12,
+          "name": "ピーエムキンチャン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "菅原 明良",
+          "time": "1:22.3",
+          "margin": "３／４",
+          "cornerPass": [
+            "6",
+            "5"
+          ],
+          "lastFurlong": "40.1",
+          "horseWeight": 454,
+          "horseWeightDiff": 11,
+          "trainer": "和田 正一郎",
+          "popularity": 15
+        },
+        {
+          "position": 11,
+          "bracket": 5,
+          "number": 10,
+          "name": "アイアムアッパレ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "荻野 極",
+          "time": "1:22.6",
+          "margin": "２",
+          "cornerPass": [
+            "3",
+            "2"
+          ],
+          "lastFurlong": "41.0",
+          "horseWeight": 506,
+          "horseWeightDiff": 2,
+          "trainer": "奥平 雅士",
+          "popularity": 5
+        },
+        {
+          "position": 12,
+          "bracket": 3,
+          "number": 5,
+          "name": "エリンフレーム",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "石橋 脩",
+          "time": "1:23.1",
+          "margin": "３",
+          "cornerPass": [
+            "16",
+            "16"
+          ],
+          "lastFurlong": "38.3",
+          "horseWeight": 468,
+          "horseWeightDiff": 12,
+          "trainer": "清水 英克",
+          "popularity": 4
+        },
+        {
+          "position": 13,
+          "bracket": 2,
+          "number": 3,
+          "name": "ジャガーライズ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "1:23.5",
+          "margin": "２",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "42.2",
+          "horseWeight": 472,
+          "horseWeightDiff": 8,
+          "trainer": "伊藤 圭三",
+          "popularity": 7
+        },
+        {
+          "position": 14,
+          "bracket": 1,
+          "number": 1,
+          "name": "デアトゥバトル",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "松若 風馬",
+          "time": "1:23.7",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "13",
+            "14"
+          ],
+          "lastFurlong": "39.9",
+          "horseWeight": 456,
+          "horseWeightDiff": 6,
+          "trainer": "水野 貴広",
+          "popularity": 12
+        },
+        {
+          "position": 15,
+          "bracket": 2,
+          "number": 4,
+          "name": "グラスリッキー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "松岡 正海",
+          "time": "1:24.1",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "42.5",
+          "horseWeight": 470,
+          "horseWeightDiff": -2,
+          "trainer": "杉浦 宏昭",
+          "popularity": 10
+        },
+        {
+          "position": 16,
+          "bracket": 5,
+          "number": 9,
+          "name": "ジョーヌミモザ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "江田 照男",
+          "time": "1:25.3",
+          "margin": "７",
+          "cornerPass": [
+            "8",
+            "10"
+          ],
+          "lastFurlong": "42.3",
+          "horseWeight": 420,
+          "horseWeightDiff": -2,
+          "trainer": "小野 次郎",
+          "popularity": 16
+        }
+      ],
+      "halonTime": "7.1 - 10.7 - 11.2 - 12.3 - 12.9 - 12.9 - 12.6",
+      "upper": "4F 50.7 - 3F 38.4",
+      "cornerPassDetail": {
+        "corner3": "(*3,4)(8,10)14,12,16-9,13,7,11,15,1,6-2=5",
+        "corner4": "3(4,8,10)-(12,14)(13,16)15,9-(7,11,6)1,2-5"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "14",
+            "payout": 540,
+            "popularity": 2
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "14",
+            "payout": 150,
+            "popularity": 2
+          },
+          {
+            "combination": "16",
+            "payout": 110,
+            "popularity": 1
+          },
+          {
+            "combination": "8",
+            "payout": 160,
+            "popularity": 3
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "7-8",
+            "payout": 380,
+            "popularity": 1
+          }
+        ],
+        "wide": [
+          {
+            "combination": "14-16",
+            "payout": 250,
+            "popularity": 1
+          },
+          {
+            "combination": "8-14",
+            "payout": 490,
+            "popularity": 4
+          },
+          {
+            "combination": "8-16",
+            "payout": 270,
+            "popularity": 2
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "14-16",
+            "payout": 540,
+            "popularity": 1
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "14-16",
+            "payout": 1390,
+            "popularity": 4
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "8-14-16",
+            "payout": 800,
+            "popularity": 1
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "14-16-8",
+            "payout": 4520,
+            "popularity": 7
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "14-16",
+        "payout": 1390,
+        "popularity": 4
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 2,
+      "raceName": "3歳未勝利",
+      "raceCategory": "3歳",
+      "raceClass": "未勝利",
+      "distance": 2100,
+      "trackInfo": "ダート・左",
+      "startTime": "10:40",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 6,
+          "number": 6,
+          "name": "ソニックキャット",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "M.ディー",
+          "time": "2:16.1",
+          "margin": null,
+          "cornerPass": [
+            "1",
+            "1",
+            "1",
+            "1"
+          ],
+          "lastFurlong": "38.4",
+          "horseWeight": 520,
+          "horseWeightDiff": 6,
+          "trainer": "田村 康仁",
+          "popularity": 5
+        },
+        {
+          "position": 2,
+          "bracket": 5,
+          "number": 5,
+          "name": "ユイノサダハル",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "江田 照男",
+          "time": "2:16.2",
+          "margin": "１／２",
+          "cornerPass": [
+            "3",
+            "3",
+            "3",
+            "3"
+          ],
+          "lastFurlong": "38.3",
+          "horseWeight": 464,
+          "horseWeightDiff": 0,
+          "trainer": "古賀 慎明",
+          "popularity": 4
+        },
+        {
+          "position": 3,
+          "bracket": 8,
+          "number": 11,
+          "name": "コスモラムバック",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "木幡 巧也",
+          "time": "2:16.6",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "8",
+            "7",
+            "5",
+            "3"
+          ],
+          "lastFurlong": "38.6",
+          "horseWeight": 502,
+          "horseWeightDiff": 0,
+          "trainer": "水野 貴広",
+          "popularity": 8
+        },
+        {
+          "position": 4,
+          "bracket": 1,
+          "number": 1,
+          "name": "キタイノホシ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "石橋 脩",
+          "time": "2:16.9",
+          "margin": "２",
+          "cornerPass": [
+            "8",
+            "9",
+            "6",
+            "6"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 442,
+          "horseWeightDiff": 0,
+          "trainer": "蛯名 利弘",
+          "popularity": 7
+        },
+        {
+          "position": 5,
+          "bracket": 3,
+          "number": 3,
+          "name": "サクセスゴールド",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "田辺 裕信",
+          "time": "2:17.1",
+          "margin": "１",
+          "cornerPass": [
+            "4",
+            "5",
+            "6",
+            "6"
+          ],
+          "lastFurlong": "38.7",
+          "horseWeight": 484,
+          "horseWeightDiff": -4,
+          "trainer": "久保田 貴士",
+          "popularity": 1
+        },
+        {
+          "position": 6,
+          "bracket": 8,
+          "number": 10,
+          "name": "ミーサーク",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "武 豊",
+          "time": "2:17.1",
+          "margin": "アタマ",
+          "cornerPass": [
+            "2",
+            "2",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "39.3",
+          "horseWeight": 454,
+          "horseWeightDiff": -10,
+          "trainer": "武 幸四郎",
+          "popularity": 3
+        },
+        {
+          "position": 7,
+          "bracket": 7,
+          "number": 8,
+          "name": "ボクサークラブ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "2:17.7",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "5",
+            "4",
+            "3",
+            "3"
+          ],
+          "lastFurlong": "39.8",
+          "horseWeight": 484,
+          "horseWeightDiff": -4,
+          "trainer": "杉山 佳明",
+          "popularity": 2
+        },
+        {
+          "position": 8,
+          "bracket": 4,
+          "number": 4,
+          "name": "オセアビシャイン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "佐々木 大輔",
+          "time": "2:18.3",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "5",
+            "5",
+            "6",
+            "8"
+          ],
+          "lastFurlong": "39.4",
+          "horseWeight": 462,
+          "horseWeightDiff": 0,
+          "trainer": "菊川 正達",
+          "popularity": 10
+        },
+        {
+          "position": 9,
+          "bracket": 6,
+          "number": 7,
+          "name": "カミノテイオー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "小林 脩斗",
+          "time": "2:19.3",
+          "margin": "６",
+          "cornerPass": [
+            "10",
+            "10",
+            "10",
+            "9"
+          ],
+          "lastFurlong": "40.0",
+          "horseWeight": 478,
+          "horseWeightDiff": 4,
+          "trainer": "奥平 雅士",
+          "popularity": 11
+        },
+        {
+          "position": 10,
+          "bracket": 2,
+          "number": 2,
+          "name": "グスク",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "大野 拓弥",
+          "time": "2:21.1",
+          "margin": "大差",
+          "cornerPass": [
+            "7",
+            "7",
+            "9",
+            "10"
+          ],
+          "lastFurlong": "41.7",
+          "horseWeight": 478,
+          "horseWeightDiff": -2,
+          "trainer": "辻 哲英",
+          "popularity": 6
+        },
+        {
+          "position": null,
+          "bracket": 7,
+          "number": 9,
+          "name": "エオリアンリッジ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "荻野 極",
+          "time": null,
+          "margin": null,
+          "cornerPass": [],
+          "lastFurlong": null,
+          "horseWeight": 498,
+          "horseWeightDiff": -4,
+          "trainer": "尾関 知人",
+          "popularity": 9
+        }
+      ],
+      "halonTime": "7.2 - 11.9 - 13.0 - 13.1 - 13.1 - 13.1 - 13.2 - 13.1 - 12.8 - 12.4 - 13.2",
+      "upper": "4F 51.5 - 3F 38.4",
+      "cornerPassDetail": {
+        "corner3": "6,10(5,8)11(3,4,1)-2,7",
+        "corner4": "(*6,10)(5,11,8)-(3,1)-4-7,2"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "6",
+            "payout": 1190,
+            "popularity": 5
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "6",
+            "payout": 340,
+            "popularity": 5
+          },
+          {
+            "combination": "5",
+            "payout": 300,
+            "popularity": 4
+          },
+          {
+            "combination": "11",
+            "payout": 480,
+            "popularity": 8
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "5-6",
+            "payout": 6330,
+            "popularity": 17
+          }
+        ],
+        "wide": [
+          {
+            "combination": "5-6",
+            "payout": 1810,
+            "popularity": 22
+          },
+          {
+            "combination": "6-11",
+            "payout": 3810,
+            "popularity": 31
+          },
+          {
+            "combination": "5-11",
+            "payout": 2480,
+            "popularity": 24
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "5-6",
+            "payout": 6540,
+            "popularity": 20
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "6-5",
+            "payout": 13610,
+            "popularity": 36
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "5-6-11",
+            "payout": 42980,
+            "popularity": 72
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "6-5-11",
+            "payout": 225540,
+            "popularity": 379
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "6-5",
+        "payout": 13610,
+        "popularity": 36
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 3,
+      "raceName": "3歳未勝利",
+      "raceCategory": "3歳",
+      "raceClass": "未勝利",
+      "distance": 1600,
+      "trackInfo": "ダート・左",
+      "startTime": "11:10",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 7,
+          "number": 13,
+          "name": "アンシュウマト",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "三浦 皇成",
+          "time": "1:38.5",
+          "margin": null,
+          "cornerPass": [
+            "3",
+            "3"
+          ],
+          "lastFurlong": "36.6",
+          "horseWeight": 458,
+          "horseWeightDiff": 6,
+          "trainer": "中川 公成",
+          "popularity": 2
+        },
+        {
+          "position": 2,
+          "bracket": 3,
+          "number": 6,
+          "name": "ロイヤルアデレード",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "D.レーン",
+          "time": "1:38.9",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "36.7",
+          "horseWeight": 492,
+          "horseWeightDiff": 8,
+          "trainer": "加藤 征弘",
+          "popularity": 4
+        },
+        {
+          "position": 3,
+          "bracket": 5,
+          "number": 9,
+          "name": "トルネードアイル",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "C.ルメール",
+          "time": "1:38.9",
+          "margin": "クビ",
+          "cornerPass": [
+            "9",
+            "7"
+          ],
+          "lastFurlong": "36.5",
+          "horseWeight": 508,
+          "horseWeightDiff": 8,
+          "trainer": "鹿戸 雄一",
+          "popularity": 1
+        },
+        {
+          "position": 4,
+          "bracket": 8,
+          "number": 15,
+          "name": "レイズテンペスト",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 和生",
+          "time": "1:39.0",
+          "margin": "アタマ",
+          "cornerPass": [
+            "7",
+            "7"
+          ],
+          "lastFurlong": "36.6",
+          "horseWeight": 486,
+          "horseWeightDiff": 0,
+          "trainer": "田村 康仁",
+          "popularity": 5
+        },
+        {
+          "position": 5,
+          "bracket": 6,
+          "number": 12,
+          "name": "キリミツ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "石橋 脩",
+          "time": "1:39.4",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 442,
+          "horseWeightDiff": 10,
+          "trainer": "勢司 和浩",
+          "popularity": 7
+        },
+        {
+          "position": 6,
+          "bracket": 8,
+          "number": 16,
+          "name": "サトノワーグナー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:39.5",
+          "margin": "１／２",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "37.9",
+          "horseWeight": 484,
+          "horseWeightDiff": -4,
+          "trainer": "斎藤 誠",
+          "popularity": 3
+        },
+        {
+          "position": 7,
+          "bracket": 1,
+          "number": 1,
+          "name": "ザンテソーロ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "木幡 巧也",
+          "time": "1:39.7",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "37.5",
+          "horseWeight": 454,
+          "horseWeightDiff": 4,
+          "trainer": "畠山 吉宏",
+          "popularity": 11
+        },
+        {
+          "position": 8,
+          "bracket": 2,
+          "number": 3,
+          "name": "ファイアリービート",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "大野 拓弥",
+          "time": "1:40.1",
+          "margin": "２",
+          "cornerPass": [
+            "7",
+            "7"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 460,
+          "horseWeightDiff": 2,
+          "trainer": "鈴木 慎太郎",
+          "popularity": 6
+        },
+        {
+          "position": 9,
+          "bracket": 7,
+          "number": 14,
+          "name": "パンパネイラ",
+          "sexAge": "せん3",
+          "weight": "57.0",
+          "jockey": "吉田 豊",
+          "time": "1:40.6",
+          "margin": "３",
+          "cornerPass": [
+            "3",
+            "4"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 446,
+          "horseWeightDiff": -4,
+          "trainer": "高橋 文雅",
+          "popularity": 8
+        },
+        {
+          "position": 10,
+          "bracket": 6,
+          "number": 11,
+          "name": "ドロワ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "江田 照男",
+          "time": "1:41.2",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "11",
+            "10"
+          ],
+          "lastFurlong": "38.4",
+          "horseWeight": 502,
+          "horseWeightDiff": 6,
+          "trainer": "室井 潔",
+          "popularity": 10
+        },
+        {
+          "position": 11,
+          "bracket": 5,
+          "number": 10,
+          "name": "トレンドラド",
+          "sexAge": "牝3",
+          "weight": "52.0",
+          "jockey": "佐藤 翔馬",
+          "time": "1:41.2",
+          "margin": "ハナ",
+          "cornerPass": [
+            "15",
+            "15"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 442,
+          "horseWeightDiff": -2,
+          "trainer": "伊藤 大士",
+          "popularity": 16
+        },
+        {
+          "position": 12,
+          "bracket": 3,
+          "number": 5,
+          "name": "コロッセウム",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "1:41.6",
+          "margin": "２",
+          "cornerPass": [
+            "13",
+            "12"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 452,
+          "horseWeightDiff": -6,
+          "trainer": "清水 英克",
+          "popularity": 9
+        },
+        {
+          "position": 13,
+          "bracket": 4,
+          "number": 8,
+          "name": "ベアエクスプレス",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "黛 弘人",
+          "time": "1:41.8",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "15",
+            "15"
+          ],
+          "lastFurlong": "38.3",
+          "horseWeight": null,
+          "horseWeightDiff": null,
+          "trainer": "柄崎 将寿",
+          "popularity": 12
+        },
+        {
+          "position": 14,
+          "bracket": 1,
+          "number": 2,
+          "name": "ボンダイビーチ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "木幡 育也",
+          "time": "1:42.2",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "10",
+            "10"
+          ],
+          "lastFurlong": "39.4",
+          "horseWeight": 418,
+          "horseWeightDiff": 4,
+          "trainer": "的場 均",
+          "popularity": 15
+        },
+        {
+          "position": 15,
+          "bracket": 2,
+          "number": 4,
+          "name": "ケファロニア",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "北村 宏司",
+          "time": "1:43.3",
+          "margin": "７",
+          "cornerPass": [
+            "13",
+            "12"
+          ],
+          "lastFurlong": "40.2",
+          "horseWeight": 466,
+          "horseWeightDiff": 6,
+          "trainer": "高柳 瑞樹",
+          "popularity": 14
+        },
+        {
+          "position": 16,
+          "bracket": 4,
+          "number": 7,
+          "name": "イゲマジャ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "柴田 大知",
+          "time": "1:43.7",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "11",
+            "12"
+          ],
+          "lastFurlong": "40.7",
+          "horseWeight": 478,
+          "horseWeightDiff": -4,
+          "trainer": "清水 英克",
+          "popularity": 13
+        }
+      ],
+      "halonTime": "12.5 - 11.3 - 12.3 - 12.7 - 12.8 - 12.5 - 11.9 - 12.5",
+      "upper": "4F 49.7 - 3F 36.9",
+      "cornerPassDetail": {
+        "corner3": "16,12(14,13)(1,6)(3,15)9,2(7,11)(5,4)-(8,10)",
+        "corner4": "(*16,12)13,14(1,6)(3,9,15)-(2,11)(5,7,4)-(8,10)"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "13",
+            "payout": 380,
+            "popularity": 2
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "13",
+            "payout": 120,
+            "popularity": 2
+          },
+          {
+            "combination": "6",
+            "payout": 150,
+            "popularity": 3
+          },
+          {
+            "combination": "9",
+            "payout": 110,
+            "popularity": 1
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "3-7",
+            "payout": 1310,
+            "popularity": 6
+          }
+        ],
+        "wide": [
+          {
+            "combination": "6-13",
+            "payout": 460,
+            "popularity": 6
+          },
+          {
+            "combination": "9-13",
+            "payout": 190,
+            "popularity": 1
+          },
+          {
+            "combination": "6-9",
+            "payout": 280,
+            "popularity": 2
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "6-13",
+            "payout": 1370,
+            "popularity": 6
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "13-6",
+            "payout": 2810,
+            "popularity": 11
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "6-9-13",
+            "payout": 850,
+            "popularity": 2
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "13-6-9",
+            "payout": 6700,
+            "popularity": 20
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "13-6",
+        "payout": 2810,
+        "popularity": 11
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 4,
+      "raceName": "3歳未勝利",
+      "raceCategory": "3歳",
+      "raceClass": "未勝利",
+      "distance": 2400,
+      "trackInfo": "芝・左",
+      "startTime": "11:40",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 4,
+          "number": 4,
+          "name": "ニシノヒノトリ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "津村 明秀",
+          "time": "2:26.1",
+          "margin": null,
+          "cornerPass": [
+            "4",
+            "5",
+            "5",
+            "2"
+          ],
+          "lastFurlong": "34.3",
+          "horseWeight": 482,
+          "horseWeightDiff": 6,
+          "trainer": "手塚 貴久",
+          "popularity": 1
+        },
+        {
+          "position": 2,
+          "bracket": 3,
+          "number": 3,
+          "name": "ボンボンベイビー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "M.ディー",
+          "time": "2:26.4",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "7",
+            "7",
+            "7",
+            "6"
+          ],
+          "lastFurlong": "34.4",
+          "horseWeight": 446,
+          "horseWeightDiff": -2,
+          "trainer": "矢作 芳人",
+          "popularity": 7
+        },
+        {
+          "position": 3,
+          "bracket": 5,
+          "number": 6,
+          "name": "ガードオブオナー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "D.レーン",
+          "time": "2:26.5",
+          "margin": "３／４",
+          "cornerPass": [
+            "3",
+            "4",
+            "3",
+            "2"
+          ],
+          "lastFurlong": "34.7",
+          "horseWeight": 514,
+          "horseWeightDiff": 0,
+          "trainer": "林 徹",
+          "popularity": 2
+        },
+        {
+          "position": 4,
+          "bracket": 7,
+          "number": 10,
+          "name": "フォンドルレール",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "吉田 豊",
+          "time": "2:26.8",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "9",
+            "9",
+            "9",
+            "8"
+          ],
+          "lastFurlong": "34.5",
+          "horseWeight": 424,
+          "horseWeightDiff": 0,
+          "trainer": "戸田 博文",
+          "popularity": 5
+        },
+        {
+          "position": 5,
+          "bracket": 8,
+          "number": 11,
+          "name": "オーケーグリット",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "木幡 巧也",
+          "time": "2:27.0",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "2",
+            "2",
+            "2",
+            "1"
+          ],
+          "lastFurlong": "35.3",
+          "horseWeight": 470,
+          "horseWeightDiff": 2,
+          "trainer": "相沢 郁",
+          "popularity": 10
+        },
+        {
+          "position": 6,
+          "bracket": 2,
+          "number": 2,
+          "name": "サンクレゾン",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "C.ルメール",
+          "time": "2:27.4",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "6",
+            "5",
+            "5",
+            "6"
+          ],
+          "lastFurlong": "35.3",
+          "horseWeight": null,
+          "horseWeightDiff": null,
+          "trainer": "大竹 正博",
+          "popularity": 3
+        },
+        {
+          "position": 7,
+          "bracket": 6,
+          "number": 8,
+          "name": "クイーンアン",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "武 豊",
+          "time": "2:27.6",
+          "margin": "１",
+          "cornerPass": [
+            "4",
+            "3",
+            "3",
+            "5"
+          ],
+          "lastFurlong": "35.7",
+          "horseWeight": 458,
+          "horseWeightDiff": -4,
+          "trainer": "蛯名 正義",
+          "popularity": 6
+        },
+        {
+          "position": 8,
+          "bracket": 1,
+          "number": 1,
+          "name": "リーピングサイン",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "佐々木 大輔",
+          "time": "2:27.6",
+          "margin": "クビ",
+          "cornerPass": [
+            "8",
+            "7",
+            "7",
+            "8"
+          ],
+          "lastFurlong": "35.3",
+          "horseWeight": 508,
+          "horseWeightDiff": 0,
+          "trainer": "武藤 善則",
+          "popularity": 9
+        },
+        {
+          "position": 9,
+          "bracket": 8,
+          "number": 12,
+          "name": "トレセデオロ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "松若 風馬",
+          "time": "2:27.7",
+          "margin": "クビ",
+          "cornerPass": [
+            "12",
+            "12",
+            "10",
+            "10"
+          ],
+          "lastFurlong": "35.0",
+          "horseWeight": 444,
+          "horseWeightDiff": 0,
+          "trainer": "清水 久詞",
+          "popularity": 8
+        },
+        {
+          "position": 10,
+          "bracket": 6,
+          "number": 7,
+          "name": "ダイナマイトメロン",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "杉原 誠人",
+          "time": "2:27.9",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "9",
+            "9",
+            "10",
+            "10"
+          ],
+          "lastFurlong": "35.2",
+          "horseWeight": 464,
+          "horseWeightDiff": 6,
+          "trainer": "伊藤 大士",
+          "popularity": 11
+        },
+        {
+          "position": 11,
+          "bracket": 7,
+          "number": 9,
+          "name": "クォンタムビット",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 武史",
+          "time": "2:29.8",
+          "margin": "大差",
+          "cornerPass": [
+            "11",
+            "11",
+            "12",
+            "12"
+          ],
+          "lastFurlong": "36.5",
+          "horseWeight": 432,
+          "horseWeightDiff": 4,
+          "trainer": "萩原 清",
+          "popularity": 4
+        },
+        {
+          "position": 12,
+          "bracket": 5,
+          "number": 5,
+          "name": "ブルーブロディ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "荻野 極",
+          "time": "2:31.2",
+          "margin": "８",
+          "cornerPass": [
+            "1",
+            "1",
+            "1",
+            "2"
+          ],
+          "lastFurlong": "39.5",
+          "horseWeight": 502,
+          "horseWeightDiff": 4,
+          "trainer": "伊坂 重信",
+          "popularity": 12
+        }
+      ],
+      "halonTime": "13.0 - 10.9 - 12.2 - 12.6 - 12.3 - 12.6 - 12.7 - 12.9 - 12.5 - 11.1 - 11.4 - 11.9",
+      "upper": "4F 46.9 - 3F 34.4",
+      "cornerPassDetail": {
+        "corner3": "(*5,11)(8,6)(2,4)(1,3)10(7,12)-9",
+        "corner4": "(5,*11,6,4)8(2,3)(1,10)-(7,12)-9"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "4",
+            "payout": 270,
+            "popularity": 1
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "4",
+            "payout": 110,
+            "popularity": 1
+          },
+          {
+            "combination": "3",
+            "payout": 520,
+            "popularity": 7
+          },
+          {
+            "combination": "6",
+            "payout": 110,
+            "popularity": 2
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "3-4",
+            "payout": 6590,
+            "popularity": 15
+          }
+        ],
+        "wide": [
+          {
+            "combination": "3-4",
+            "payout": 1640,
+            "popularity": 17
+          },
+          {
+            "combination": "4-6",
+            "payout": 160,
+            "popularity": 1
+          },
+          {
+            "combination": "3-6",
+            "payout": 1090,
+            "popularity": 14
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "3-4",
+            "payout": 7720,
+            "popularity": 17
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "4-3",
+            "payout": 10050,
+            "popularity": 26
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "3-4-6",
+            "payout": 3090,
+            "popularity": 10
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "4-3-6",
+            "payout": 21920,
+            "popularity": 73
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "4-3",
+        "payout": 10050,
+        "popularity": 26
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 5,
+      "raceName": "3歳未勝利",
+      "raceCategory": "3歳",
+      "raceClass": "未勝利",
+      "distance": 1400,
+      "trackInfo": "芝・左",
+      "startTime": "12:30",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 7,
+          "number": 13,
+          "name": "カズノダイジョウ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "横山 典弘",
+          "time": "1:21.1",
+          "margin": null,
+          "cornerPass": [
+            "8",
+            "9"
+          ],
+          "lastFurlong": "33.9",
+          "horseWeight": 520,
+          "horseWeightDiff": -8,
+          "trainer": "浅利 英明",
+          "popularity": 5
+        },
+        {
+          "position": 2,
+          "bracket": 7,
+          "number": 14,
+          "name": "シャインアルプス",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:21.1",
+          "margin": "クビ",
+          "cornerPass": [
+            "4",
+            "5"
+          ],
+          "lastFurlong": "34.3",
+          "horseWeight": 392,
+          "horseWeightDiff": 0,
+          "trainer": "中川 公成",
+          "popularity": 4
+        },
+        {
+          "position": 3,
+          "bracket": 6,
+          "number": 11,
+          "name": "ワディアルリヤハ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "D.レーン",
+          "time": "1:21.2",
+          "margin": "１／２",
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "34.8",
+          "horseWeight": 450,
+          "horseWeightDiff": -2,
+          "trainer": "田村 康仁",
+          "popularity": 2
+        },
+        {
+          "position": 4,
+          "bracket": 5,
+          "number": 9,
+          "name": "グランマエストロ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "C.ルメール",
+          "time": "1:21.4",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "8",
+            "5"
+          ],
+          "lastFurlong": "34.6",
+          "horseWeight": 492,
+          "horseWeightDiff": 2,
+          "trainer": "木村 哲也",
+          "popularity": 1
+        },
+        {
+          "position": 5,
+          "bracket": 4,
+          "number": 7,
+          "name": "ブロークンハート",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "大野 拓弥",
+          "time": "1:21.5",
+          "margin": "クビ",
+          "cornerPass": [
+            "6",
+            "7"
+          ],
+          "lastFurlong": "34.6",
+          "horseWeight": 406,
+          "horseWeightDiff": 0,
+          "trainer": "菊沢 隆徳",
+          "popularity": 6
+        },
+        {
+          "position": 6,
+          "bracket": 8,
+          "number": 18,
+          "name": "エルミー",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "菅原 明良",
+          "time": "1:21.8",
+          "margin": "１ 3/4",
+          "cornerPass": [
+            "6",
+            "7"
+          ],
+          "lastFurlong": "34.8",
+          "horseWeight": 430,
+          "horseWeightDiff": -4,
+          "trainer": "中川 公成",
+          "popularity": 10
+        },
+        {
+          "position": 7,
+          "bracket": 5,
+          "number": 10,
+          "name": "リオクリスハーレー",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "荻野 極",
+          "time": "1:21.9",
+          "margin": "１",
+          "cornerPass": [
+            "3",
+            "4"
+          ],
+          "lastFurlong": "35.2",
+          "horseWeight": 448,
+          "horseWeightDiff": -14,
+          "trainer": "矢野 英一",
+          "popularity": 11
+        },
+        {
+          "position": 8,
+          "bracket": 8,
+          "number": 16,
+          "name": "セイウンサファイア",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "丹内 祐次",
+          "time": "1:21.9",
+          "margin": "ハナ",
+          "cornerPass": [
+            "13",
+            "12"
+          ],
+          "lastFurlong": "34.4",
+          "horseWeight": null,
+          "horseWeightDiff": null,
+          "trainer": "本間 忍",
+          "popularity": 15
+        },
+        {
+          "position": 9,
+          "bracket": 1,
+          "number": 1,
+          "name": "イトシサ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "三浦 皇成",
+          "time": "1:22.0",
+          "margin": "クビ",
+          "cornerPass": [
+            "10",
+            "11"
+          ],
+          "lastFurlong": "34.6",
+          "horseWeight": 512,
+          "horseWeightDiff": 4,
+          "trainer": "田中 博康",
+          "popularity": 3
+        },
+        {
+          "position": 10,
+          "bracket": 8,
+          "number": 17,
+          "name": "ミッキーキャロット",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:22.0",
+          "margin": "クビ",
+          "cornerPass": [
+            "10",
+            "9"
+          ],
+          "lastFurlong": "34.7",
+          "horseWeight": null,
+          "horseWeightDiff": null,
+          "trainer": "大竹 正博",
+          "popularity": 14
+        },
+        {
+          "position": 11,
+          "bracket": 3,
+          "number": 6,
+          "name": "プラネタリーアワー",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "M.ディー",
+          "time": "1:22.1",
+          "margin": "クビ",
+          "cornerPass": [
+            "16",
+            "16"
+          ],
+          "lastFurlong": "34.2",
+          "horseWeight": 442,
+          "horseWeightDiff": -4,
+          "trainer": "加藤 征弘",
+          "popularity": 8
+        },
+        {
+          "position": 12,
+          "bracket": 2,
+          "number": 4,
+          "name": "ベルバード",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "岩田 康誠",
+          "time": "1:22.2",
+          "margin": "３／４",
+          "cornerPass": [
+            "4",
+            "3"
+          ],
+          "lastFurlong": "35.6",
+          "horseWeight": 468,
+          "horseWeightDiff": 4,
+          "trainer": "武井 亮",
+          "popularity": 7
+        },
+        {
+          "position": 13,
+          "bracket": 1,
+          "number": 2,
+          "name": "ホカミテダメ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "石橋 脩",
+          "time": "1:22.2",
+          "margin": "クビ",
+          "cornerPass": [
+            "13",
+            "14"
+          ],
+          "lastFurlong": "34.5",
+          "horseWeight": 456,
+          "horseWeightDiff": -6,
+          "trainer": "田中 勝春",
+          "popularity": 9
+        },
+        {
+          "position": 14,
+          "bracket": 4,
+          "number": 8,
+          "name": "マイチバイ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "松若 風馬",
+          "time": "1:22.8",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "18",
+            "17"
+          ],
+          "lastFurlong": "34.8",
+          "horseWeight": 434,
+          "horseWeightDiff": 4,
+          "trainer": "堀内 岳志",
+          "popularity": 13
+        },
+        {
+          "position": 15,
+          "bracket": 6,
+          "number": 12,
+          "name": "ツイスティドシルク",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "田辺 裕信",
+          "time": "1:22.9",
+          "margin": "１／２",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "36.7",
+          "horseWeight": 490,
+          "horseWeightDiff": 5,
+          "trainer": "武藤 善則",
+          "popularity": 12
+        },
+        {
+          "position": 16,
+          "bracket": 7,
+          "number": 15,
+          "name": "ルビーサンセット",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "北村 宏司",
+          "time": "1:23.6",
+          "margin": "４",
+          "cornerPass": [
+            "17",
+            "18"
+          ],
+          "lastFurlong": "35.3",
+          "horseWeight": 412,
+          "horseWeightDiff": -8,
+          "trainer": "柄崎 将寿",
+          "popularity": 18
+        },
+        {
+          "position": 17,
+          "bracket": 3,
+          "number": 5,
+          "name": "ナックセシリア",
+          "sexAge": "牝3",
+          "weight": "51.0",
+          "jockey": "谷原 柚希",
+          "time": "1:23.8",
+          "margin": "１",
+          "cornerPass": [
+            "15",
+            "14"
+          ],
+          "lastFurlong": "36.1",
+          "horseWeight": 386,
+          "horseWeightDiff": 8,
+          "trainer": "小野 次郎",
+          "popularity": 17
+        },
+        {
+          "position": 18,
+          "bracket": 2,
+          "number": 3,
+          "name": "モンサンドール",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "木幡 巧也",
+          "time": "1:24.1",
+          "margin": "２",
+          "cornerPass": [
+            "12",
+            "12"
+          ],
+          "lastFurlong": "36.6",
+          "horseWeight": 396,
+          "horseWeightDiff": 2,
+          "trainer": "牧 光二",
+          "popularity": 16
+        }
+      ],
+      "halonTime": "12.3 - 10.8 - 11.3 - 11.8 - 11.4 - 11.5 - 12.0",
+      "upper": "4F 46.7 - 3F 34.9",
+      "cornerPassDetail": {
+        "corner3": "(*12,11)10(4,14)(7,18)(9,13)(1,17)3(2,16)5,6-15,8",
+        "corner4": "12,11,4,10(9,14)(7,18)(13,17)1(3,16)(2,5)6,8,15"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "13",
+            "payout": 920,
+            "popularity": 5
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "13",
+            "payout": 220,
+            "popularity": 4
+          },
+          {
+            "combination": "14",
+            "payout": 230,
+            "popularity": 5
+          },
+          {
+            "combination": "11",
+            "payout": 160,
+            "popularity": 2
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "7-7",
+            "payout": 2410,
+            "popularity": 7
+          }
+        ],
+        "wide": [
+          {
+            "combination": "13-14",
+            "payout": 820,
+            "popularity": 10
+          },
+          {
+            "combination": "11-13",
+            "payout": 520,
+            "popularity": 7
+          },
+          {
+            "combination": "11-14",
+            "payout": 480,
+            "popularity": 6
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "13-14",
+            "payout": 2420,
+            "popularity": 9
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "13-14",
+            "payout": 4640,
+            "popularity": 18
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "11-13-14",
+            "payout": 3030,
+            "popularity": 10
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "13-14-11",
+            "payout": 24420,
+            "popularity": 74
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "13-14",
+        "payout": 4640,
+        "popularity": 18
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 6,
+      "raceName": "3歳1勝クラス",
+      "raceCategory": "3歳",
+      "raceClass": "1勝クラス",
+      "distance": 1800,
+      "trackInfo": "芝・左",
+      "startTime": "13:00",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 8,
+          "number": 11,
+          "name": "リッツパーティー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 武史",
+          "time": "1:45.4",
+          "margin": null,
+          "cornerPass": [
+            "5",
+            "3",
+            "2"
+          ],
+          "lastFurlong": "34.1",
+          "horseWeight": 482,
+          "horseWeightDiff": -4,
+          "trainer": "岩戸 孝樹",
+          "popularity": 3
+        },
+        {
+          "position": 2,
+          "bracket": 5,
+          "number": 6,
+          "name": "ホールドザデイ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "横山 和生",
+          "time": "1:45.5",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "2",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "34.2",
+          "horseWeight": 460,
+          "horseWeightDiff": 0,
+          "trainer": "田中 勝春",
+          "popularity": 8
+        },
+        {
+          "position": 3,
+          "bracket": 8,
+          "number": 12,
+          "name": "アメテュストス",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "D.レーン",
+          "time": "1:45.8",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "6",
+            "6",
+            "4"
+          ],
+          "lastFurlong": "34.3",
+          "horseWeight": 460,
+          "horseWeightDiff": 4,
+          "trainer": "加藤 士津八",
+          "popularity": 4
+        },
+        {
+          "position": 4,
+          "bracket": 2,
+          "number": 2,
+          "name": "エリプティクカーブ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "M.ディー",
+          "time": "1:45.9",
+          "margin": "３／４",
+          "cornerPass": [
+            "10",
+            "10",
+            "10"
+          ],
+          "lastFurlong": "33.6",
+          "horseWeight": 476,
+          "horseWeightDiff": 2,
+          "trainer": "萩原 清",
+          "popularity": 2
+        },
+        {
+          "position": 5,
+          "bracket": 6,
+          "number": 8,
+          "name": "マイネルシンベリン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "津村 明秀",
+          "time": "1:46.0",
+          "margin": "１／２",
+          "cornerPass": [
+            "6",
+            "7",
+            "7"
+          ],
+          "lastFurlong": "34.2",
+          "horseWeight": 454,
+          "horseWeightDiff": 4,
+          "trainer": "武市 康男",
+          "popularity": 6
+        },
+        {
+          "position": 6,
+          "bracket": 7,
+          "number": 10,
+          "name": "デイトナチャンプ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "C.ルメール",
+          "time": "1:46.2",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "3",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "34.7",
+          "horseWeight": 438,
+          "horseWeightDiff": -8,
+          "trainer": "加藤 征弘",
+          "popularity": 1
+        },
+        {
+          "position": 7,
+          "bracket": 6,
+          "number": 7,
+          "name": "テイエムスティール",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "武 豊",
+          "time": "1:46.3",
+          "margin": "３／４",
+          "cornerPass": [
+            "9",
+            "8",
+            "9"
+          ],
+          "lastFurlong": "34.1",
+          "horseWeight": 432,
+          "horseWeightDiff": 2,
+          "trainer": "高橋 一哉",
+          "popularity": 5
+        },
+        {
+          "position": 8,
+          "bracket": 4,
+          "number": 4,
+          "name": "ショウナンダイン",
+          "sexAge": "せん3",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "1:46.4",
+          "margin": "３／４",
+          "cornerPass": [
+            "8",
+            "8",
+            "8"
+          ],
+          "lastFurlong": "34.4",
+          "horseWeight": 468,
+          "horseWeightDiff": -14,
+          "trainer": "森 一誠",
+          "popularity": 11
+        },
+        {
+          "position": 9,
+          "bracket": 5,
+          "number": 5,
+          "name": "サンセットゴールド",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:46.9",
+          "margin": "３",
+          "cornerPass": [
+            "3",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "35.4",
+          "horseWeight": 464,
+          "horseWeightDiff": 8,
+          "trainer": "矢作 芳人",
+          "popularity": 9
+        },
+        {
+          "position": 10,
+          "bracket": 1,
+          "number": 1,
+          "name": "セイウンラピス",
+          "sexAge": "せん3",
+          "weight": "57.0",
+          "jockey": "松岡 正海",
+          "time": "1:47.3",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "10",
+            "10",
+            "10"
+          ],
+          "lastFurlong": "35.0",
+          "horseWeight": 484,
+          "horseWeightDiff": 8,
+          "trainer": "村田 一誠",
+          "popularity": 10
+        },
+        {
+          "position": 11,
+          "bracket": 3,
+          "number": 3,
+          "name": "ナックホワイト",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "荻野 極",
+          "time": "1:47.7",
+          "margin": "２",
+          "cornerPass": [
+            "1",
+            "1",
+            "1"
+          ],
+          "lastFurlong": "36.5",
+          "horseWeight": 486,
+          "horseWeightDiff": 10,
+          "trainer": "杉浦 宏昭",
+          "popularity": 7
+        },
+        {
+          "position": 12,
+          "bracket": 7,
+          "number": 9,
+          "name": "サツキマーメイド",
+          "sexAge": "牝3",
+          "weight": "52.0",
+          "jockey": "佐藤 翔馬",
+          "time": "1:48.7",
+          "margin": "６",
+          "cornerPass": [
+            "12",
+            "12",
+            "12"
+          ],
+          "lastFurlong": "35.9",
+          "horseWeight": 406,
+          "horseWeightDiff": 2,
+          "trainer": "石栗 龍彦",
+          "popularity": 12
+        }
+      ],
+      "halonTime": "12.5 - 10.7 - 11.5 - 12.1 - 12.2 - 12.2 - 11.4 - 11.2 - 11.6",
+      "upper": "4F 46.4 - 3F 34.2",
+      "cornerPassDetail": {
+        "corner3": "(*3,6)11(5,10)12-8-(4,7)(1,2)-9",
+        "corner4": "3(6,11)(5,10,12)8,4,7(1,2)-9"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "11",
+            "payout": 470,
+            "popularity": 3
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "11",
+            "payout": 180,
+            "popularity": 2
+          },
+          {
+            "combination": "6",
+            "payout": 690,
+            "popularity": 10
+          },
+          {
+            "combination": "12",
+            "payout": 210,
+            "popularity": 4
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "5-8",
+            "payout": 1750,
+            "popularity": 7
+          }
+        ],
+        "wide": [
+          {
+            "combination": "6-11",
+            "payout": 2540,
+            "popularity": 30
+          },
+          {
+            "combination": "11-12",
+            "payout": 620,
+            "popularity": 6
+          },
+          {
+            "combination": "6-12",
+            "payout": 2620,
+            "popularity": 31
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "6-11",
+            "payout": 7390,
+            "popularity": 27
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "11-6",
+            "payout": 11970,
+            "popularity": 45
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "6-11-12",
+            "payout": 11350,
+            "popularity": 41
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "11-6-12",
+            "payout": 68440,
+            "popularity": 231
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "11-6",
+        "payout": 11970,
+        "popularity": 45
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 7,
+      "raceName": "4歳以上1勝クラス",
+      "raceCategory": "4歳以上",
+      "raceClass": "1勝クラス",
+      "distance": 2100,
+      "trackInfo": "ダート・左",
+      "startTime": "13:30",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 6,
+          "number": 10,
+          "name": "マウントバーノン",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "荻野 極",
+          "time": "2:12.4",
+          "margin": null,
+          "cornerPass": [
+            "8",
+            "9",
+            "7",
+            "6"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 500,
+          "horseWeightDiff": -14,
+          "trainer": "戸田 博文",
+          "popularity": 6
+        },
+        {
+          "position": 2,
+          "bracket": 8,
+          "number": 14,
+          "name": "ローズマイスター",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "横山 武史",
+          "time": "2:12.5",
+          "margin": "１／２",
+          "cornerPass": [
+            "12",
+            "12",
+            "11",
+            "8"
+          ],
+          "lastFurlong": "37.5",
+          "horseWeight": 512,
+          "horseWeightDiff": 2,
+          "trainer": "黒岩 陽一",
+          "popularity": 2
+        },
+        {
+          "position": 3,
+          "bracket": 7,
+          "number": 11,
+          "name": "タケルゴールド",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "吉田 豊",
+          "time": "2:12.9",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "11",
+            "10",
+            "11",
+            "11"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 464,
+          "horseWeightDiff": -2,
+          "trainer": "加藤 征弘",
+          "popularity": 9
+        },
+        {
+          "position": 4,
+          "bracket": 5,
+          "number": 8,
+          "name": "ブルージャイアント",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "江田 照男",
+          "time": "2:13.2",
+          "margin": "２",
+          "cornerPass": [
+            "4",
+            "2",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "39.1",
+          "horseWeight": 544,
+          "horseWeightDiff": 4,
+          "trainer": "蛯名 正義",
+          "popularity": 7
+        },
+        {
+          "position": 5,
+          "bracket": 4,
+          "number": 6,
+          "name": "カイトヴィント",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "柴田 大知",
+          "time": "2:13.2",
+          "margin": "アタマ",
+          "cornerPass": [
+            "2",
+            "2",
+            "2",
+            "1"
+          ],
+          "lastFurlong": "39.1",
+          "horseWeight": 502,
+          "horseWeightDiff": -6,
+          "trainer": "和田 雄二",
+          "popularity": 14
+        },
+        {
+          "position": 6,
+          "bracket": 1,
+          "number": 1,
+          "name": "ブレイクザアイス",
+          "sexAge": "せん7",
+          "weight": "58.0",
+          "jockey": "黛 弘人",
+          "time": "2:13.4",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "8",
+            "8",
+            "8",
+            "8"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 470,
+          "horseWeightDiff": 0,
+          "trainer": "森 一誠",
+          "popularity": 10
+        },
+        {
+          "position": 7,
+          "bracket": 5,
+          "number": 7,
+          "name": "メイショウコウベ",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "岩田 康誠",
+          "time": "2:13.8",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "5",
+            "5",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "39.4",
+          "horseWeight": 482,
+          "horseWeightDiff": 10,
+          "trainer": "和田 勇介",
+          "popularity": 5
+        },
+        {
+          "position": 8,
+          "bracket": 7,
+          "number": 12,
+          "name": "カサビセンス",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "大野 拓弥",
+          "time": "2:13.9",
+          "margin": "１／２",
+          "cornerPass": [
+            "8",
+            "10",
+            "8",
+            "8"
+          ],
+          "lastFurlong": "38.9",
+          "horseWeight": 442,
+          "horseWeightDiff": -4,
+          "trainer": "新開 幸一",
+          "popularity": 13
+        },
+        {
+          "position": 9,
+          "bracket": 6,
+          "number": 9,
+          "name": "ロードインフェルノ",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "田辺 裕信",
+          "time": "2:14.4",
+          "margin": "３",
+          "cornerPass": [
+            "13",
+            "13",
+            "13",
+            "12"
+          ],
+          "lastFurlong": "38.9",
+          "horseWeight": 484,
+          "horseWeightDiff": 0,
+          "trainer": "尾形 和幸",
+          "popularity": 3
+        },
+        {
+          "position": 10,
+          "bracket": 8,
+          "number": 13,
+          "name": "ブラックタロー",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "丹内 祐次",
+          "time": "2:15.0",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "7",
+            "7",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "40.6",
+          "horseWeight": 496,
+          "horseWeightDiff": 2,
+          "trainer": "鈴木 孝志",
+          "popularity": 8
+        },
+        {
+          "position": 11,
+          "bracket": 3,
+          "number": 4,
+          "name": "シドニーホバート",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "松若 風馬",
+          "time": "2:15.5",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "1",
+            "1",
+            "1",
+            "3"
+          ],
+          "lastFurlong": "41.2",
+          "horseWeight": 514,
+          "horseWeightDiff": -6,
+          "trainer": "杉山 佳明",
+          "popularity": 4
+        },
+        {
+          "position": 12,
+          "bracket": 3,
+          "number": 3,
+          "name": "タマモトリノ",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "C.ルメール",
+          "time": "2:15.8",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "2",
+            "4",
+            "4",
+            "6"
+          ],
+          "lastFurlong": "41.2",
+          "horseWeight": 508,
+          "horseWeightDiff": 8,
+          "trainer": "辻 哲英",
+          "popularity": 1
+        },
+        {
+          "position": 13,
+          "bracket": 4,
+          "number": 5,
+          "name": "ヴォルクメア",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "三浦 皇成",
+          "time": "2:16.2",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "13",
+            "13",
+            "13",
+            "12"
+          ],
+          "lastFurlong": "40.8",
+          "horseWeight": 494,
+          "horseWeightDiff": -2,
+          "trainer": "新谷 功一",
+          "popularity": 11
+        },
+        {
+          "position": 14,
+          "bracket": 2,
+          "number": 2,
+          "name": "ミルキープリンセス",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "木幡 巧也",
+          "time": "2:16.6",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "5",
+            "5",
+            "8",
+            "12"
+          ],
+          "lastFurlong": "41.2",
+          "horseWeight": 534,
+          "horseWeightDiff": 8,
+          "trainer": "大竹 正博",
+          "popularity": 12
+        }
+      ],
+      "halonTime": "7.3 - 11.2 - 12.3 - 12.7 - 12.7 - 12.5 - 12.7 - 12.7 - 12.9 - 12.9 - 12.5",
+      "upper": "4F 51.0 - 3F 38.3",
+      "cornerPassDetail": {
+        "corner3": "4(6,8)(3,7,13)10(2,1,12)(11,14)(9,5)",
+        "corner4": "(*6,8)4(7,13)(3,10)(1,12,14)11(2,9,5)"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "10",
+            "payout": 2790,
+            "popularity": 6
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "10",
+            "payout": 650,
+            "popularity": 6
+          },
+          {
+            "combination": "14",
+            "payout": 190,
+            "popularity": 2
+          },
+          {
+            "combination": "11",
+            "payout": 780,
+            "popularity": 7
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "6-8",
+            "payout": 1140,
+            "popularity": 4
+          }
+        ],
+        "wide": [
+          {
+            "combination": "10-14",
+            "payout": 1430,
+            "popularity": 13
+          },
+          {
+            "combination": "10-11",
+            "payout": 7370,
+            "popularity": 48
+          },
+          {
+            "combination": "11-14",
+            "payout": 1560,
+            "popularity": 15
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "10-14",
+            "payout": 4570,
+            "popularity": 14
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "10-14",
+            "payout": 13330,
+            "popularity": 34
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "10-11-14",
+            "payout": 27010,
+            "popularity": 71
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "10-14-11",
+            "payout": 184440,
+            "popularity": 384
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "10-14",
+        "payout": 13330,
+        "popularity": 34
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 8,
+      "raceName": "4歳以上2勝クラス",
+      "raceCategory": "4歳以上",
+      "raceClass": "2勝クラス",
+      "distance": 2000,
+      "trackInfo": "芝・左",
+      "startTime": "14:01",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 8,
+          "number": 8,
+          "name": "ショウナンマクベス",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "津村 明秀",
+          "time": "1:58.9",
+          "margin": null,
+          "cornerPass": [
+            "2",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "35.3",
+          "horseWeight": 496,
+          "horseWeightDiff": 14,
+          "trainer": "武市 康男",
+          "popularity": 3
+        },
+        {
+          "position": 2,
+          "bracket": 2,
+          "number": 2,
+          "name": "ウィッシュツリー",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:59.1",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "3",
+            "3",
+            "3"
+          ],
+          "lastFurlong": "33.8",
+          "horseWeight": 468,
+          "horseWeightDiff": 6,
+          "trainer": "宮田 敬介",
+          "popularity": 2
+        },
+        {
+          "position": 3,
+          "bracket": 6,
+          "number": 6,
+          "name": "カリーニョ",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "C.ルメール",
+          "time": "1:59.4",
+          "margin": "１ 3/4",
+          "cornerPass": [
+            "6",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "33.8",
+          "horseWeight": 468,
+          "horseWeightDiff": -4,
+          "trainer": "杉山 晴紀",
+          "popularity": 1
+        },
+        {
+          "position": 4,
+          "bracket": 5,
+          "number": 5,
+          "name": "ミッドセンチュリー",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "江田 照男",
+          "time": "2:00.2",
+          "margin": "５",
+          "cornerPass": [
+            "5",
+            "6",
+            "5"
+          ],
+          "lastFurlong": "34.4",
+          "horseWeight": 482,
+          "horseWeightDiff": 6,
+          "trainer": "松山 将樹",
+          "popularity": 4
+        },
+        {
+          "position": 5,
+          "bracket": 3,
+          "number": 3,
+          "name": "エーデル",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "岩田 康誠",
+          "time": "2:00.4",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "4",
+            "4",
+            "6"
+          ],
+          "lastFurlong": "34.4",
+          "horseWeight": 476,
+          "horseWeightDiff": 8,
+          "trainer": "金成 貴史",
+          "popularity": 5
+        },
+        {
+          "position": 6,
+          "bracket": 1,
+          "number": 1,
+          "name": "ホークマン",
+          "sexAge": "牡5",
+          "weight": "54.0",
+          "jockey": "谷原 柚希",
+          "time": "2:01.1",
+          "margin": "４",
+          "cornerPass": [
+            "1",
+            "1",
+            "1"
+          ],
+          "lastFurlong": "37.6",
+          "horseWeight": 492,
+          "horseWeightDiff": 0,
+          "trainer": "粕谷 昌央",
+          "popularity": 6
+        },
+        {
+          "position": 7,
+          "bracket": 7,
+          "number": 7,
+          "name": "チャイボーグ",
+          "sexAge": "牝6",
+          "weight": "56.0",
+          "jockey": "木幡 巧也",
+          "time": "2:01.5",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "8",
+            "7",
+            "7"
+          ],
+          "lastFurlong": "35.2",
+          "horseWeight": 492,
+          "horseWeightDiff": -10,
+          "trainer": "的場 均",
+          "popularity": 7
+        },
+        {
+          "position": 8,
+          "bracket": 4,
+          "number": 4,
+          "name": "コスタデラルス",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "柴田 大知",
+          "time": "2:03.4",
+          "margin": "大差",
+          "cornerPass": [
+            "6",
+            "7",
+            "8"
+          ],
+          "lastFurlong": "36.7",
+          "horseWeight": 450,
+          "horseWeightDiff": 8,
+          "trainer": "和田 雄二",
+          "popularity": 8
+        }
+      ],
+      "halonTime": "12.8 - 10.7 - 11.7 - 11.3 - 12.4 - 12.3 - 12.3 - 11.3 - 12.0 - 12.1",
+      "upper": "4F 47.7 - 3F 35.4",
+      "cornerPassDetail": {
+        "corner3": "1,8=2=(3,6)-5(4,7)",
+        "corner4": "(*1,8)=2-6,5,3-7-4"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "8",
+            "payout": 570,
+            "popularity": 3
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "8",
+            "payout": 110,
+            "popularity": 3
+          },
+          {
+            "combination": "2",
+            "payout": 100,
+            "popularity": 2
+          },
+          {
+            "combination": "6",
+            "payout": 100,
+            "popularity": 1
+          }
+        ],
+        "wakuren": [],
+        "wide": [
+          {
+            "combination": "2-8",
+            "payout": 150,
+            "popularity": 3
+          },
+          {
+            "combination": "6-8",
+            "payout": 140,
+            "popularity": 2
+          },
+          {
+            "combination": "2-6",
+            "payout": 110,
+            "popularity": 1
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "2-8",
+            "payout": 700,
+            "popularity": 3
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "8-2",
+            "payout": 1430,
+            "popularity": 6
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "2-6-8",
+            "payout": 180,
+            "popularity": 1
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "8-2-6",
+            "payout": 2380,
+            "popularity": 10
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "8-2",
+        "payout": 1430,
+        "popularity": 6
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 9,
+      "raceName": "分倍河原ステークス",
+      "raceCategory": "4歳以上",
+      "raceClass": "3勝クラス",
+      "distance": 1600,
+      "trackInfo": "芝・左",
+      "startTime": "14:31",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 6,
+          "number": 7,
+          "name": "アンパドゥ",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "C.ルメール",
+          "time": "1:32.2",
+          "margin": null,
+          "cornerPass": [
+            "8",
+            "8"
+          ],
+          "lastFurlong": "32.7",
+          "horseWeight": 496,
+          "horseWeightDiff": -2,
+          "trainer": "木村 哲也",
+          "popularity": 1
+        },
+        {
+          "position": 2,
+          "bracket": 6,
+          "number": 8,
+          "name": "アウフヘーベン",
+          "sexAge": "牝6",
+          "weight": "56.0",
+          "jockey": "D.レーン",
+          "time": "1:32.2",
+          "margin": "クビ",
+          "cornerPass": [
+            "4",
+            "3"
+          ],
+          "lastFurlong": "33.1",
+          "horseWeight": 462,
+          "horseWeightDiff": 0,
+          "trainer": "高橋 亮",
+          "popularity": 2
+        },
+        {
+          "position": 3,
+          "bracket": 3,
+          "number": 3,
+          "name": "マテンロウブラボー",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:32.5",
+          "margin": "１ 3/4",
+          "cornerPass": [
+            "9",
+            "9"
+          ],
+          "lastFurlong": "32.8",
+          "horseWeight": 500,
+          "horseWeightDiff": 0,
+          "trainer": "野中 賢二",
+          "popularity": 3
+        },
+        {
+          "position": 4,
+          "bracket": 7,
+          "number": 10,
+          "name": "コスモサガルマータ",
+          "sexAge": "せん6",
+          "weight": "58.0",
+          "jockey": "横山 和生",
+          "time": "1:32.8",
+          "margin": "２",
+          "cornerPass": [
+            "11",
+            "11"
+          ],
+          "lastFurlong": "32.8",
+          "horseWeight": 496,
+          "horseWeightDiff": -14,
+          "trainer": "嘉藤 貴行",
+          "popularity": 8
+        },
+        {
+          "position": 5,
+          "bracket": 8,
+          "number": 12,
+          "name": "コルレオニス",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "M.ディー",
+          "time": "1:32.9",
+          "margin": "アタマ",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "33.6",
+          "horseWeight": 470,
+          "horseWeightDiff": 4,
+          "trainer": "友道 康夫",
+          "popularity": 5
+        },
+        {
+          "position": 6,
+          "bracket": 4,
+          "number": 4,
+          "name": "ホウオウムサシ",
+          "sexAge": "牡6",
+          "weight": "58.0",
+          "jockey": "菅原 明良",
+          "time": "1:33.0",
+          "margin": "１／２",
+          "cornerPass": [
+            "6",
+            "6"
+          ],
+          "lastFurlong": "33.6",
+          "horseWeight": 452,
+          "horseWeightDiff": 0,
+          "trainer": "蛯名 正義",
+          "popularity": 11
+        },
+        {
+          "position": 7,
+          "bracket": 7,
+          "number": 9,
+          "name": "グラニット",
+          "sexAge": "牡6",
+          "weight": "58.0",
+          "jockey": "江田 照男",
+          "time": "1:33.0",
+          "margin": "クビ",
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "34.1",
+          "horseWeight": 484,
+          "horseWeightDiff": 0,
+          "trainer": "大和田 成",
+          "popularity": 9
+        },
+        {
+          "position": 8,
+          "bracket": 5,
+          "number": 5,
+          "name": "パワーホール",
+          "sexAge": "せん5",
+          "weight": "58.0",
+          "jockey": "田辺 裕信",
+          "time": "1:33.1",
+          "margin": "クビ",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "34.3",
+          "horseWeight": 490,
+          "horseWeightDiff": -6,
+          "trainer": "昆 貢",
+          "popularity": 6
+        },
+        {
+          "position": 9,
+          "bracket": 2,
+          "number": 2,
+          "name": "チャンネルトンネル",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "岩田 康誠",
+          "time": "1:33.1",
+          "margin": "クビ",
+          "cornerPass": [
+            "6",
+            "6"
+          ],
+          "lastFurlong": "33.7",
+          "horseWeight": 472,
+          "horseWeightDiff": -2,
+          "trainer": "福永 祐一",
+          "popularity": 4
+        },
+        {
+          "position": 10,
+          "bracket": 1,
+          "number": 1,
+          "name": "ミカッテヨンデイイ",
+          "sexAge": "牝6",
+          "weight": "56.0",
+          "jockey": "小林 脩斗",
+          "time": "1:33.2",
+          "margin": "１／２",
+          "cornerPass": [
+            "9",
+            "9"
+          ],
+          "lastFurlong": "33.5",
+          "horseWeight": 432,
+          "horseWeightDiff": 8,
+          "trainer": "室井 潔",
+          "popularity": 10
+        },
+        {
+          "position": 11,
+          "bracket": 8,
+          "number": 11,
+          "name": "ガルダイア",
+          "sexAge": "せん4",
+          "weight": "58.0",
+          "jockey": "杉原 誠人",
+          "time": "1:33.4",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "12",
+            "12"
+          ],
+          "lastFurlong": "33.2",
+          "horseWeight": 484,
+          "horseWeightDiff": 6,
+          "trainer": "浅利 英明",
+          "popularity": 7
+        },
+        {
+          "position": 12,
+          "bracket": 5,
+          "number": 6,
+          "name": "ショーモン",
+          "sexAge": "せん6",
+          "weight": "58.0",
+          "jockey": "松岡 正海",
+          "time": "1:33.6",
+          "margin": "３／４",
+          "cornerPass": [
+            "3",
+            "3"
+          ],
+          "lastFurlong": "34.5",
+          "horseWeight": 502,
+          "horseWeightDiff": -8,
+          "trainer": "東田 明士",
+          "popularity": 12
+        }
+      ],
+      "halonTime": "12.3 - 11.1 - 11.6 - 12.0 - 11.8 - 11.3 - 10.9 - 11.2",
+      "upper": "4F 45.2 - 3F 33.4",
+      "cornerPassDetail": {
+        "corner3": "5,9,6,8,12(2,4)7(1,3)10,11",
+        "corner4": "5,9(6,8)12(2,4)7(1,3)10,11"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "7",
+            "payout": 180,
+            "popularity": 1
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "7",
+            "payout": 110,
+            "popularity": 1
+          },
+          {
+            "combination": "8",
+            "payout": 130,
+            "popularity": 2
+          },
+          {
+            "combination": "3",
+            "payout": 140,
+            "popularity": 3
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "6-6",
+            "payout": 540,
+            "popularity": 3
+          }
+        ],
+        "wide": [
+          {
+            "combination": "7-8",
+            "payout": 220,
+            "popularity": 1
+          },
+          {
+            "combination": "3-7",
+            "payout": 260,
+            "popularity": 3
+          },
+          {
+            "combination": "3-8",
+            "payout": 380,
+            "popularity": 4
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "7-8",
+            "payout": 520,
+            "popularity": 1
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "7-8",
+            "payout": 690,
+            "popularity": 1
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "3-7-8",
+            "payout": 780,
+            "popularity": 1
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "7-8-3",
+            "payout": 2290,
+            "popularity": 2
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "7-8",
+        "payout": 690,
+        "popularity": 1
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 10,
+      "raceName": "青竜ステークス",
+      "raceCategory": "3歳",
+      "raceClass": "オープン",
+      "distance": 1600,
+      "trackInfo": "ダート・左",
+      "startTime": "15:05",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 6,
+          "number": 10,
+          "name": "ドンエレクトス",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "荻野 極",
+          "time": "1:36.5",
+          "margin": null,
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "36.1",
+          "horseWeight": 468,
+          "horseWeightDiff": 2,
+          "trainer": "高木 登",
+          "popularity": 1
+        },
+        {
+          "position": 2,
+          "bracket": 2,
+          "number": 2,
+          "name": "マクリール",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "C.ルメール",
+          "time": "1:37.1",
+          "margin": "３ 1/2",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "36.3",
+          "horseWeight": 470,
+          "horseWeightDiff": 2,
+          "trainer": "手塚 貴久",
+          "popularity": 2
+        },
+        {
+          "position": 3,
+          "bracket": 3,
+          "number": 4,
+          "name": "エコロシード",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "D.レーン",
+          "time": "1:37.4",
+          "margin": "２",
+          "cornerPass": [
+            "3",
+            "3"
+          ],
+          "lastFurlong": "36.9",
+          "horseWeight": 544,
+          "horseWeightDiff": 0,
+          "trainer": "堀 宣行",
+          "popularity": 6
+        },
+        {
+          "position": 4,
+          "bracket": 7,
+          "number": 12,
+          "name": "チュウワカーネギー",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 典弘",
+          "time": "1:37.7",
+          "margin": "２",
+          "cornerPass": [
+            "3",
+            "3"
+          ],
+          "lastFurlong": "37.2",
+          "horseWeight": 520,
+          "horseWeightDiff": 2,
+          "trainer": "大久保 龍志",
+          "popularity": 3
+        },
+        {
+          "position": 5,
+          "bracket": 7,
+          "number": 13,
+          "name": "アルデトップガン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "菅原 明良",
+          "time": "1:38.2",
+          "margin": "３",
+          "cornerPass": [
+            "11",
+            "10"
+          ],
+          "lastFurlong": "36.7",
+          "horseWeight": 466,
+          "horseWeightDiff": 0,
+          "trainer": "田中 剛",
+          "popularity": 5
+        },
+        {
+          "position": 6,
+          "bracket": 6,
+          "number": 11,
+          "name": "ケブランリ",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "岩田 康誠",
+          "time": "1:38.3",
+          "margin": "クビ",
+          "cornerPass": [
+            "10",
+            "7"
+          ],
+          "lastFurlong": "37.2",
+          "horseWeight": 500,
+          "horseWeightDiff": 8,
+          "trainer": "加藤 士津八",
+          "popularity": 7
+        },
+        {
+          "position": 7,
+          "bracket": 5,
+          "number": 8,
+          "name": "アトミックブレス",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "M.ディー",
+          "time": "1:38.6",
+          "margin": "１ 3/4",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "37.8",
+          "horseWeight": 516,
+          "horseWeightDiff": 2,
+          "trainer": "加藤 征弘",
+          "popularity": 12
+        },
+        {
+          "position": 8,
+          "bracket": 4,
+          "number": 7,
+          "name": "テイエムキハク",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "1:38.7",
+          "margin": "３／４",
+          "cornerPass": [
+            "8",
+            "7"
+          ],
+          "lastFurlong": "37.7",
+          "horseWeight": 478,
+          "horseWeightDiff": 10,
+          "trainer": "伊藤 圭三",
+          "popularity": 4
+        },
+        {
+          "position": 9,
+          "bracket": 3,
+          "number": 5,
+          "name": "マイネルミストラル",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "津村 明秀",
+          "time": "1:38.9",
+          "margin": "３／４",
+          "cornerPass": [
+            "13",
+            "13"
+          ],
+          "lastFurlong": "37.2",
+          "horseWeight": 516,
+          "horseWeightDiff": -8,
+          "trainer": "萱野 浩二",
+          "popularity": 11
+        },
+        {
+          "position": 10,
+          "bracket": 8,
+          "number": 14,
+          "name": "メイショウバルク",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "武 豊",
+          "time": "1:39.4",
+          "margin": "３",
+          "cornerPass": [
+            "8",
+            "9"
+          ],
+          "lastFurlong": "38.2",
+          "horseWeight": 490,
+          "horseWeightDiff": -4,
+          "trainer": "安達 昭夫",
+          "popularity": 9
+        },
+        {
+          "position": 11,
+          "bracket": 2,
+          "number": 3,
+          "name": "ポッドデスペア",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "横山 武史",
+          "time": "1:39.4",
+          "margin": "クビ",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "39.1",
+          "horseWeight": 482,
+          "horseWeightDiff": 2,
+          "trainer": "畠山 吉宏",
+          "popularity": 10
+        },
+        {
+          "position": 12,
+          "bracket": 5,
+          "number": 9,
+          "name": "アンヘリータス",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "石橋 脩",
+          "time": "1:39.9",
+          "margin": "３",
+          "cornerPass": [
+            "15",
+            "15"
+          ],
+          "lastFurlong": "37.6",
+          "horseWeight": 410,
+          "horseWeightDiff": -4,
+          "trainer": "吉村 圭司",
+          "popularity": 15
+        },
+        {
+          "position": 13,
+          "bracket": 4,
+          "number": 6,
+          "name": "エスシーレイジュ",
+          "sexAge": "牝3",
+          "weight": "55.0",
+          "jockey": "大野 拓弥",
+          "time": "1:39.9",
+          "margin": "クビ",
+          "cornerPass": [
+            "11",
+            "10"
+          ],
+          "lastFurlong": "38.5",
+          "horseWeight": 454,
+          "horseWeightDiff": -2,
+          "trainer": "松山 将樹",
+          "popularity": 14
+        },
+        {
+          "position": 14,
+          "bracket": 1,
+          "number": 1,
+          "name": "サンライズケヴィン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "松若 風馬",
+          "time": "1:40.4",
+          "margin": "２ 1/2",
+          "cornerPass": [
+            "13",
+            "13"
+          ],
+          "lastFurlong": "38.6",
+          "horseWeight": 494,
+          "horseWeightDiff": 4,
+          "trainer": "平田 修",
+          "popularity": 8
+        },
+        {
+          "position": 15,
+          "bracket": 8,
+          "number": 15,
+          "name": "ミリオンクラウン",
+          "sexAge": "牡3",
+          "weight": "57.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:48.7",
+          "margin": "大差",
+          "cornerPass": [
+            "5",
+            "10"
+          ],
+          "lastFurlong": "47.3",
+          "horseWeight": 500,
+          "horseWeightDiff": 8,
+          "trainer": "和田 雄二",
+          "popularity": 13
+        }
+      ],
+      "halonTime": "12.6 - 11.2 - 11.8 - 12.3 - 12.4 - 12.1 - 11.9 - 12.2",
+      "upper": "4F 48.6 - 3F 36.2",
+      "cornerPassDetail": {
+        "corner3": "(*3,10)(4,12)(2,8,15)(7,14)11(6,13)(1,5)-9",
+        "corner4": "(*3,10)(4,12)(2,8)(11,7)14(6,15,13)(1,5)-9"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "10",
+            "payout": 240,
+            "popularity": 1
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "10",
+            "payout": 120,
+            "popularity": 1
+          },
+          {
+            "combination": "2",
+            "payout": 120,
+            "popularity": 2
+          },
+          {
+            "combination": "4",
+            "payout": 350,
+            "popularity": 7
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "2-6",
+            "payout": 360,
+            "popularity": 1
+          }
+        ],
+        "wide": [
+          {
+            "combination": "2-10",
+            "payout": 200,
+            "popularity": 1
+          },
+          {
+            "combination": "4-10",
+            "payout": 640,
+            "popularity": 8
+          },
+          {
+            "combination": "2-4",
+            "payout": 930,
+            "popularity": 10
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "2-10",
+            "payout": 450,
+            "popularity": 1
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "10-2",
+            "payout": 840,
+            "popularity": 1
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "2-4-10",
+            "payout": 2280,
+            "popularity": 5
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "10-2-4",
+            "payout": 8020,
+            "popularity": 14
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "10-2",
+        "payout": 840,
+        "popularity": 1
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 11,
+      "raceName": "エプソムカップ",
+      "raceCategory": "4歳以上",
+      "raceClass": "オープン",
+      "distance": 1800,
+      "trackInfo": "芝・左",
+      "startTime": "15:45",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 6,
+          "number": 11,
+          "name": "トロヴァトーレ",
+          "sexAge": "牡5",
+          "weight": "58.0",
+          "jockey": "C.ルメール",
+          "time": "1:45.3",
+          "margin": null,
+          "cornerPass": [
+            "8",
+            "9",
+            "9"
+          ],
+          "lastFurlong": "33.0",
+          "horseWeight": 510,
+          "horseWeightDiff": 0,
+          "trainer": "鹿戸 雄一",
+          "popularity": 2
+        },
+        {
+          "position": 2,
+          "bracket": 8,
+          "number": 16,
+          "name": "ステレンボッシュ",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:45.3",
+          "margin": "ハナ",
+          "cornerPass": [
+            "3",
+            "7",
+            "7"
+          ],
+          "lastFurlong": "33.1",
+          "horseWeight": 478,
+          "horseWeightDiff": -4,
+          "trainer": "宮田 敬介",
+          "popularity": 5
+        },
+        {
+          "position": 3,
+          "bracket": 8,
+          "number": 17,
+          "name": "レガーロデルシエロ",
+          "sexAge": "牡5",
+          "weight": "57.0",
+          "jockey": "岩田 康誠",
+          "time": "1:45.5",
+          "margin": "１",
+          "cornerPass": [
+            "16",
+            "17",
+            "17"
+          ],
+          "lastFurlong": "32.6",
+          "horseWeight": 512,
+          "horseWeightDiff": -4,
+          "trainer": "栗田 徹",
+          "popularity": 10
+        },
+        {
+          "position": 4,
+          "bracket": 3,
+          "number": 6,
+          "name": "マジックサンズ",
+          "sexAge": "牡4",
+          "weight": "57.0",
+          "jockey": "横山 和生",
+          "time": "1:45.5",
+          "margin": "クビ",
+          "cornerPass": [
+            "8",
+            "9",
+            "9"
+          ],
+          "lastFurlong": "33.2",
+          "horseWeight": 528,
+          "horseWeightDiff": 8,
+          "trainer": "須貝 尚介",
+          "popularity": 6
+        },
+        {
+          "position": 5,
+          "bracket": 7,
+          "number": 14,
+          "name": "サクラファレル",
+          "sexAge": "牡4",
+          "weight": "57.0",
+          "jockey": "D.レーン",
+          "time": "1:45.6",
+          "margin": "３／４",
+          "cornerPass": [
+            "2",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "33.9",
+          "horseWeight": 516,
+          "horseWeightDiff": -4,
+          "trainer": "堀 宣行",
+          "popularity": 1
+        },
+        {
+          "position": 6,
+          "bracket": 2,
+          "number": 4,
+          "name": "カラマティアノス",
+          "sexAge": "牡4",
+          "weight": "58.0",
+          "jockey": "津村 明秀",
+          "time": "1:45.6",
+          "margin": "ハナ",
+          "cornerPass": [
+            "6",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "33.7",
+          "horseWeight": 474,
+          "horseWeightDiff": -4,
+          "trainer": "奥村 武",
+          "popularity": 3
+        },
+        {
+          "position": 7,
+          "bracket": 4,
+          "number": 8,
+          "name": "シルトホルン",
+          "sexAge": "牡6",
+          "weight": "57.0",
+          "jockey": "大野 拓弥",
+          "time": "1:45.7",
+          "margin": "クビ",
+          "cornerPass": [
+            "3",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "33.7",
+          "horseWeight": 482,
+          "horseWeightDiff": 0,
+          "trainer": "新開 幸一",
+          "popularity": 8
+        },
+        {
+          "position": 8,
+          "bracket": 1,
+          "number": 1,
+          "name": "ジュタ",
+          "sexAge": "牡4",
+          "weight": "57.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:45.8",
+          "margin": "１／２",
+          "cornerPass": [
+            "17",
+            "15",
+            "13"
+          ],
+          "lastFurlong": "33.1",
+          "horseWeight": 504,
+          "horseWeightDiff": 4,
+          "trainer": "矢作 芳人",
+          "popularity": 9
+        },
+        {
+          "position": 9,
+          "bracket": 3,
+          "number": 5,
+          "name": "ジュンブロッサム",
+          "sexAge": "牡7",
+          "weight": "58.0",
+          "jockey": "荻野 極",
+          "time": "1:45.8",
+          "margin": "クビ",
+          "cornerPass": [
+            "12",
+            "13",
+            "13"
+          ],
+          "lastFurlong": "33.2",
+          "horseWeight": 476,
+          "horseWeightDiff": -2,
+          "trainer": "友道 康夫",
+          "popularity": 7
+        },
+        {
+          "position": 10,
+          "bracket": 5,
+          "number": 10,
+          "name": "センツブラッド",
+          "sexAge": "牡4",
+          "weight": "57.0",
+          "jockey": "横山 武史",
+          "time": "1:45.9",
+          "margin": "１／２",
+          "cornerPass": [
+            "3",
+            "2",
+            "2"
+          ],
+          "lastFurlong": "34.2",
+          "horseWeight": 470,
+          "horseWeightDiff": 6,
+          "trainer": "斉藤 崇史",
+          "popularity": 13
+        },
+        {
+          "position": 11,
+          "bracket": 1,
+          "number": 2,
+          "name": "サブマリーナ",
+          "sexAge": "牡5",
+          "weight": "57.0",
+          "jockey": "武 豊",
+          "time": "1:46.0",
+          "margin": "３／４",
+          "cornerPass": [
+            "12",
+            "11",
+            "9"
+          ],
+          "lastFurlong": "33.6",
+          "horseWeight": 478,
+          "horseWeightDiff": 0,
+          "trainer": "庄野 靖志",
+          "popularity": 4
+        },
+        {
+          "position": 12,
+          "bracket": 6,
+          "number": 12,
+          "name": "マイネルモーント",
+          "sexAge": "牡6",
+          "weight": "57.0",
+          "jockey": "丹内 祐次",
+          "time": "1:46.0",
+          "margin": "ハナ",
+          "cornerPass": [
+            "12",
+            "15",
+            "16"
+          ],
+          "lastFurlong": "33.2",
+          "horseWeight": 464,
+          "horseWeightDiff": 0,
+          "trainer": "高木 登",
+          "popularity": 14
+        },
+        {
+          "position": 13,
+          "bracket": 2,
+          "number": 3,
+          "name": "エピファニー",
+          "sexAge": "牡7",
+          "weight": "57.0",
+          "jockey": "杉原 誠人",
+          "time": "1:46.0",
+          "margin": "アタマ",
+          "cornerPass": [
+            "8",
+            "7",
+            "7"
+          ],
+          "lastFurlong": "33.8",
+          "horseWeight": 510,
+          "horseWeightDiff": 2,
+          "trainer": "宮田 敬介",
+          "popularity": 17
+        },
+        {
+          "position": 14,
+          "bracket": 5,
+          "number": 9,
+          "name": "マテンロウレオ",
+          "sexAge": "牡7",
+          "weight": "57.0",
+          "jockey": "横山 典弘",
+          "time": "1:46.1",
+          "margin": "クビ",
+          "cornerPass": [
+            "6",
+            "4",
+            "4"
+          ],
+          "lastFurlong": "34.2",
+          "horseWeight": 478,
+          "horseWeightDiff": -14,
+          "trainer": "昆 貢",
+          "popularity": 11
+        },
+        {
+          "position": 15,
+          "bracket": 7,
+          "number": 13,
+          "name": "オニャンコポン",
+          "sexAge": "せん7",
+          "weight": "57.0",
+          "jockey": "菅原 明良",
+          "time": "1:46.3",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "12",
+            "11",
+            "12"
+          ],
+          "lastFurlong": "33.8",
+          "horseWeight": 474,
+          "horseWeightDiff": 4,
+          "trainer": "小島 茂之",
+          "popularity": 16
+        },
+        {
+          "position": 16,
+          "bracket": 8,
+          "number": 15,
+          "name": "ストレイトトーカー",
+          "sexAge": "牡4",
+          "weight": "57.0",
+          "jockey": "田辺 裕信",
+          "time": "1:46.4",
+          "margin": "１／２",
+          "cornerPass": [
+            "1",
+            "1",
+            "1"
+          ],
+          "lastFurlong": "34.7",
+          "horseWeight": 482,
+          "horseWeightDiff": -4,
+          "trainer": "岩戸 孝樹",
+          "popularity": 12
+        },
+        {
+          "position": 17,
+          "bracket": 4,
+          "number": 7,
+          "name": "オクタヴィアヌス",
+          "sexAge": "牡6",
+          "weight": "57.0",
+          "jockey": "北村 宏司",
+          "time": "1:46.9",
+          "margin": "３",
+          "cornerPass": [
+            "11",
+            "13",
+            "13"
+          ],
+          "lastFurlong": "34.3",
+          "horseWeight": 518,
+          "horseWeightDiff": 0,
+          "trainer": "木村 哲也",
+          "popularity": 15
+        }
+      ],
+      "halonTime": "12.5 - 11.5 - 11.4 - 11.9 - 12.3 - 12.1 - 11.4 - 11.0 - 11.2",
+      "upper": "4F 45.7 - 3F 33.6",
+      "cornerPassDetail": {
+        "corner3": "(*15,14,10)(4,8,9)(3,16)(6,11)(2,13)(5,7)(1,12)17",
+        "corner4": "(*15,14,10)(4,8,9)(3,16)(2,6,11)13(1,5,7)12,17"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "11",
+            "payout": 410,
+            "popularity": 2
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "11",
+            "payout": 190,
+            "popularity": 2
+          },
+          {
+            "combination": "16",
+            "payout": 460,
+            "popularity": 6
+          },
+          {
+            "combination": "17",
+            "payout": 590,
+            "popularity": 7
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "6-8",
+            "payout": 1620,
+            "popularity": 7
+          }
+        ],
+        "wide": [
+          {
+            "combination": "11-16",
+            "payout": 1450,
+            "popularity": 14
+          },
+          {
+            "combination": "11-17",
+            "payout": 1780,
+            "popularity": 21
+          },
+          {
+            "combination": "16-17",
+            "payout": 5320,
+            "popularity": 51
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "11-16",
+            "payout": 3880,
+            "popularity": 13
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "11-16",
+            "payout": 5440,
+            "popularity": 17
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "11-16-17",
+            "payout": 27400,
+            "popularity": 90
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "11-16-17",
+            "payout": 108330,
+            "popularity": 336
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "11-16",
+        "payout": 5440,
+        "popularity": 17
+      },
+      "isHit": false
+    },
+    {
+      "raceNumber": 12,
+      "raceName": "4歳以上2勝クラス",
+      "raceCategory": "4歳以上",
+      "raceClass": "2勝クラス",
+      "distance": 1400,
+      "trackInfo": "ダート・左",
+      "startTime": "16:30",
+      "weather": "晴",
+      "trackCondition": "良",
+      "venue": "東京",
+      "venueCode": "TOK",
+      "date": "2026-05-09",
+      "results": [
+        {
+          "position": 1,
+          "bracket": 2,
+          "number": 3,
+          "name": "モーニングマジック",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "三浦 皇成",
+          "time": "1:25.2",
+          "margin": null,
+          "cornerPass": [
+            "2",
+            "2"
+          ],
+          "lastFurlong": "36.6",
+          "horseWeight": 540,
+          "horseWeightDiff": 12,
+          "trainer": "武藤 善則",
+          "popularity": 1
+        },
+        {
+          "position": 2,
+          "bracket": 6,
+          "number": 11,
+          "name": "フィドルファドル",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "戸崎 圭太",
+          "time": "1:25.4",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "5",
+            "5"
+          ],
+          "lastFurlong": "36.2",
+          "horseWeight": 478,
+          "horseWeightDiff": 10,
+          "trainer": "矢作 芳人",
+          "popularity": 5
+        },
+        {
+          "position": 3,
+          "bracket": 6,
+          "number": 12,
+          "name": "ベルブリエ",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "岩田 康誠",
+          "time": "1:25.6",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "14",
+            "13"
+          ],
+          "lastFurlong": "35.7",
+          "horseWeight": 468,
+          "horseWeightDiff": 2,
+          "trainer": "尾関 知人",
+          "popularity": 14
+        },
+        {
+          "position": 4,
+          "bracket": 8,
+          "number": 16,
+          "name": "プチブール",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "丹内 祐次",
+          "time": "1:25.6",
+          "margin": "クビ",
+          "cornerPass": [
+            "12",
+            "10"
+          ],
+          "lastFurlong": "35.9",
+          "horseWeight": 452,
+          "horseWeightDiff": 2,
+          "trainer": "松尾 卓哉",
+          "popularity": 6
+        },
+        {
+          "position": 5,
+          "bracket": 1,
+          "number": 1,
+          "name": "アクアマリーナ",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "佐々木 大輔",
+          "time": "1:25.6",
+          "margin": "ハナ",
+          "cornerPass": [
+            "1",
+            "1"
+          ],
+          "lastFurlong": "37.1",
+          "horseWeight": 474,
+          "horseWeightDiff": 8,
+          "trainer": "伊坂 重信",
+          "popularity": 4
+        },
+        {
+          "position": 6,
+          "bracket": 4,
+          "number": 8,
+          "name": "ホウショウマリス",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "武 豊",
+          "time": "1:25.7",
+          "margin": "クビ",
+          "cornerPass": [
+            "3",
+            "3"
+          ],
+          "lastFurlong": "36.8",
+          "horseWeight": 448,
+          "horseWeightDiff": -10,
+          "trainer": "井上 智史",
+          "popularity": 2
+        },
+        {
+          "position": 7,
+          "bracket": 3,
+          "number": 5,
+          "name": "アルジェンタージョ",
+          "sexAge": "牝5",
+          "weight": "53.0",
+          "jockey": "佐藤 翔馬",
+          "time": "1:25.7",
+          "margin": "ハナ",
+          "cornerPass": [
+            "7",
+            "7"
+          ],
+          "lastFurlong": "36.3",
+          "horseWeight": 460,
+          "horseWeightDiff": -2,
+          "trainer": "伊藤 圭三",
+          "popularity": 8
+        },
+        {
+          "position": 8,
+          "bracket": 5,
+          "number": 9,
+          "name": "ドナカルナバル",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "江田 照男",
+          "time": "1:25.7",
+          "margin": "ハナ",
+          "cornerPass": [
+            "3",
+            "4"
+          ],
+          "lastFurlong": "36.7",
+          "horseWeight": 484,
+          "horseWeightDiff": -4,
+          "trainer": "高木 登",
+          "popularity": 12
+        },
+        {
+          "position": 9,
+          "bracket": 3,
+          "number": 6,
+          "name": "クインズポラリス",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "田辺 裕信",
+          "time": "1:25.7",
+          "margin": "クビ",
+          "cornerPass": [
+            "11",
+            "10"
+          ],
+          "lastFurlong": "36.0",
+          "horseWeight": 504,
+          "horseWeightDiff": 2,
+          "trainer": "上原 博之",
+          "popularity": 9
+        },
+        {
+          "position": 10,
+          "bracket": 7,
+          "number": 14,
+          "name": "ワイノナオミ",
+          "sexAge": "牝5",
+          "weight": "56.0",
+          "jockey": "荻野 極",
+          "time": "1:25.8",
+          "margin": "１／２",
+          "cornerPass": [
+            "9",
+            "7"
+          ],
+          "lastFurlong": "36.3",
+          "horseWeight": 468,
+          "horseWeightDiff": -8,
+          "trainer": "畑端 省吾",
+          "popularity": 7
+        },
+        {
+          "position": 11,
+          "bracket": 2,
+          "number": 4,
+          "name": "レディゴディヴァ",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "石橋 脩",
+          "time": "1:25.9",
+          "margin": "クビ",
+          "cornerPass": [
+            "6",
+            "7"
+          ],
+          "lastFurlong": "36.5",
+          "horseWeight": 432,
+          "horseWeightDiff": -10,
+          "trainer": "小崎 憲",
+          "popularity": 15
+        },
+        {
+          "position": 12,
+          "bracket": 8,
+          "number": 15,
+          "name": "ヴァリオーサ",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "津村 明秀",
+          "time": "1:26.1",
+          "margin": "１ 1/2",
+          "cornerPass": [
+            "7",
+            "5"
+          ],
+          "lastFurlong": "36.8",
+          "horseWeight": 478,
+          "horseWeightDiff": 2,
+          "trainer": "武 幸四郎",
+          "popularity": 13
+        },
+        {
+          "position": 13,
+          "bracket": 7,
+          "number": 13,
+          "name": "オカメノコイ",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "大野 拓弥",
+          "time": "1:26.1",
+          "margin": "ハナ",
+          "cornerPass": [
+            "15",
+            "15"
+          ],
+          "lastFurlong": "36.0",
+          "horseWeight": 470,
+          "horseWeightDiff": -2,
+          "trainer": "小笠 倫弘",
+          "popularity": 10
+        },
+        {
+          "position": 14,
+          "bracket": 1,
+          "number": 2,
+          "name": "ラヴァブル",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "松若 風馬",
+          "time": "1:26.3",
+          "margin": "１",
+          "cornerPass": [
+            "16",
+            "16"
+          ],
+          "lastFurlong": "35.8",
+          "horseWeight": 498,
+          "horseWeightDiff": 2,
+          "trainer": "松下 武士",
+          "popularity": 11
+        },
+        {
+          "position": 15,
+          "bracket": 5,
+          "number": 10,
+          "name": "オーロラアーク",
+          "sexAge": "牝7",
+          "weight": "56.0",
+          "jockey": "柴田 大知",
+          "time": "1:26.4",
+          "margin": "１／２",
+          "cornerPass": [
+            "12",
+            "13"
+          ],
+          "lastFurlong": "36.5",
+          "horseWeight": 456,
+          "horseWeightDiff": -11,
+          "trainer": "石栗 龍彦",
+          "popularity": 16
+        },
+        {
+          "position": 16,
+          "bracket": 4,
+          "number": 7,
+          "name": "ヴィンブルレー",
+          "sexAge": "牝4",
+          "weight": "56.0",
+          "jockey": "横山 武史",
+          "time": "1:26.6",
+          "margin": "１ 1/4",
+          "cornerPass": [
+            "9",
+            "10"
+          ],
+          "lastFurlong": "37.0",
+          "horseWeight": 468,
+          "horseWeightDiff": 2,
+          "trainer": "矢野 英一",
+          "popularity": 3
+        }
+      ],
+      "halonTime": "12.3 - 11.4 - 12.1 - 12.7 - 12.5 - 11.7 - 12.5",
+      "upper": "4F 49.4 - 3F 36.7",
+      "cornerPassDetail": {
+        "corner3": "1,3(8,9)11,4(5,15)(7,14)6(10,16)-12,13-2",
+        "corner4": "1,3,8,9(11,15)(4,5,14)(6,7,16)(12,10)13-2"
+      },
+      "payouts": {
+        "tansho": [
+          {
+            "combination": "3",
+            "payout": 270,
+            "popularity": 1
+          }
+        ],
+        "fukusho": [
+          {
+            "combination": "3",
+            "payout": 130,
+            "popularity": 1
+          },
+          {
+            "combination": "11",
+            "payout": 320,
+            "popularity": 5
+          },
+          {
+            "combination": "12",
+            "payout": 2320,
+            "popularity": 14
+          }
+        ],
+        "wakuren": [
+          {
+            "combination": "2-6",
+            "payout": 1820,
+            "popularity": 8
+          }
+        ],
+        "wide": [
+          {
+            "combination": "3-11",
+            "payout": 810,
+            "popularity": 7
+          },
+          {
+            "combination": "3-12",
+            "payout": 6790,
+            "popularity": 52
+          },
+          {
+            "combination": "11-12",
+            "payout": 16660,
+            "popularity": 79
+          }
+        ],
+        "umaren": [
+          {
+            "combination": "3-11",
+            "payout": 1910,
+            "popularity": 5
+          }
+        ],
+        "umatan": [
+          {
+            "combination": "3-11",
+            "payout": 3160,
+            "popularity": 10
+          }
+        ],
+        "sanrenpuku": [
+          {
+            "combination": "3-11-12",
+            "payout": 74670,
+            "popularity": 153
+          }
+        ],
+        "sanrentan": [
+          {
+            "combination": "3-11-12",
+            "payout": 217550,
+            "popularity": 563
+          }
+        ]
+      },
+      "umatan": {
+        "combination": "3-11",
+        "payout": 3160,
+        "popularity": 10
+      },
+      "isHit": false
+    }
+  ]
+}

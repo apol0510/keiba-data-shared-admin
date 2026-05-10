@@ -111,8 +111,10 @@ export function extractDarkHorses(race) {
     const gap = popularityRank - indexRank;
     if (gap <= 0) continue; // 指数の方が上位でなければ対象外
 
-    // 前走着順
-    const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0 ? h.pastRaces[0] : null;
+    // 前走着順（pastRaces は古い順→新しい順で格納されるため、最新は配列末尾）
+    const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0
+      ? h.pastRaces[h.pastRaces.length - 1]
+      : null;
     const lastFinish = extractLastFinish(pr);
 
     // スコア計算
@@ -201,7 +203,9 @@ function buildFallbackPicks(horses, indexRankMap) {
   const picks = [...tier1.sort(sortByRank), ...tier2.sort(sortByRank)].slice(0, 3);
 
   return picks.map(({ h, indexRank, popularityRank }) => {
-    const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0 ? h.pastRaces[0] : null;
+    const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0
+      ? h.pastRaces[h.pastRaces.length - 1]
+      : null;
     const lastFinish = extractLastFinish(pr);
     const isValue = lastFinish != null && lastFinish <= 3;
     return {

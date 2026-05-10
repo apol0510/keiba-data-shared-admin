@@ -1479,6 +1479,7 @@ export const prerender = false;
         if (!VENUE_NAMES_RE.test(venueLine)) break;
 
         const finishLine = hLines[cursor + 1]?.trim() || '';
+        const finishOnlyLine = hLines[cursor + 2]?.trim() || '';
         const classDistLine = hLines[cursor + 3]?.trim() || '';
         const timeLine = hLines[cursor + 4]?.trim() || '';
         const detailLine = hLines[cursor + 5]?.trim() || '';
@@ -1486,21 +1487,29 @@ export const prerender = false;
         const paceLine = hLines[cursor + 7]?.trim() || '';
         const winnerLine = hLines[cursor + 9]?.trim() || '';
 
-        // 着順: 先頭の丸数字 or 数字
+        // 着順: cursor+2 行（独立した数字行）を最優先で読む。
+        // cursor+1 行頭の丸数字（①〜⑱/❶〜❿）は着順ではなく
+        // 別の指標（レース番号などのマーカー）であるため、フォールバックでのみ使用。
         let finish = null;
-        const circledMatch = finishLine.match(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿]/);
-        if (circledMatch) {
-          const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
-          const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
-          let idx = CIRCLED_ALL.indexOf(circledMatch[0]);
-          if (idx >= 0) finish = String(idx + 1);
-          else {
-            idx = DINGBAT.indexOf(circledMatch[0]);
-            if (idx >= 0) finish = String(idx + 1);
-          }
+        const standaloneMatch = finishOnlyLine.match(/^(\d{1,2})$/);
+        if (standaloneMatch) {
+          finish = standaloneMatch[1];
         } else {
-          const numMatch = finishLine.match(/^(\d{1,2})\s/);
-          if (numMatch) finish = numMatch[1];
+          // フォールバック: cursor+1 行頭の丸数字 or 数字
+          const circledMatch = finishLine.match(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿]/);
+          if (circledMatch) {
+            const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
+            const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
+            let idx = CIRCLED_ALL.indexOf(circledMatch[0]);
+            if (idx >= 0) finish = String(idx + 1);
+            else {
+              idx = DINGBAT.indexOf(circledMatch[0]);
+              if (idx >= 0) finish = String(idx + 1);
+            }
+          } else {
+            const numMatch = finishLine.match(/^(\d{1,2})\s/);
+            if (numMatch) finish = numMatch[1];
+          }
         }
 
         // クラス+距離: "Ｃ3 ダ2000" / "Ｃ3 ダ外2000"（内/外/右/左コース付き）にも対応

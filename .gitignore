@@ -33,3 +33,7 @@ dist
 
 # JV-Link CLI 出力
 /tmp/jra-shared/
+
+# ローカル作業用の一時ファイル（デバッグ・JV-Link 加工途中など）
+tmp/
+urls.txt

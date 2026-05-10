@@ -5,6 +5,7 @@
  */
 
 import { dispatchToTargets } from '../lib/dispatch.mjs';
+import { applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
 
 export const handler = async (event) => {
   const headers = {
@@ -316,17 +317,42 @@ async function backfillComputerFile(data) {
       }
     }
 
-    if (updated === 0) {
+    // pastRaces 不足を計算（computer-manager → race-data-importer の順で保存されたケース対応）
+    let pastRacesAdded = 0;
+    for (const compiRace of compiJson.races) {
+      const rbRace = data.races.find(r => r.raceNumber === compiRace.raceNumber);
+      if (!rbRace) continue;
+      for (const compiHorse of compiRace.horses || []) {
+        if (Array.isArray(compiHorse.pastRaces) && compiHorse.pastRaces.length > 0) continue;
+        const rbHorse = rbRace.horses?.find(h => String(h.number) === String(compiHorse.number))
+          || rbRace.horses?.find(h => h.name && h.name === compiHorse.name);
+        if (rbHorse?.pastRaces?.length > 0) pastRacesAdded++;
+      }
+    }
+
+    if (updated === 0 && pastRacesAdded === 0) {
       console.log('[Backfill] 補完対象なし、スキップ');
       return;
     }
 
-    compiJson.backfilledFrom = 'racebook';
-    compiJson.backfilledAt = new Date().toISOString();
+    // pastRaces 不足があれば racebook 由来の pastRaces をマージし darkHorses を再抽出
+    let finalJson = compiJson;
+    if (pastRacesAdded > 0) {
+      finalJson = applyDarkHorsesToComputerData(compiJson, data);
+      const totalDh = finalJson.races.reduce((s, r) => s + (r.darkHorses?.length || 0), 0);
+      console.log(`[Backfill] pastRaces ${pastRacesAdded}頭分を補完 → darkHorses ${totalDh}頭を再抽出`);
+    }
+
+    finalJson.backfilledFrom = 'racebook';
+    finalJson.backfilledAt = new Date().toISOString();
+
+    const commitMsg = pastRacesAdded > 0
+      ? `🔄 racebook→コンピ指数 逆補完（騎手/調教師${updated}件 + pastRaces${pastRacesAdded}件→穴馬再抽出）: ${date} ${data.track}`
+      : `🔄 コンピ指数へ騎手/調教師を逆補完: ${date} ${data.track}`;
 
     const putPayload = {
-      message: `🔄 コンピ指数へ騎手/調教師を逆補完: ${date} ${data.track}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`,
-      content: Buffer.from(JSON.stringify(compiJson, null, 2)).toString('base64'),
+      message: `${commitMsg}\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)`,
+      content: Buffer.from(JSON.stringify(finalJson, null, 2)).toString('base64'),
       branch: 'main',
       sha
     };
@@ -342,7 +368,7 @@ async function backfillComputerFile(data) {
     });
 
     if (putRes.ok) {
-      console.log(`[Backfill] コンピ指数更新成功: ${updated}頭補完`);
+      console.log(`[Backfill] コンピ指数更新成功: 騎手等${updated}件 / pastRaces ${pastRacesAdded}件`);
     } else {
       const errTxt = await putRes.text();
       console.warn(`[Backfill] 更新失敗: ${putRes.status} ${errTxt}`);

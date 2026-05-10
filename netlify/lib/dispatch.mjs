@@ -63,6 +63,18 @@ export async function dispatchToRepo(repo, eventType, payload, token) {
 }
 
 /**
+ * analytics-keiba のみに dispatch（穴馬抽出ツール専用イベント等で使用）
+ * @returns {Promise<{repo:string, ok:boolean, status?:number, skipped?:boolean, error?:string}>}
+ */
+export async function dispatchToAnalyticsKeiba(eventType, payload) {
+  const token =
+    process.env.ANALYTICS_KEIBA_TOKEN ||
+    process.env.KEIBA_INTELLIGENCE_TOKEN ||
+    process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+  return dispatchToRepo('analytics-keiba', eventType, payload, token);
+}
+
+/**
  * keiba-intelligence と analytics-keiba の両方へ並列 dispatch。
  * 両方の fetch 完了を待ってから resolve する（Netlify freeze 対策）。
  * @returns {Promise<{triggered:string[], results:Array}>}

@@ -4,7 +4,7 @@
  * パス: jra/racebook/YYYY/MM/YYYY-MM-DD-{venueCode}.json
  */
 
-import { dispatchToTargets } from '../lib/dispatch.mjs';
+import { dispatchToTargets, dispatchToAnalyticsKeiba } from '../lib/dispatch.mjs';
 import { applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
 
 export const handler = async (event) => {
@@ -51,7 +51,19 @@ export const handler = async (event) => {
 
     // 既存のコンピ指数ファイルへ騎手/調教師/斤量/性齢を逆補完
     // （computer-manager → race-data-importer の順で保存されたケースに対応）
-    await backfillComputerFile(data);
+    const backfillResult = await backfillComputerFile(data);
+    // backfill により computer JSON が更新された場合、analytics-keiba へ dispatch
+    if (backfillResult?.updated) {
+      const cat = data.category || 'jra';
+      if (cat === 'jra' || cat === 'nankan') {
+        await dispatchToAnalyticsKeiba('computer-updated', {
+          category: cat,
+          date: data.date,
+          venueCode: data.trackCode,
+          path: backfillResult.filePath,
+        });
+      }
+    }
 
     // repository_dispatch: keiba-intelligence + analytics-keiba へ並列送信
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
@@ -268,7 +280,7 @@ async function backfillComputerFile(data) {
 
   if (!token) {
     console.log('[Backfill] token未設定、スキップ');
-    return;
+    return { updated: false };
   }
 
   const compiPath = `${cat}/predictions/computer/${year}/${month}/${date}-${trackCode}.json`;
@@ -284,7 +296,7 @@ async function backfillComputerFile(data) {
 
     if (!getRes.ok) {
       console.log(`[Backfill] コンピ指数ファイルなし、スキップ: ${compiPath}`);
-      return;
+      return { updated: false, filePath: compiPath };
     }
 
     const fileData = await getRes.json();
@@ -293,7 +305,7 @@ async function backfillComputerFile(data) {
 
     if (!compiJson?.races?.length) {
       console.log('[Backfill] races配列なし、スキップ');
-      return;
+      return { updated: false, filePath: compiPath };
     }
 
     let updated = 0;
@@ -332,7 +344,7 @@ async function backfillComputerFile(data) {
 
     if (updated === 0 && pastRacesAdded === 0) {
       console.log('[Backfill] 補完対象なし、スキップ');
-      return;
+      return { updated: false, filePath: compiPath };
     }
 
     // pastRaces 不足があれば racebook 由来の pastRaces をマージし darkHorses を再抽出
@@ -369,12 +381,15 @@ async function backfillComputerFile(data) {
 
     if (putRes.ok) {
       console.log(`[Backfill] コンピ指数更新成功: 騎手等${updated}件 / pastRaces ${pastRacesAdded}件`);
+      return { updated: true, filePath: compiPath, jockeyEtcUpdated: updated, pastRacesAdded };
     } else {
       const errTxt = await putRes.text();
       console.warn(`[Backfill] 更新失敗: ${putRes.status} ${errTxt}`);
+      return { updated: false, filePath: compiPath };
     }
   } catch (err) {
     console.warn('[Backfill] エラー（続行）:', err.message);
+    return { updated: false, filePath: compiPath };
   }
 }
 

@@ -4,6 +4,7 @@
  */
 
 import { fetchRacebookData, findRacebookHorse, applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
+import { dispatchToAnalyticsKeiba } from '../lib/dispatch.mjs';
 
 export const handler = async (event) => {
   const headers = {
@@ -38,10 +39,24 @@ export const handler = async (event) => {
 
     console.log(`[Save Computer] 完了: ${result.filePath}`);
 
+    // analytics-keiba への repository_dispatch（/dark-horse-picks 自動取込用）
+    // JRA / 南関のみ対象。地方は穴馬抽出対象外なので skip。
+    // Netlify Functions は handler return で freeze するため必ず await する。
+    let dispatchResult = null;
+    const cat = enrichedData.category;
+    if (cat === 'jra' || cat === 'nankan') {
+      dispatchResult = await dispatchToAnalyticsKeiba('computer-updated', {
+        category: cat,
+        date: enrichedData.date,
+        venueCode: enrichedData.venueCode,
+        path: result.filePath,
+      });
+    }
+
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(result)
+      body: JSON.stringify({ ...result, dispatch: dispatchResult })
     };
 
   } catch (error) {

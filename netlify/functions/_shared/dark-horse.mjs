@@ -290,10 +290,13 @@ export function applyDarkHorsesToComputerData(computerData, racebookData) {
   const generatedAt = new Date().toISOString();
   const enrichedRaces = (computerData.races || []).map(race => {
     const enrichedHorses = (race.horses || []).map(h => {
-      // 既に pastRaces があれば優先、なければ racebook から取得
-      if (Array.isArray(h.pastRaces) && h.pastRaces.length > 0) return h;
+      // racebook 側に同じ馬のより充実した pastRaces があれば差し替える
+      // （racebook の再ペーストでパース改善された場合に追従するため）
       const rh = findRacebookHorse(racebookData, race.raceNumber, h);
-      return { ...h, pastRaces: rh?.pastRaces || [] };
+      const currentPr = Array.isArray(h.pastRaces) ? h.pastRaces : [];
+      const rbPr = Array.isArray(rh?.pastRaces) ? rh.pastRaces : [];
+      const pastRaces = rbPr.length > currentPr.length ? rbPr : currentPr;
+      return { ...h, pastRaces };
     });
     const raceForExtract = { ...race, horses: enrichedHorses };
     const darkHorses = extractDarkHorses(raceForExtract);

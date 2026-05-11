@@ -335,10 +335,12 @@ async function backfillComputerFile(data) {
       const rbRace = data.races.find(r => r.raceNumber === compiRace.raceNumber);
       if (!rbRace) continue;
       for (const compiHorse of compiRace.horses || []) {
-        if (Array.isArray(compiHorse.pastRaces) && compiHorse.pastRaces.length > 0) continue;
         const rbHorse = rbRace.horses?.find(h => String(h.number) === String(compiHorse.number))
           || rbRace.horses?.find(h => h.name && h.name === compiHorse.name);
-        if (rbHorse?.pastRaces?.length > 0) pastRacesAdded++;
+        const currentLen = Array.isArray(compiHorse.pastRaces) ? compiHorse.pastRaces.length : 0;
+        const rbLen = Array.isArray(rbHorse?.pastRaces) ? rbHorse.pastRaces.length : 0;
+        // racebook 側の pastRaces が現状より充実している場合に更新対象とみなす
+        if (rbLen > currentLen) pastRacesAdded++;
       }
     }
 

@@ -264,7 +264,8 @@ function buildFallbackPicks(horses, indexRankMap) {
   return [{
     number: h.number,
     name: h.name,
-    popularityRank: popularityRank || indexRank,
+    // popularity 欠損レースでは null のまま保持する（indexRank で偽装しない）
+    popularityRank: popularityRank ?? null,
     indexRank,
     gap: gap > 0 ? gap : 0,
     lastFinish,

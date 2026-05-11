@@ -117,6 +117,9 @@ export function extractDarkHorses(race) {
       : null;
     const lastFinish = extractLastFinish(pr);
 
+    // 前走1着馬は穴馬・妙味馬候補から除外（穴馬ページの趣旨にそぐわない）
+    if (lastFinish === 1) continue;
+
     // スコア計算
     const gapScore = gap * 10;
     let finishScore = 0;
@@ -200,7 +203,16 @@ function buildFallbackPicks(horses, indexRankMap) {
   const tier1 = annotated.filter(x => x.indexRank >= 3 && x.indexRank <= 5);
   const tier2 = annotated.filter(x => x.indexRank >= 6 && x.indexRank <= 7);
   const sortByRank = (a, b) => a.indexRank - b.indexRank;
-  const picks = [...tier1.sort(sortByRank), ...tier2.sort(sortByRank)].slice(0, 3);
+  // 前走1着馬は除外。3頭埋まらなければ 2頭以下のままで返す（無理に1着馬を入れない）
+  const candidatePool = [...tier1.sort(sortByRank), ...tier2.sort(sortByRank)];
+  const picks = candidatePool
+    .filter(({ h }) => {
+      const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0
+        ? h.pastRaces[h.pastRaces.length - 1]
+        : null;
+      return extractLastFinish(pr) !== 1;
+    })
+    .slice(0, 3);
 
   return picks.map(({ h, indexRank, popularityRank }) => {
     const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0

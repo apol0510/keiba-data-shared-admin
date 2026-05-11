@@ -1471,21 +1471,30 @@ export const prerender = false;
         cursor++;
       }
 
-      // 近走データ: 10行×n走
+      // 近走データ: 南関 10行 / 中央(JRA) 11行 × n走
+      // JRA レースは +5 に上がり3F等の指数行（例: "C38.3" / "Ｃ38.3"）が
+      // 余分に挟まるので、検出して 1 行ずらす。
       const pastRaces = [];
       const MAX_PAST = 6;
       while (cursor + 9 < hLines.length && pastRaces.length < MAX_PAST) {
         const venueLine = hLines[cursor]?.trim() || '';
         if (!VENUE_NAMES_RE.test(venueLine)) break;
 
+        const candidateCorner = hLines[cursor + 5]?.trim() || '';
+        const isJraExtraLine = /^[CＣ][\d.]+$/.test(candidateCorner);
+        const offset = isJraExtraLine ? 1 : 0;
+
+        // JRA 11 行ブロックの場合、winnerLine は cursor+10。境界外なら break。
+        if (cursor + 9 + offset >= hLines.length) break;
+
         const finishLine = hLines[cursor + 1]?.trim() || '';
         const finishOnlyLine = hLines[cursor + 2]?.trim() || '';
         const classDistLine = hLines[cursor + 3]?.trim() || '';
         const timeLine = hLines[cursor + 4]?.trim() || '';
-        const detailLine = hLines[cursor + 5]?.trim() || '';
-        const jkWeightLine = hLines[cursor + 6]?.trim() || '';
-        const paceLine = hLines[cursor + 7]?.trim() || '';
-        const winnerLine = hLines[cursor + 9]?.trim() || '';
+        const detailLine = hLines[cursor + 5 + offset]?.trim() || '';
+        const jkWeightLine = hLines[cursor + 6 + offset]?.trim() || '';
+        const paceLine = hLines[cursor + 7 + offset]?.trim() || '';
+        const winnerLine = hLines[cursor + 9 + offset]?.trim() || '';
 
         // 着順: cursor+2 行（独立した数字行）を最優先で読む。
         // cursor+1 行頭の丸数字（①〜⑱/❶〜❿）は着順ではなく
@@ -1560,7 +1569,8 @@ export const prerender = false;
           jockey: prJockey, bodyWeight, paceType, paceRank, final3F, winner
         });
 
-        cursor += 10;
+        // 南関 10 行 / JRA 11 行
+        cursor += 10 + offset;
       }
 
       return {

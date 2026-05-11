@@ -5,12 +5,17 @@
  * - preview と save で判定ロジックがズレないようにする
  * - データ欠損で処理が落ちないよう、null セーフに実装
  *
- * 抽出方針（2026-05-11 改訂）:
- * - 必須条件: popularityRank > indexRank（gap >= 1）
- * - 前走1着は完全除外
- * - 前走2着は原則除外、例外として gap >= 4 かつ indexRank 3〜6 のみ補完候補
- * - 前走着順優先度: 6〜9着 > 10〜12着 > 4〜5着 > 3着
- * - 穴馬と妙味馬の上昇余地を最大化する設計
+ * 抽出方針（2026-05-12 改訂）:
+ * - 必須条件:
+ *   - popularityRank !== 1（人気1位を除外）
+ *   - computerIndex > 50
+ *   - lastFinish !== 1
+ *   - lastFinish !== 2
+ *   - popularityRank > indexRank（gap >= 1）
+ * - 通常抽出の優先度: 6〜9着 > 10〜12着 > 3〜5着
+ * - 通常抽出 0 頭のレースは fallback で最低 1 頭確保。
+ *   fallback でも 人気1位 / 前走連対 は絶対除外。指数50以下は最後にだけ緩和可能。
+ * - fallback は category='fallback'（画面では「注目候補」表示）。
  */
 
 /**
@@ -84,40 +89,40 @@ export function extractLastFinish(pastRace) {
 
 /**
  * 前走着順の優先度（小さいほど優先）
- * 6〜9着 > 10〜12着 > 4〜5着 > 3着 > 13着〜 > null > 例外2着
+ * 通常抽出: 6〜9着 > 10〜12着 > 3〜5着
+ * fallback: 6〜12着 > 3〜5着 > その他
  */
-function getFinishPriority(lf, isExceptional2nd = false) {
-  if (isExceptional2nd) return 7;
-  if (lf == null) return 6;
+function getNormalFinishPriority(lf) {
+  if (lf == null) return 99;
   if (lf >= 6 && lf <= 9) return 1;
   if (lf >= 10 && lf <= 12) return 2;
   if (lf === 4 || lf === 5) return 3;
   if (lf === 3) return 4;
-  if (lf >= 13) return 5;
-  return 8;
+  return 99;
+}
+
+function getFallbackFinishPriority(lf) {
+  if (lf == null) return 5;
+  if (lf >= 6 && lf <= 12) return 1;
+  if (lf === 3 || lf === 4 || lf === 5) return 2;
+  if (lf >= 13) return 3;
+  return 4;
 }
 
 /**
  * 1レース分の馬データから穴馬候補を抽出
  *
- * 必須条件:
+ * 通常抽出（必須条件すべて満たす馬のみ）:
+ * - popularityRank !== 1
+ * - computerIndex > 50
+ * - lastFinish !== 1
+ * - lastFinish !== 2
  * - popularityRank > indexRank（gap >= 1）
- * - 前走1着は完全除外
- * - 前走2着は原則除外、例外は gap >= 4 かつ indexRank 3〜6 のみ
  *
- * スコア:
- *   gapScore = gap × 10
- *   finishScore:
- *     6〜9着: +30 / 10〜12着: +22 / 4〜5着: +16 / 3着: +8
- *     2着(例外): -15 / 13着〜: +5 / null: 0
- *   indexRankBonus: 3〜6位: +5 / 1〜2位: -10
- *
- * カテゴリ:
- *   穴馬: 前走6〜9着 かつ gap >= 2
- *   妙味馬: 前走3〜5着 or 10〜12着 or 例外2着
+ * 通常抽出が 0 頭の場合のみ fallback で最低 1 頭を確保。
  *
  * @param {object} race - { horses: [{ number, name, computerIndex, popularity, pastRaces }] }
- * @returns {Array<object>} 穴馬候補（最大3頭、優先度→スコア降順）
+ * @returns {Array<object>}
  */
 export function extractDarkHorses(race) {
   const horses = Array.isArray(race?.horses) ? race.horses : [];
@@ -137,60 +142,45 @@ export function extractDarkHorses(race) {
     const indexRank = indexRankMap.get(String(h.number)) || null;
     if (!popularityRank || !indexRank) continue;
 
+    // 人気1位を除外
+    if (popularityRank === 1) continue;
+
+    // 指数50以下を除外
+    const ci = h.computerIndex != null ? parseFloat(h.computerIndex) : null;
+    if (ci == null || ci <= 50) continue;
+
+    // 必須条件: gap >= 1
     const gap = popularityRank - indexRank;
-    // 必須条件: 人気順位 > 指数順位
     if (gap < 1) continue;
 
-    // 前走着順（pastRaces は古い順→新しい順で格納されるため、最新は配列末尾）
+    // 前走着順
     const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0
       ? h.pastRaces[h.pastRaces.length - 1]
       : null;
     const lastFinish = extractLastFinish(pr);
 
-    // 前走1着は完全除外
-    if (lastFinish === 1) continue;
+    // 前走1着・2着は完全除外
+    if (lastFinish === 1 || lastFinish === 2) continue;
 
-    // 前走2着は原則除外、gap >= 4 かつ indexRank 3〜6 のみ例外として補完候補に許容
-    let isExceptional2nd = false;
-    if (lastFinish === 2) {
-      if (gap >= 4 && indexRank >= 3 && indexRank <= 6) {
-        isExceptional2nd = true;
-      } else {
-        continue;
-      }
-    }
+    // 通常抽出は 前走3〜5 / 6〜9 / 10〜12 のみ
+    const priority = getNormalFinishPriority(lastFinish);
+    if (priority === 99) continue;
 
-    // finishScore
+    // スコア（並び順用）
     let finishScore = 0;
-    if (lastFinish == null) finishScore = 0;
-    else if (lastFinish >= 6 && lastFinish <= 9) finishScore = 30;
+    if (lastFinish >= 6 && lastFinish <= 9) finishScore = 30;
     else if (lastFinish >= 10 && lastFinish <= 12) finishScore = 22;
     else if (lastFinish === 4 || lastFinish === 5) finishScore = 16;
     else if (lastFinish === 3) finishScore = 8;
-    else if (lastFinish === 2) finishScore = -15; // 例外通過時のみ到達
-    else if (lastFinish >= 13) finishScore = 5;
 
-    // indexRank 補正（中位指数を優遇、上位指数は人気サイドに見えるため減点）
     let indexRankBonus = 0;
     if (indexRank >= 3 && indexRank <= 6) indexRankBonus = 5;
     else if (indexRank <= 2) indexRankBonus = -10;
 
-    const gapScore = gap * 10;
-    const score = gapScore + finishScore + indexRankBonus;
+    const score = gap * 10 + finishScore + indexRankBonus;
 
-    // カテゴリ判定
-    // 穴馬: 前走6〜9着 かつ gap >= 2
-    // 妙味馬: それ以外（3〜5着 / 10〜12着 / 13着〜 / 例外2着 / null）
-    let category = 'darkhorse';
-    if (isExceptional2nd) {
-      category = 'value';
-    } else if (lastFinish != null && lastFinish >= 6 && lastFinish <= 9 && gap >= 2) {
-      category = 'darkhorse';
-    } else if (lastFinish != null && lastFinish >= 10 && lastFinish <= 12) {
-      category = 'darkhorse';
-    } else {
-      category = 'value';
-    }
+    // カテゴリ: 穴馬=前走6〜12着 / 妙味馬=前走3〜5着
+    const category = (lastFinish >= 6 && lastFinish <= 12) ? 'darkhorse' : 'value';
 
     candidates.push({
       number: h.number,
@@ -203,19 +193,18 @@ export function extractDarkHorses(race) {
       category,
       computerIndex: h.computerIndex,
       reasons: [],
-      exceptional2nd: isExceptional2nd,
+      exceptional2nd: false,
     });
   }
 
-  // 優先度（前走着順帯）→ スコア降順でソート
+  // 優先度（前走着順帯）→ スコア降順
   candidates.sort((a, b) => {
-    const pa = getFinishPriority(a.lastFinish, a.exceptional2nd);
-    const pb = getFinishPriority(b.lastFinish, b.exceptional2nd);
+    const pa = getNormalFinishPriority(a.lastFinish);
+    const pb = getNormalFinishPriority(b.lastFinish);
     if (pa !== pb) return pa - pb;
     return b.score - a.score;
   });
 
-  // 候補ゼロのときは fallback で救済（中位指数から拾う）
   if (candidates.length === 0) {
     return buildFallbackPicks(horses, indexRankMap);
   }
@@ -224,13 +213,11 @@ export function extractDarkHorses(race) {
 }
 
 /**
- * 通常抽出で候補ゼロの場合の救済ピック
+ * 通常抽出 0 頭の場合の救済ピック（最低 1 頭確保）。
  *
- * gap >= 1 を満たす馬が存在しないレースのみ呼ばれる。
- * 前走1着・前走2着は完全除外（fallback では例外なし）。
- * 前走6〜9着を最優先、次いで 10〜12着 → 4〜5着 → 3着 → 13着以下 → null。
- * 同優先度内では indexRank 3〜6位を優遇。
- * 最大3頭（候補が足りない場合は無理に埋めない）。
+ * 絶対除外: 人気1位 / 前走1着 / 前走2着。
+ * 指数50以下は最初は除外、それでも 0 頭になる場合のみ最後に緩和。
+ * 優先度: 前走6〜12着 > 前走3〜5着 > その他 → indexRank 昇順 → computerIndex 降順。
  */
 function buildFallbackPicks(horses, indexRankMap) {
   if (!Array.isArray(horses) || horses.length === 0) return [];
@@ -240,51 +227,53 @@ function buildFallbackPicks(horses, indexRankMap) {
       const indexRank = indexRankMap.get(String(h.number));
       if (!indexRank) return null;
       const popularityRank = h.popularity != null ? parseInt(h.popularity, 10) : null;
+      const ci = h.computerIndex != null ? parseFloat(h.computerIndex) : null;
       const pr = Array.isArray(h.pastRaces) && h.pastRaces.length > 0
         ? h.pastRaces[h.pastRaces.length - 1]
         : null;
       const lastFinish = extractLastFinish(pr);
-      return { h, indexRank, popularityRank, lastFinish };
+      return { h, indexRank, popularityRank, ci, lastFinish };
     })
     .filter(Boolean)
-    // 前走1着・2着は fallback でも除外
+    // 絶対除外: 人気1位 / 前走1着 / 前走2着
+    .filter(({ popularityRank }) => popularityRank !== 1)
     .filter(({ lastFinish }) => lastFinish !== 1 && lastFinish !== 2);
 
   if (annotated.length === 0) return [];
 
-  // 優先度: 前走着順帯 → indexRank 3〜6位優遇 → indexRank 昇順
-  const sorted = annotated.slice().sort((a, b) => {
-    const pa = getFinishPriority(a.lastFinish);
-    const pb = getFinishPriority(b.lastFinish);
-    if (pa !== pb) return pa - pb;
-    const aMid = a.indexRank >= 3 && a.indexRank <= 6 ? 0 : 1;
-    const bMid = b.indexRank >= 3 && b.indexRank <= 6 ? 0 : 1;
-    if (aMid !== bMid) return aMid - bMid;
-    return a.indexRank - b.indexRank;
-  });
+  const pickOne = (pool) => {
+    if (pool.length === 0) return null;
+    const sorted = pool.slice().sort((a, b) => {
+      const pa = getFallbackFinishPriority(a.lastFinish);
+      const pb = getFallbackFinishPriority(b.lastFinish);
+      if (pa !== pb) return pa - pb;
+      if (a.indexRank !== b.indexRank) return a.indexRank - b.indexRank;
+      return (b.ci ?? 0) - (a.ci ?? 0);
+    });
+    return sorted[0];
+  };
 
-  const picks = sorted.slice(0, 3);
+  // 第一段: 指数 > 50 のなかから選ぶ
+  let pick = pickOne(annotated.filter(({ ci }) => ci != null && ci > 50));
+  // 第二段: 全馬指数50以下のレースだけ最後に緩和
+  if (!pick) pick = pickOne(annotated);
+  if (!pick) return [];
 
-  return picks.map(({ h, indexRank, popularityRank, lastFinish }) => {
-    const gap = popularityRank != null ? popularityRank - indexRank : 0;
-    const isDarkhorse = lastFinish != null && (
-      (lastFinish >= 6 && lastFinish <= 9) ||
-      (lastFinish >= 10 && lastFinish <= 12)
-    );
-    return {
-      number: h.number,
-      name: h.name,
-      popularityRank: popularityRank || indexRank,
-      indexRank,
-      gap: gap > 0 ? gap : 0,
-      lastFinish,
-      score: 50,
-      category: isDarkhorse ? 'darkhorse' : 'value',
-      computerIndex: h.computerIndex,
-      reasons: [],
-      fallback: true,
-    };
-  });
+  const { h, indexRank, popularityRank, lastFinish } = pick;
+  const gap = popularityRank != null ? popularityRank - indexRank : 0;
+  return [{
+    number: h.number,
+    name: h.name,
+    popularityRank: popularityRank || indexRank,
+    indexRank,
+    gap: gap > 0 ? gap : 0,
+    lastFinish,
+    score: 50,
+    category: 'fallback',
+    computerIndex: h.computerIndex,
+    reasons: [],
+    fallback: true,
+  }];
 }
 
 /**

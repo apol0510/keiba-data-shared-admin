@@ -896,6 +896,13 @@ export const prerender = false;
           return -1000;
         }
 
+        // 🔧 FIX: テーブルヘッダー行を除外（レース結果テーブルのカラム名が空白連結された行）
+        // 例: 「上がり3F     上がり4F     ハロンタイム」「コーナー通過順」など
+        const isTableHeader = /上がり[3-4]F|ハロンタイム|コーナー通過順|タイム指数|脚質指数/.test(line);
+        if (isTableHeader) {
+          return -1000;
+        }
+
         // 絶対NG（スコア: -1000）
         if (
           line.includes('賞金') ||

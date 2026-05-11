@@ -750,6 +750,14 @@ export const prerender = false;
             continue;
           }
 
+          // テーブルヘッダー行を除外（レース結果テーブルのカラム名が空白連結された行）
+          // 例: 「上がり3F     上がり4F     ハロンタイム」「コーナー通過順」など
+          const isTableHeader = /上がり[3-4]F|ハロンタイム|コーナー通過順|タイム指数|脚質指数/.test(trimmedLine);
+          if (isTableHeader) {
+            console.log('[extractRaceInfo] テーブルヘッダー行をスキップ:', trimmedLine);
+            continue;
+          }
+
           // カタカナが5文字以上含まれ、適切な長さ（5-50文字）の行を抽出
           const katakanaCount = (trimmedLine.match(/[ァ-ヴ]/g) || []).length;
           if (katakanaCount >= 5 && trimmedLine.length >= 5 && trimmedLine.length <= 50) {

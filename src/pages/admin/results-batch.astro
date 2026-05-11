@@ -742,6 +742,14 @@ export const prerender = false;
             continue;
           }
 
+          // 南関ページ由来のUIノイズ行を除外（動画/映像系リンクのテキスト）
+          // 例: 「リプレイ リプレイ」「ライブ」「ストリーミング」など
+          const isUiNoise = /^(?:リプレイ|ライブ|ストリーミング|オッズ|出走表|レース映像|レース動画|動画|映像)(?:[\s　]+(?:リプレイ|ライブ|ストリーミング|オッズ|出走表|レース映像|レース動画|動画|映像))*$/.test(trimmedLine);
+          if (isUiNoise) {
+            console.log('[extractRaceInfo] UIノイズ行をスキップ:', trimmedLine);
+            continue;
+          }
+
           // カタカナが5文字以上含まれ、適切な長さ（5-50文字）の行を抽出
           const katakanaCount = (trimmedLine.match(/[ァ-ヴ]/g) || []).length;
           if (katakanaCount >= 5 && trimmedLine.length >= 5 && trimmedLine.length <= 50) {

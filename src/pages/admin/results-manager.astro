@@ -888,6 +888,14 @@ export const prerender = false;
       const evaluateRaceNameCandidate = (line) => {
         let score = 0;
 
+        // 🔧 FIX: 南関ページ由来のUIノイズ行を除外（動画/映像系リンクのテキスト）
+        // 例: 「リプレイ」「リプレイ リプレイ」「ライブ」「ストリーミング」など
+        // 同じUI語が空白区切りで複数並ぶケースも含めて除外する
+        const isUiNoise = /^(?:リプレイ|ライブ|ストリーミング|オッズ|出走表|レース映像|レース動画|動画|映像)(?:[\s　]+(?:リプレイ|ライブ|ストリーミング|オッズ|出走表|レース映像|レース動画|動画|映像))*$/.test(line);
+        if (isUiNoise) {
+          return -1000;
+        }
+
         // 絶対NG（スコア: -1000）
         if (
           line.includes('賞金') ||

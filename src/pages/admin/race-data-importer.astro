@@ -1476,91 +1476,148 @@ export const prerender = false;
         cursor++;
       }
 
-      // 近走データ: 南関 10行 / 中央(JRA) 11行 × n走
-      // JRA レースは +5 に上がり3F等の指数行（例: "C38.3" / "Ｃ38.3"）が
-      // 余分に挟まるので、検出して 1 行ずらす。
+      // 近走データ: 可変 block parser
+      //
+      // ブロック境界は固定行数ではなく「次の venueLine」または「通算成績ヘッダ
+      // (`地方通算` / `中央` / `中央通算` / `地方`)」または末尾で決まる。
+      // 各フィールドは位置ではなく内容パターンで抽出するため、海外戦(10行・
+      // ペース行なし)、JRA(11-13行・坂タイム/上がり3F指数/末尾Bマーカー
+      // 混在)、南関(10-11行)、通算成績ブロックの挟み込み、休み明け
+      // (`4休 デビットバ`) など全パターンに堪える。
       const pastRaces = [];
       const MAX_PAST = 6;
-      while (cursor + 9 < hLines.length && pastRaces.length < MAX_PAST) {
-        const venueLine = hLines[cursor]?.trim() || '';
-        if (!VENUE_NAMES_RE.test(venueLine)) break;
 
-        const candidateCorner = hLines[cursor + 5]?.trim() || '';
-        const isJraExtraLine = /^[CＣ][\d.]+$/.test(candidateCorner);
-        const offset = isJraExtraLine ? 1 : 0;
+      // 通算成績ブロックのヘッダ行
+      const PAST_END_MARKERS = /^(地方通算|中央通算|地方|中央)$/;
+      // ブロック内で無視する行（指数・調教タイム・末尾マーカー）
+      const SKIP_IN_BLOCK = [
+        /^[CＣBＢ][\d.]+$/,   // 上がり3F指数行: C40.2 / Ｂ38.0 等
+        /^坂[\d.]+$/,          // 坂路タイム行: 坂53.7 / 坂54.7 等
+        /^[BＢ]$/,             // 末尾Bマーカー（中央レース用脚質指標等）
+      ];
+      const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
+      const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
 
-        // JRA 11 行ブロックの場合、winnerLine は cursor+10。境界外なら break。
-        if (cursor + 9 + offset >= hLines.length) break;
+      while (cursor < hLines.length && pastRaces.length < MAX_PAST) {
+        // 次の venueLine まで進める（途中に通算成績ブロックや空行があってもスキップ）
+        while (cursor < hLines.length) {
+          const t = hLines[cursor]?.trim() || '';
+          if (VENUE_NAMES_RE.test(t)) break;
+          cursor++;
+        }
+        if (cursor >= hLines.length) break;
 
-        const finishLine = hLines[cursor + 1]?.trim() || '';
-        const finishOnlyLine = hLines[cursor + 2]?.trim() || '';
-        const classDistLine = hLines[cursor + 3]?.trim() || '';
-        const timeLine = hLines[cursor + 4]?.trim() || '';
-        const detailLine = hLines[cursor + 5 + offset]?.trim() || '';
-        const jkWeightLine = hLines[cursor + 6 + offset]?.trim() || '';
-        const paceLine = hLines[cursor + 7 + offset]?.trim() || '';
-        const winnerLine = hLines[cursor + 9 + offset]?.trim() || '';
+        const venueLine = hLines[cursor].trim();
 
-        // 着順: cursor+2 行（独立した数字行）を最優先で読む。
-        // cursor+1 行頭の丸数字（①〜⑱/❶〜❿）は着順ではなく
-        // 別の指標（レース番号などのマーカー）であるため、フォールバックでのみ使用。
-        let finish = null;
-        const standaloneMatch = finishOnlyLine.match(/^(\d{1,2})$/);
-        if (standaloneMatch) {
-          finish = standaloneMatch[1];
-        } else {
-          // フォールバック: cursor+1 行頭の丸数字 or 数字
-          const circledMatch = finishLine.match(/^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿]/);
-          if (circledMatch) {
-            const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
-            const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
-            let idx = CIRCLED_ALL.indexOf(circledMatch[0]);
-            if (idx >= 0) finish = String(idx + 1);
-            else {
-              idx = DINGBAT.indexOf(circledMatch[0]);
-              if (idx >= 0) finish = String(idx + 1);
-            }
-          } else {
-            const numMatch = finishLine.match(/^(\d{1,2})\s/);
-            if (numMatch) finish = numMatch[1];
+        // ブロック終端: 次の venueLine / 通算成績ヘッダ / 末尾
+        let blockEnd = cursor + 1;
+        while (blockEnd < hLines.length) {
+          const t = hLines[blockEnd]?.trim() || '';
+          if (VENUE_NAMES_RE.test(t)) break;
+          if (PAST_END_MARKERS.test(t)) break;
+          blockEnd++;
+        }
+
+        // 1走分のブロック内容（スキップ対象を除外して詰める）
+        const block = [];
+        for (let i = cursor + 1; i < blockEnd; i++) {
+          const t = hLines[i]?.trim() || '';
+          if (!t) continue;
+          if (SKIP_IN_BLOCK.some(re => re.test(t))) continue;
+          block.push(t);
+        }
+
+        // finish 行を「単独 1-2 桁数字 かつ 次行が classDist 形式」で確定。
+        // 「2 みやこ」「① 鳴尾」「3 川崎記念」のようなレース番号+raceName 行や
+        // 通過順 "3 3 3 11" を着順として誤読しないためのガード。
+        let finishIdx = -1;
+        for (let i = 0; i < block.length; i++) {
+          if (!/^(\d{1,2})$/.test(block[i])) continue;
+          const next = block[i + 1] || '';
+          if (/^(.+?)\s+(ダ|芝|障)([内外右左])?(\d+)/.test(next)) {
+            finishIdx = i;
+            break;
+          }
+        }
+        // finish が見つからなければブロックを諦めて次へ
+        if (finishIdx < 0) {
+          cursor = blockEnd;
+          continue;
+        }
+        const finish = block[finishIdx];
+
+        // raceName: finish より前の行から抽出（番号付き or 単独カタカナ/漢字）
+        let raceName = null;
+        for (let i = 0; i < finishIdx; i++) {
+          const t = block[i];
+          // 「2 みやこ」「① 鳴尾」「3 川崎記念」
+          const rnMatch = t.match(/^(?:\d{1,2}|[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿])[\s　]+(.+)$/);
+          if (rnMatch) { raceName = rnMatch[1].trim(); break; }
+          // 単独 raceName (海外戦 "コリアカッ" 等)。漢字/カナのみで 12 文字以下
+          if (/^[ァ-ヺーぁ-ん㐀-鿿]+$/.test(t) && t.length <= 12) {
+            raceName = t; break;
           }
         }
 
-        // クラス+距離: "Ｃ3 ダ2000" / "Ｃ3 ダ外2000"（内/外/右/左コース付き）にも対応
-        // 内/外などのコース記号は距離文字列から除外し、下流の数値パースに影響させない
-        const cdMatch = classDistLine.match(/^(.+?)\s+(ダ|芝|障)([内外右左])?(\d+)/);
-        const raceClass = cdMatch ? cdMatch[1] : classDistLine;
+        // classDist (= raceClass + distance)
+        const cdLine = block[finishIdx + 1] || '';
+        const cdMatch = cdLine.match(/^(.+?)\s+(ダ|芝|障)([内外右左])?(\d+)/);
+        const raceClass = cdMatch ? cdMatch[1] : cdLine;
         const distance = cdMatch ? cdMatch[2] + cdMatch[4] : null;
         const distanceMeters = cdMatch ? parseInt(cdMatch[4], 10) : null;
 
-        // タイム
-        const time = /^\d/.test(timeLine) ? timeLine : null;
-
-        // 馬体重: "12頭 8枠 443"
-        const bwMatch = detailLine.match(/(\d{3,4})\s*$/);
-        const bodyWeight = bwMatch ? parseInt(bwMatch[1]) : null;
-
-        // 騎手+斤量: "中島良 52"
+        // 後続フィールドを内容ベースで抽出
+        let time = null, bodyWeight = null;
         let prJockey = null, prWeight = null;
-        const jkMatch = jkWeightLine.match(/^(.+?)\s+(\d{2})/);
-        if (jkMatch) { prJockey = jkMatch[1].replace(/\s+/g, ''); prWeight = jkMatch[2]; }
-
-        // ペース: "Ｍ ① 40.6 11人"
         let paceType = null, paceRank = null, final3F = null;
-        const paceMatch = paceLine.match(/^([ＳＭＨSMHスミハ])\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿])\s*([\d.]+)/);
-        if (paceMatch) {
-          const ptMap = { 'Ｓ':'S','Ｍ':'M','Ｈ':'H','S':'S','M':'M','H':'H','ス':'S','ミ':'M','ハ':'H' };
-          paceType = ptMap[paceMatch[1]] || paceMatch[1];
-          const CIRCLED_ALL = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱';
-          const DINGBAT = '❶❷❸❹❺❻❼❽❾❿';
-          let ri = CIRCLED_ALL.indexOf(paceMatch[2]);
-          if (ri < 0) ri = DINGBAT.indexOf(paceMatch[2]);
-          paceRank = ri >= 0 ? ri + 1 : null;
-          final3F = paceMatch[3];
+        for (let i = finishIdx + 2; i < block.length; i++) {
+          const t = block[i];
+          // タイム: "1.48.6" / "2.15.0" / "59.8"
+          if (!time && (/^\d\.\d{2}\.\d$/.test(t) || /^\d{2}\.\d$/.test(t))) {
+            time = t;
+            continue;
+          }
+          // 馬体重 detail: "11頭 6枠 529"
+          const dMatch = t.match(/^\d+頭\s+\d+枠\s+(\d{3,4})$/);
+          if (dMatch && bodyWeight === null) {
+            bodyWeight = parseInt(dMatch[1]);
+            continue;
+          }
+          // 騎手+斤量: "野畑凌 57" / "Ｃデムーロ 57"
+          const jkMatch = t.match(/^([ぁ-んァ-ヺーＡ-Ｚ㐀-鿿]{2,8})\s+(\d{2})$/);
+          if (jkMatch && !prJockey) {
+            prJockey = jkMatch[1];
+            prWeight = jkMatch[2];
+            continue;
+          }
+          // ペース: "Ｍ ⑪ 37.1 8人"
+          const pMatch = t.match(/^([ＳＭＨSMHスミハ])\s*([①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱❶❷❸❹❺❻❼❽❾❿])\s*([\d.]+)/);
+          if (pMatch && !paceType) {
+            const ptMap = { 'Ｓ':'S','Ｍ':'M','Ｈ':'H','S':'S','M':'M','H':'H','ス':'S','ミ':'M','ハ':'H' };
+            paceType = ptMap[pMatch[1]] || pMatch[1];
+            let ri = CIRCLED_ALL.indexOf(pMatch[2]);
+            if (ri < 0) ri = DINGBAT.indexOf(pMatch[2]);
+            paceRank = ri >= 0 ? ri + 1 : null;
+            final3F = pMatch[3];
+            continue;
+          }
         }
 
-        // 勝ち馬
-        const winner = winnerLine.replace(/^\d+休\s*/, '').trim() || null;
+        // winner: ブロック末尾から逆走、漢字/カナ行を採用。
+        // "4休 デビットバ" のような休み明けマーカー付きは前接記号を除去。
+        // raceName / jockey との衝突は位置(finishIdx 後)で除外できる。
+        let winner = null;
+        for (let i = block.length - 1; i > finishIdx; i--) {
+          const t = block[i];
+          const wMatch = t.match(/^(?:\d+休[\s　]+)?([ァ-ヺーぁ-ん㐀-鿿]+)$/);
+          if (wMatch) {
+            const cand = wMatch[1];
+            // jockey と完全一致したら除外（騎手名が末尾近くに来た想定外パターン）
+            if (cand === prJockey) continue;
+            winner = cand;
+            break;
+          }
+        }
 
         // 開催情報
         const venueMatch = venueLine.match(/^(\S+)\s+([\d.]+)/);
@@ -1574,8 +1631,7 @@ export const prerender = false;
           jockey: prJockey, bodyWeight, paceType, paceRank, final3F, winner
         });
 
-        // 南関 10 行 / JRA 11 行
-        cursor += 10 + offset;
+        cursor = blockEnd;
       }
 
       return {

@@ -983,7 +983,10 @@ export const prerender = false;
       // 会場名ベースに限定することで A37.3 等のペース/上がり指標ノイズの誤検出を防ぐ。
       const VENUE_RE = /^(\d[東中京阪小新福札函]|\d名|盛岡|大井|川崎|船橋|浦和|門別|水沢|金沢|笠松|名古屋|園田|姫路|高知|佐賀|帯広)/;
       const venueEls = elements.filter(e =>
-        inCol(e) && e.top >= 400 && e.top <= 870 &&
+        // top下限を400→382に。最古走の会場行(実測top386)が400でクリップされ
+        // 全馬の最古近走が1走欠落していた(ナルカミの盛岡=不来方賞等)。
+        // 会場行の最小topは386、top<386に末尾M.Dのノイズが無いことを実XMLで確認済み。
+        inCol(e) && e.top >= 382 && e.top <= 870 &&
         e.width >= 25 && e.width <= 40 &&
         VENUE_RE.test(e.text.trim())
       ).sort((a, b) => a.top - b.top);
@@ -2086,7 +2089,7 @@ export const prerender = false;
           const compiRankStr = h._bd?.compiRank ? '<span style="color:#60a5fa;font-size:0.7rem;margin-left:4px">C' + h._bd.compiRank + '位</span>' : '';
           const bdStr = h._bd ? `<span style="color:#64748b;font-size:0.7rem;margin-left:4px">(印${h._bd.normalizedMark}+順${h._bd.rankingBonus}+C${h._bd.compiRankBonus})</span>` : '';
           const pastStr = (h.pastRaces && h.pastRaces.length > 0)
-            ? h.pastRaces.slice(0, 3).map(r => '<span class="past-race">' + esc(r.finish || '?') + '着 ' + esc(r.venue) + ' ' + esc(r.time) + '</span>').join('')
+            ? h.pastRaces.slice(0, 6).map(r => '<span class="past-race">' + esc(r.finish || '?') + '着 ' + esc(r.venue) + ' ' + esc(r.time) + '</span>').join('')
             : '';
           const trainerStr = (h.trainer || '').replace(/\s+/g, '');
           bodyHtml += '<div class="horse-card ' + borderCls + '">'

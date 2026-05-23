@@ -1040,13 +1040,38 @@ export const prerender = false;
         );
         const timeRaw = timeEl ? timeEl.text.trim() : '';
 
-        const jkEl = blockEls.find(e =>
-          e.top > vTop + 33 && e.top < vTop + 45 && e.width >= 30 && /\d{2}/.test(e.text)
-        );
+        // 騎手抽出を内容ベース化(2026-05-23):
+        // 旧: 固定オフセット vTop+33..45 で width>=30。短い騎手名や名前が分割
+        //     された要素を取りこぼし、多くの過去走で騎手欠落していた。
+        // 新: 「2桁数字+漢字/かな」パターンで照合し、split されている場合
+        //     (重量のみ+別要素に名前)は同じ行の名前要素を結合する。
+        const JOCKEY_INLINE_RE = /^(\d{2})([一-龥ぁ-ヿァ-ヺー].*)/;
+        const NAME_CHAR_RE = /[一-龥ぁ-ヿァ-ヺー]/;
         let rWeight = null, rJockey = null;
+        const jkEl = blockEls.find(e =>
+          e.top > vTop + 25 && e.top < vTop + 50 && JOCKEY_INLINE_RE.test(normPUA(e.text))
+        );
         if (jkEl) {
-          const m = jkEl.text.trim().match(/^(\d{2})(.*)/);
-          if (m) { rWeight = m[1]; rJockey = normPUA(m[2]).replace(/\s+/g, '') || null; }
+          const m = normPUA(jkEl.text).match(JOCKEY_INLINE_RE);
+          rWeight = m[1];
+          rJockey = m[2].replace(/\s+/g, '') || null;
+        } else {
+          // split形式: 重量2桁単独+別要素に名前
+          const weightOnlyEl = blockEls.find(e =>
+            e.top > vTop + 25 && e.top < vTop + 50 && /^\d{2}$/.test(normPUA(e.text).trim())
+          );
+          if (weightOnlyEl) {
+            rWeight = normPUA(weightOnlyEl.text).trim();
+            const nameEls = blockEls.filter(e =>
+              e !== weightOnlyEl &&
+              e.top >= weightOnlyEl.top - 2 && e.top <= weightOnlyEl.top + 8 &&
+              e.left > weightOnlyEl.left && e.left < weightOnlyEl.left + 70 &&
+              NAME_CHAR_RE.test(normPUA(e.text))
+            ).sort((a, b) => a.top - b.top || a.left - b.left);
+            if (nameEls.length > 0) {
+              rJockey = nameEls.map(e => normPUA(e.text).replace(/\s+/g, '')).join('') || null;
+            }
+          }
         }
 
         const wtEl = blockEls.find(e =>

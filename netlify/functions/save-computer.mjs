@@ -4,7 +4,8 @@
  */
 
 import { fetchRacebookData, findRacebookHorse, applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
-import { dispatchToAnalyticsKeiba } from '../lib/dispatch.mjs';
+import { dispatchToAnalyticsKeiba, dispatchToTargets } from '../lib/dispatch.mjs';
+import { isPairReady } from '../lib/pair-guard.mjs';
 
 export const handler = async (event) => {
   const headers = {
@@ -43,6 +44,8 @@ export const handler = async (event) => {
     // JRA / 南関のみ対象。地方は穴馬抽出対象外なので skip。
     // Netlify Functions は handler return で freeze するため必ず await する。
     let dispatchResult = null;
+    let predictionDispatchResult = null;
+    let pairCheck = null;
     const cat = enrichedData.category;
     if (cat === 'jra' || cat === 'nankan') {
       dispatchResult = await dispatchToAnalyticsKeiba('computer-updated', {
@@ -51,12 +54,40 @@ export const handler = async (event) => {
         venueCode: enrichedData.venueCode,
         path: result.filePath,
       });
+
+      // 【ペア揃いガード】(2026-05-23 追加)
+      // racebook が既に保存済み（後勝ちケース）なら prediction-updated も発火。
+      // これにより「両方揃った時点で1回だけ prediction-updated 発火」を実現する。
+      // 先勝ち（racebook がまだ）のときは保留 → racebook 保存時に発火される。
+      pairCheck = await isPairReady({
+        date: enrichedData.date,
+        venueCode: enrichedData.venueCode,
+        category: cat,
+      });
+      if (pairCheck.ready) {
+        predictionDispatchResult = await dispatchToTargets('prediction-updated', {
+          date: enrichedData.date,
+          trackCode: enrichedData.venueCode,
+          track: enrichedData.venue,
+          category: cat,
+          source: 'computer',
+        });
+      } else {
+        console.log(
+          `⏸️  [PairGuard] prediction-updated 保留: ${enrichedData.date} ${enrichedData.venueCode} (${cat}) — racebook=${pairCheck.racebook} computer=${pairCheck.computer}`
+        );
+      }
     }
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ...result, dispatch: dispatchResult })
+      body: JSON.stringify({
+        ...result,
+        dispatch: dispatchResult,
+        predictionDispatch: predictionDispatchResult,
+        pairCheck,
+      })
     };
 
   } catch (error) {

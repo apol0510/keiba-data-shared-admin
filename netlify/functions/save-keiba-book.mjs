@@ -5,6 +5,7 @@
  */
 
 import { dispatchToTargets, dispatchToAnalyticsKeiba } from '../lib/dispatch.mjs';
+import { isPairReady } from '../lib/pair-guard.mjs';
 import { applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
 
 export const handler = async (event) => {
@@ -69,16 +70,35 @@ export const handler = async (event) => {
     // dispatch対象: JRAと南関のみ。地方全場(local)はdispatchしない
     // JRA/南関とも prediction-updated に統一（category フィールドで受信側が分岐）
     // Netlify Functions は handler return で freeze するため必ず await する
+    //
+    // 【ペア揃いガード】(2026-05-23 追加)
+    // racebook と computer の両方が keiba-data-shared に揃っていることを
+    // 確認してから dispatch する。片方しかない状態で発火すると、取込側の
+    // ±1日マージで前日の別 venue データが混入するため。
+    // 後勝ち（race-data-importer が computer-manager より後）のときに発火し、
+    // 先勝ちのときは保留（後に save-computer.mjs 側が発火する）。
     const category = data.category || 'jra';
     let dispatchResult = null;
+    let pairCheck = null;
     if (category === 'jra' || category === 'nankan') {
-      dispatchResult = await dispatchToTargets('prediction-updated', {
+      pairCheck = await isPairReady({
         date: data.date,
-        track: data.track,
-        trackCode: data.trackCode,
+        venueCode: data.trackCode,
         category,
-        source: 'racebook',
       });
+      if (pairCheck.ready) {
+        dispatchResult = await dispatchToTargets('prediction-updated', {
+          date: data.date,
+          track: data.track,
+          trackCode: data.trackCode,
+          category,
+          source: 'racebook',
+        });
+      } else {
+        console.log(
+          `⏸️  [PairGuard] dispatch保留: ${data.date} ${data.trackCode} (${category}) — racebook=${pairCheck.racebook} computer=${pairCheck.computer}`
+        );
+      }
     } else if (category === 'local') {
       console.log(`📋 [Save] 地方データ(${data.track}): dispatchスキップ`);
     }
@@ -86,7 +106,7 @@ export const handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ...result, dispatch: dispatchResult })
+      body: JSON.stringify({ ...result, dispatch: dispatchResult, pairCheck })
     };
 
   } catch (error) {

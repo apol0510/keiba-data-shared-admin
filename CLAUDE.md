@@ -220,7 +220,50 @@ keiba-intelligence / nankan-analytics / nankan-analytics-pro / keiba-computer-we
 ### 自動通知
 - 結果保存後 → `repository_dispatch` で keiba-intelligence に即時通知
 - JRA: `jra-results-updated` / 南関: `nankan-results-updated`
-- 予想保存後 → `prediction-updated`
+- 予想保存後 → `prediction-updated`（**ペア揃いガード必須** ↓参照）
+
+### 🛡️ dispatch ペア揃いガード（2026-05-23〜）
+
+**`prediction-updated` dispatch は、racebook と computer の両方が
+`keiba-data-shared` に揃ったときだけ発火する**。
+
+#### 何を防ぐか
+片方しか揃っていない状態で dispatch すると、analytics-keiba / keiba-intelligence の
+`importPredictionJra.js` の **±1日マージロジック**が前日 venue ファイルを当日として
+取り込み、**前日データが当日 prediction に混入する**（2026-05-24 案件）。
+
+#### 実装
+| 場所 | 役割 |
+|---|---|
+| `netlify/lib/pair-guard.mjs` | `isPairReady({date, venueCode, category})` を提供 |
+| `netlify/functions/save-keiba-book.mjs` | racebook 保存後、ペア揃い時のみ `prediction-updated` 発火 |
+| `netlify/functions/save-computer.mjs` | computer 保存後、ペア揃い時のみ `prediction-updated` 発火（後勝ち対応） |
+
+#### 確認するパス
+- racebook: `{cat}/racebook/{Y}/{M}/{date}-{venueCode}.json`
+- computer: `{cat}/predictions/computer/{Y}/{M}/{date}-{venueCode}.json`
+
+両方の GitHub Contents API GET が 200 で `ready: true`。
+
+#### 挙動マトリクス
+
+| 保存順 | 1回目（先勝ち） | 2回目（後勝ち） |
+|---|---|---|
+| race → computer | 保留（`⏸️ [PairGuard]` ログ） | 発火 |
+| computer → race | 保留 | 発火 |
+
+「**両方揃った時点でちょうど1回**」発火することを保証。
+
+#### 既存 dispatch との関係
+- `computer-updated`（dark-horse-picks 用、analytics-keiba 専用）は**ガードなしで維持**。
+  片方欠けでも穴馬抽出は機能するため。
+- ペア揃いガードは `prediction-updated` だけに掛ける。
+
+#### 触ってはいけないこと
+- ペア揃いガードを無効化／回避してはならない（24日案件の根本対策）
+- ±1日マージロジック（取込側）も削除しない。本来「ファイル名は前日付だが中身は当日」
+  運用（2026-05-15 案件）の救済機能で、analytics-keiba 側に**追加防御**として
+  「中身 date 検証」が入っている（同 repo の CLAUDE.md 参照）
 
 ### importPrediction.jsのフォールバック順
 1. predictions（predictions-batch等）

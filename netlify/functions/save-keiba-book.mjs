@@ -344,8 +344,10 @@ async function backfillComputerFile(data) {
         if (rbHorse.jockey) { compiHorse.jockey = rbHorse.jockey; updated++; }
         if (rbHorse.trainer) { compiHorse.trainer = rbHorse.trainer; }
         if (rbHorse.weight != null) { compiHorse.weight = rbHorse.weight; }
-        const sa = rbHorse.sexAge || rbHorse.ageGender;
-        if (sa) { compiHorse.ageGender = sa; }
+        // 性齢: [牡牝セ騸]+数字 のパターンに合致しないものは保存しない（旧 racebook のゴミ防御）
+        const saRaw = rbHorse.sexAge || rbHorse.ageGender;
+        const saMatch = saRaw ? String(saRaw).match(/^([牡牝セ騸])\s*(\d{1,2})/) : null;
+        if (saMatch) { compiHorse.ageGender = saMatch[1] + saMatch[2]; }
       }
     }
 

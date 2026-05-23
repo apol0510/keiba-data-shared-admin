@@ -436,12 +436,17 @@ async function enrichWithPredictionData(computerData) {
           ? predictionHorse.pastRaces
           : (racebookHorse?.pastRaces || []);
 
+        // 性齢: [牡牝セ騸]+数字 のパターンに合致しないものは null（旧 racebook のゴミ防御）
+        const seireiRaw = predictionHorse.seirei;
+        const seireiMatch = seireiRaw ? String(seireiRaw).match(/^([牡牝セ騸])\s*(\d{1,2})/) : null;
+        const ageGender = seireiMatch ? (seireiMatch[1] + seireiMatch[2]) : null;
+
         const enrichedHorse = {
           ...computerHorse,
           jockey: predictionHorse.kisyu || null,
           trainer: predictionHorse.kyusya || null,
           weight: predictionHorse.kinryo ? parseFloat(predictionHorse.kinryo) : null,
-          ageGender: predictionHorse.seirei || null,
+          ageGender,
           umacd: predictionHorse.umacd || null,
           pastRaces,
           enrichedFrom: predictionHorse.enrichedFrom || 'predictions'

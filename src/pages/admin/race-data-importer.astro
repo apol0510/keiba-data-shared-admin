@@ -1040,6 +1040,27 @@ export const prerender = false;
         );
         const timeRaw = timeEl ? timeEl.text.trim() : '';
 
+        // 距離PUA外字の捕捉(2026-05-23 段階1): time要素の先頭または近傍にある PUA char を
+        // distanceGaiji フィールドに保存。新聞は距離(千八ダ等)を 1 PUA codepoint で表すため、
+        // 後段(intelligence import)でこの外字を results 突合の(distance,gaiji)ペアから
+        // map確定して各pastRaceの distance を埋める計画。本段階では capture only、
+        // 既存の time/distance フィールド・ロジックには一切影響しない。
+        let distanceGaiji = null;
+        if (timeRaw) {
+          const m = timeRaw.match(/^([-])/);
+          if (m) distanceGaiji = m[1];
+        }
+        if (!distanceGaiji && timeEl) {
+          // time先頭に無い場合: time要素の近傍に独立した PUA-only 要素があれば採用
+          const nearbyPua = blockEls.find(e =>
+            e !== timeEl &&
+            Math.abs(e.top - timeEl.top) <= 6 &&
+            Math.abs(e.left - timeEl.left) <= 30 &&
+            /^[-]$/.test(e.text.trim())
+          );
+          if (nearbyPua) distanceGaiji = nearbyPua.text.trim();
+        }
+
         // 騎手抽出を内容ベース化(2026-05-23):
         // 旧: 固定オフセット vTop+33..45 で width>=30。短い騎手名や名前が分割
         //     された要素を取りこぼし、多くの過去走で騎手欠落していた。
@@ -1119,6 +1140,7 @@ export const prerender = false;
           cond: normPUA(cond),
           courseNote,
           distance: distance || null,
+          distanceGaiji,
           time: normTime(timeRaw),
           weight: rWeight,
           jockey: rJockey,

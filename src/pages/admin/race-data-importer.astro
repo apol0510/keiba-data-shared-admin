@@ -1084,10 +1084,23 @@ export const prerender = false;
         const { paceType, paceRank, final3F } = parsePace(paceText);
         const courseNote = normCourseNote(courseRatingRaw);
 
+        // 出走除外/取消/中止/失格 ステータス検出（2026-05-23）。
+        // この場合 time/last3f は紙面に存在しないため、誤解を招くrankの代わりに
+        // ステータスを表示できるようにする。位置は通常time行付近(vTop+20..40)。
+        const SCRATCH_RE = /(取消|除外|中止|失格)/;
+        let finishStatus = null;
+        for (const e of blockEls) {
+          if (e.top > vTop + 5 && e.top < vTop + 50) {
+            const m = normPUA(e.text).match(SCRATCH_RE);
+            if (m) { finishStatus = m[1]; break; }
+          }
+        }
+
         races.push({
           venue: normPUA(venue),
           raceClass: normPUA(raceClass),
           finish,
+          finishStatus,
           cond: normPUA(cond),
           courseNote,
           distance: distance || null,

@@ -1055,8 +1055,25 @@ export const prerender = false;
         const bodyWeight = wtEl ? normPUA(wtEl.text).replace(/^\s+/, '') : null;
         const bodyWeightNum = bodyWeight ? parseInt(bodyWeight.match(/\d{3}/)?.[0]) || null : null;
 
-        const paceEls = blockEls.filter(e => e.top > vTop + 52 && e.top < vTop + 66);
-        const paceText = paceEls.map(e => e.text.trim()).filter(t => t).join('');
+        // paceText抽出を内容ベース化(2026-05-23):
+        // 旧: 固定オフセット vTop+52..66。圧縮/オフセットがズレるブロックで last3f/
+        //     paceType が拾えなかった。time修正と同様、内容パターンで照合する。
+        //   - 結合形式  "M834.1" / "H39.4" など: ^[ＳＭＨSMH]\d{1,3}\.\d$
+        //   - 分離形式  "M2" + "37.9" の2要素並び: ^[ＳＭＨSMH]\d{0,2}$ と ^\d{2}\.\d$
+        //   - 5走前(圧縮)で物理的に印字されていない場合は両方not found→ paceText='' で
+        //     last3f/paceType が null。これは新聞紙面の制約で取得不能(諦め)。
+        const PACE_COMBINED_RE = /^[ＳＭＨSMH]\d{1,3}\.\d$/;
+        const PACE_TYPE_RE = /^[ＳＭＨSMH]\d{0,2}$/;
+        const LAST3F_RE = /^\d{2}\.\d$/;
+        const combinedPaceEl = blockEls.find(e => e.top > vTop + 5 && PACE_COMBINED_RE.test(normPUA(e.text)));
+        let paceText = '';
+        if (combinedPaceEl) {
+          paceText = combinedPaceEl.text.trim();
+        } else {
+          const paceTypeEl = blockEls.find(e => e.top > vTop + 5 && PACE_TYPE_RE.test(normPUA(e.text)));
+          const last3fEl = blockEls.find(e => e.top > vTop + 5 && LAST3F_RE.test(normPUA(e.text)));
+          paceText = (paceTypeEl ? paceTypeEl.text.trim() : '') + (last3fEl ? last3fEl.text.trim() : '');
+        }
 
         const winnerEl = blockEls.find(e =>
           e.top > vTop + 68 && e.top < vTop + 83 && e.width >= 30 && e.text.trim().length >= 2

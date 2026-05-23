@@ -1030,8 +1030,13 @@ export const prerender = false;
         );
         const courseRatingRaw = courseEl ? courseEl.text.trim() : '';
 
+        // time抽出を内容ベース(X.XX.X パターン)に変更(2026-05-23):
+        // 旧: 固定オフセット vTop+24..36 で width>=30。最古走の圧縮ブロック(time行が
+        //     vTop+19付近)で範囲を外し、騎手行(vTop+28)を時計と誤検出していた
+        //     (ナルカミ5走目 time="56戸崎" 等 33件)。time行は内容パターンが一意なので
+        //     内容で照合。range は広め(+10..+40)、X.XX.X が含まれることを必須化。
         const timeEl = blockEls.find(e =>
-          e.top > vTop + 24 && e.top < vTop + 36 && e.width >= 30 && /\d/.test(e.text)
+          e.top > vTop + 10 && e.top < vTop + 40 && /\d\.\d\d\.\d/.test(normPUA(e.text))
         );
         const timeRaw = timeEl ? timeEl.text.trim() : '';
 

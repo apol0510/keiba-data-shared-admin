@@ -1045,19 +1045,22 @@ export const prerender = false;
         // 後段(intelligence import)でこの外字を results 突合の(distance,gaiji)ペアから
         // map確定して各pastRaceの distance を埋める計画。本段階では capture only、
         // 既存の time/distance フィールド・ロジックには一切影響しない。
+        // PUA(U+E000-U+F8FF)判定は charCodeAt ベース。
+        // 旧版で正規表現 /^([\uE000-\uF8FF])/ を使っていたが Astro build で
+        // PUAリテラル文字が剥がれ常時nullになっていたため修正。
+        const isPuaChar = (ch) => { const c = ch.charCodeAt(0); return c >= 0xE000 && c <= 0xF8FF; };
         let distanceGaiji = null;
-        if (timeRaw) {
-          const m = timeRaw.match(/^([-])/);
-          if (m) distanceGaiji = m[1];
+        if (timeRaw && timeRaw.length > 0 && isPuaChar(timeRaw.charAt(0))) {
+          distanceGaiji = timeRaw.charAt(0);
         }
         if (!distanceGaiji && timeEl) {
-          // time先頭に無い場合: time要素の近傍に独立した PUA-only 要素があれば採用
-          const nearbyPua = blockEls.find(e =>
-            e !== timeEl &&
-            Math.abs(e.top - timeEl.top) <= 6 &&
-            Math.abs(e.left - timeEl.left) <= 30 &&
-            /^[-]$/.test(e.text.trim())
-          );
+          const nearbyPua = blockEls.find(e => {
+            if (e === timeEl) return false;
+            if (Math.abs(e.top - timeEl.top) > 6) return false;
+            if (Math.abs(e.left - timeEl.left) > 30) return false;
+            const t = e.text.trim();
+            return t.length === 1 && isPuaChar(t.charAt(0));
+          });
           if (nearbyPua) distanceGaiji = nearbyPua.text.trim();
         }
 

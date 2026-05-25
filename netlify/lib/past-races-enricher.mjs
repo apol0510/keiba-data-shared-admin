@@ -1,19 +1,24 @@
 /**
- * pastRaces 補完（段階 B）— `{cat}/results/` 突合で
- * distance / distanceMeters / raceName / surface / popularity /
- * margin / bodyWeightDiff / final3F を埋める。
+ * pastRaces 補完（段階 B + C）— `{cat}/results/` 突合 + PUA 距離デコード。
  *
- * 設計方針:
- * - 推測ゼロ。results が無ければ null のまま。
- *   - JRA: 2026 年以降の results しか存在しないため、それ以前の過去走は手付かず。
- *   - 南関: 同上。
- * - 既存値は破壊しない。`pr.distance` が既に入っていれば上書きしない。
- * - 1 日分の results を Map にキャッシュ（同じ日付の results を複数回 fetch しない）。
- * - keiba-intelligence/.../importPredictionJra.js L477-545 のロジックを
- *   admin 側に移植したもの。両サイトが同一の補完結果を得られるようにする。
+ * 段階 B: results 突合
+ *   - distance / distanceMeters / raceName / surface / popularity /
+ *     margin / bodyWeightDiff / final3F を埋める
+ *   - 推測ゼロ。results が無ければ null のまま (JRA/南関とも 2026 年分のみ整備)
  *
- * 並び順は normalizer と同じく触らない。
+ * 段階 C: PUA 距離デコード（results 突合の後段）
+ *   - past-races-pua-decoder.mjs を呼び、distanceGaiji を手掛かりに残りの
+ *     distance:null を埋める
+ *   - per-PDF bootstrap が primary、seed map は限定 fallback
+ *   - 既存値は破壊しない
+ *
+ * 共通方針:
+ * - 既存値非破壊
+ * - 1 日分の results を Map にキャッシュ
+ * - 並び順は normalizer と同じく触らない
  */
+
+import { decodeDataPastRaces } from './past-races-pua-decoder.mjs';
 
 const REPO_OWNER = 'apol0510';
 const REPO_NAME = 'keiba-data-shared';
@@ -251,7 +256,7 @@ async function enrichOnePastRace(pr, refDate, horseName, category) {
 }
 
 /**
- * data.races[*].horses[*].pastRaces を全件補完（in-place）。
+ * 段階 B のみ実行 (results 突合)。verify スクリプト等で stage 別に呼びたいときに使う。
  *
  * @param {object} data - normalizer 適用済みの racebook/computer JSON
  * @param {object} opts
@@ -259,7 +264,7 @@ async function enrichOnePastRace(pr, refDate, horseName, category) {
  * @param {string} opts.raceDate - 当該レース日 YYYY-MM-DD（pastRace の年推定の基準）
  * @returns {Promise<object>} 同じ data（in-place）
  */
-export async function enrichDataPastRaces(data, { category, raceDate }) {
+export async function enrichByResults(data, { category, raceDate }) {
   if (!data || !Array.isArray(data.races)) return data;
   if (category !== 'jra' && category !== 'nankan') return data;
 
@@ -280,5 +285,26 @@ export async function enrichDataPastRaces(data, { category, raceDate }) {
     }
   }
   console.log(`[PastRacesEnricher] ${category} ${ref}: ${enriched}/${attempted} past-race entries enriched from results`);
+  return data;
+}
+
+/**
+ * 公開 API: 段階 B (results 突合) → 段階 C (PUA decode) を順に実行。
+ * 既存 caller (save-keiba-book.mjs / save-computer.mjs) はこの関数を呼ぶ。
+ *
+ * @param {object} data - normalizer 適用済みの racebook/computer JSON
+ * @param {object} opts
+ * @param {'jra'|'nankan'} opts.category
+ * @param {string} opts.raceDate
+ * @returns {Promise<object>} 同じ data（in-place）
+ */
+export async function enrichDataPastRaces(data, opts) {
+  await enrichByResults(data, opts);
+  // 段階 C: PUA decoder（同期。失敗しても enrichByResults の結果は維持）
+  try {
+    decodeDataPastRaces(data, opts);
+  } catch (e) {
+    console.warn('[PastRacesEnricher] PUA decoder 失敗（続行）:', e.message);
+  }
   return data;
 }

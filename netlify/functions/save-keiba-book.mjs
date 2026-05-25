@@ -47,15 +47,19 @@ export const handler = async (event) => {
     // コンピ指数で補完（事前にcomputer-managerで保存済みの場合）
     await enrichWithComputerIndex(data);
 
-    // pastRaces 段階 A: 共通形式へ正規化（既存値非破壊・並び順非変更）
-    normalizeDataPastRaces(data);
-    // pastRaces 段階 B: results 突合で distance/popularity/margin/raceName 等を補完
-    if (data.category === 'jra' || data.category === 'nankan') {
-      try {
-        await enrichDataPastRaces(data, { category: data.category, raceDate: data.date });
-      } catch (e) {
-        console.warn('[Save KeibaBook] enrichDataPastRaces 失敗（続行）:', e.message);
+    // pastRaces パイプライン (normalize + enrich + PUA decode)
+    // ENABLE_PAST_RACES_PIPELINE=1 のときだけ有効。デフォルト OFF（502 timeout 防止）。
+    if (process.env.ENABLE_PAST_RACES_PIPELINE === '1') {
+      normalizeDataPastRaces(data);
+      if (data.category === 'jra' || data.category === 'nankan') {
+        try {
+          await enrichDataPastRaces(data, { category: data.category, raceDate: data.date });
+        } catch (e) {
+          console.warn('[Save KeibaBook] enrichDataPastRaces 失敗（続行）:', e.message);
+        }
       }
+    } else {
+      console.log('[Save KeibaBook] pastRaces pipeline skipped (ENABLE_PAST_RACES_PIPELINE!=1)');
     }
 
     // GitHubに保存
@@ -393,11 +397,16 @@ async function backfillComputerFile(data) {
     }
 
     // computer JSON 側も pastRaces を共通形式 + results 補完して書き戻す
-    normalizeDataPastRaces(finalJson);
-    try {
-      await enrichDataPastRaces(finalJson, { category: cat, raceDate: date });
-    } catch (e) {
-      console.warn('[Backfill] enrichDataPastRaces 失敗（続行）:', e.message);
+    // ENABLE_PAST_RACES_PIPELINE=1 のときだけ有効。デフォルト OFF（502 timeout 防止）。
+    if (process.env.ENABLE_PAST_RACES_PIPELINE === '1') {
+      normalizeDataPastRaces(finalJson);
+      try {
+        await enrichDataPastRaces(finalJson, { category: cat, raceDate: date });
+      } catch (e) {
+        console.warn('[Backfill] enrichDataPastRaces 失敗（続行）:', e.message);
+      }
+    } else {
+      console.log('[Backfill] pastRaces pipeline skipped (ENABLE_PAST_RACES_PIPELINE!=1)');
     }
 
     finalJson.backfilledFrom = 'racebook';

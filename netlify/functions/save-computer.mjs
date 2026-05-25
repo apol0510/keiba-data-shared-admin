@@ -37,18 +37,22 @@ export const handler = async (event) => {
     // 予想データを取得して自動補完
     const enrichedData = await enrichWithPredictionData(computerData);
 
-    // pastRaces 段階 A: 共通形式へ正規化（既存値非破壊・並び順非変更）
-    normalizeDataPastRaces(enrichedData);
-    // pastRaces 段階 B: results 突合で distance/popularity/margin/raceName 等を補完
-    if (enrichedData.category === 'jra' || enrichedData.category === 'nankan') {
-      try {
-        await enrichDataPastRaces(enrichedData, {
-          category: enrichedData.category,
-          raceDate: enrichedData.date,
-        });
-      } catch (e) {
-        console.warn('[Save Computer] enrichDataPastRaces 失敗（続行）:', e.message);
+    // pastRaces パイプライン (normalize + enrich + PUA decode)
+    // ENABLE_PAST_RACES_PIPELINE=1 のときだけ有効。デフォルト OFF（502 timeout 防止）。
+    if (process.env.ENABLE_PAST_RACES_PIPELINE === '1') {
+      normalizeDataPastRaces(enrichedData);
+      if (enrichedData.category === 'jra' || enrichedData.category === 'nankan') {
+        try {
+          await enrichDataPastRaces(enrichedData, {
+            category: enrichedData.category,
+            raceDate: enrichedData.date,
+          });
+        } catch (e) {
+          console.warn('[Save Computer] enrichDataPastRaces 失敗（続行）:', e.message);
+        }
       }
+    } else {
+      console.log('[Save Computer] pastRaces pipeline skipped (ENABLE_PAST_RACES_PIPELINE!=1)');
     }
 
     // GitHubに保存

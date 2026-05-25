@@ -24,6 +24,15 @@ const REPO_OWNER = 'apol0510';
 const REPO_NAME = 'keiba-data-shared';
 const RAW_BASE = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main`;
 
+// results 整備済みの最小年。これ未満の past race は fetch 対象から除外して
+// Netlify Functions の timeout を回避する。将来 2025 年以前の results が
+// 整備された場合はこの値を下げる。
+const RESULTS_MIN_YEAR = 2026;
+
+// preload で並列 fetch する上限。GitHub raw への過剰負荷を避けるため、
+// 同時 8 リクエストまでに制限する。
+const FETCH_CONCURRENCY = 8;
+
 // JRA: keibabook の場名略字 → keiba-data-shared の 3 文字コード
 // 「中京」は keibabook では「名」表記される（中山=中 / 京都=京 と重複回避のため）。
 const JRA_VENUE_CHAR_TO_CODE = Object.freeze({
@@ -218,9 +227,9 @@ async function enrichOnePastRace(pr, refDate, horseName, category) {
   if (!parsed || !parsed.venueCode) return { changed: false, pr };
 
   const pastDate = resolvePastDate(parsed.month, parsed.day, refDate);
-  // 推測ゼロ: 2026 年以前は results 未整備なのでスキップ
+  // 推測ゼロ: RESULTS_MIN_YEAR 未満は results 未整備なのでスキップ
   const [py] = pastDate.split('-').map(Number);
-  if (py < 2026) return { changed: false, pr };
+  if (py < RESULTS_MIN_YEAR) return { changed: false, pr };
 
   const results = await fetchResultsDay(category, pastDate, parsed.venueCode);
   if (!results) return { changed: false, pr };
@@ -256,6 +265,85 @@ async function enrichOnePastRace(pr, refDate, horseName, category) {
 }
 
 /**
+ * 制限付き並列実行ヘルパー。
+ * - items の各要素に対して非同期 task を実行
+ * - 同時実行数は concurrency まで
+ * - 個別タスクの例外は呼び出し側で握る前提（task 側で try/catch）
+ */
+async function runWithConcurrency(items, concurrency, task) {
+  let cursor = 0;
+  const workers = new Array(Math.min(concurrency, items.length)).fill(0).map(async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      await task(items[i]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * data 内の全 pastRaces から results fetch 候補を収集し、年フィルタ・
+ * ユニーク化・並列 fetch (キャッシュ書き込み) まで一括で行う。
+ *
+ * その後 enrichOnePastRace を呼べば、fetchResultsDay は cache hit して
+ * network を発生させない。
+ *
+ * @returns {Promise<{ candidates, yearSkipped, alreadyCached, uniqueFetch,
+ *                     fetchSuccess, fetchFailed }>}
+ */
+async function preloadResultsForData(data, refDate, category) {
+  const stats = {
+    candidates: 0,
+    yearSkipped: 0,
+    alreadyCached: 0,
+    uniqueFetch: 0,
+    fetchSuccess: 0,
+    fetchFailed: 0,
+  };
+  if (!data || !Array.isArray(data.races)) return stats;
+
+  // Phase 1: 全 pastRaces を走査して (category, pastDate, venueCode) を収集
+  const toFetch = new Map(); // cacheKey -> { category, date, venueCode }
+  for (const race of data.races) {
+    if (!Array.isArray(race.horses)) continue;
+    for (const horse of race.horses) {
+      for (const pr of (horse.pastRaces || [])) {
+        stats.candidates++;
+        if (!pr || !pr.venue) continue;
+        const parsed = parsePastVenue(pr.venue, category);
+        if (!parsed || !parsed.venueCode) continue;
+        const pastDate = resolvePastDate(parsed.month, parsed.day, refDate);
+        const [py] = pastDate.split('-').map(Number);
+        if (py < RESULTS_MIN_YEAR) { stats.yearSkipped++; continue; }
+        const cacheKey = `${category}|${pastDate}|${parsed.venueCode}`;
+        if (_resultsCache.has(cacheKey)) { stats.alreadyCached++; continue; }
+        if (!toFetch.has(cacheKey)) {
+          toFetch.set(cacheKey, { category, date: pastDate, venueCode: parsed.venueCode });
+        }
+      }
+    }
+  }
+  stats.uniqueFetch = toFetch.size;
+
+  // Phase 2: 並列 fetch (上限 FETCH_CONCURRENCY)
+  const tasks = [...toFetch.values()];
+  await runWithConcurrency(tasks, FETCH_CONCURRENCY, async (t) => {
+    try {
+      const data = await fetchResultsDay(t.category, t.date, t.venueCode);
+      if (data) stats.fetchSuccess++;
+      else stats.fetchFailed++;
+    } catch (e) {
+      // 例外は fetchResultsDay 内で握っているはずだが、保険として
+      _resultsCache.set(`${t.category}|${t.date}|${t.venueCode}`, null);
+      stats.fetchFailed++;
+    }
+  });
+
+  return stats;
+}
+
+/**
  * 段階 B のみ実行 (results 突合)。verify スクリプト等で stage 別に呼びたいときに使う。
  *
  * @param {object} data - normalizer 適用済みの racebook/computer JSON
@@ -269,6 +357,13 @@ export async function enrichByResults(data, { category, raceDate }) {
   if (category !== 'jra' && category !== 'nankan') return data;
 
   const ref = raceDate || data.date;
+  const t0 = Date.now();
+
+  // Phase A: 候補収集 + 並列 preload
+  const preloadStats = await preloadResultsForData(data, ref, category);
+  const elapsedPreload = Date.now() - t0;
+
+  // Phase B: 補完適用 (cache hit するので fetch は発生しない)
   let attempted = 0, enriched = 0;
   for (const race of data.races) {
     if (!Array.isArray(race.horses)) continue;
@@ -284,7 +379,8 @@ export async function enrichByResults(data, { category, raceDate }) {
       horse.pastRaces = next;
     }
   }
-  console.log(`[PastRacesEnricher] ${category} ${ref}: ${enriched}/${attempted} past-race entries enriched from results`);
+  const elapsedTotal = Date.now() - t0;
+  console.log(`[PastRacesEnricher] ${category} ${ref}: ${enriched}/${attempted} enriched | preload: candidates=${preloadStats.candidates} yearSkipped=${preloadStats.yearSkipped} alreadyCached=${preloadStats.alreadyCached} uniqueFetch=${preloadStats.uniqueFetch} success=${preloadStats.fetchSuccess} failed=${preloadStats.fetchFailed} | elapsedMs preload=${elapsedPreload} total=${elapsedTotal}`);
   return data;
 }
 

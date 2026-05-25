@@ -24,8 +24,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SEED_MAP_PATH = path.join(__dirname, 'pua-distance-map.json');
+// 注意: top-level で fileURLToPath(import.meta.url) を呼ぶと、
+// Netlify Functions の CJS バンドルでは import.meta.url が undefined になり
+// モジュールロード時に TypeError でクラッシュする。
+// → path 解決は loadSeedMap() 内で遅延 + try/catch で行う。
 
 const MAJORITY_THRESHOLD = 0.95; // 多数決で確定とみなす閾値
 
@@ -91,12 +93,16 @@ let _seedMapMeta = null;
 export function loadSeedMap() {
   if (_seedMapCache) return { map: _seedMapCache, meta: _seedMapMeta };
   try {
-    if (!fs.existsSync(SEED_MAP_PATH)) {
+    // path 解決は遅延評価。Netlify CJS バンドルで import.meta.url=undefined になっても
+    // ここで catch されるので、モジュールロードはクラッシュしない。
+    const dir = path.dirname(fileURLToPath(import.meta.url));
+    const seedPath = path.join(dir, 'pua-distance-map.json');
+    if (!fs.existsSync(seedPath)) {
       _seedMapCache = {};
       _seedMapMeta = { source: 'missing' };
       return { map: _seedMapCache, meta: _seedMapMeta };
     }
-    const raw = JSON.parse(fs.readFileSync(SEED_MAP_PATH, 'utf-8'));
+    const raw = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
     _seedMapCache = raw.map || {};
     _seedMapMeta = { source: 'pua-distance-map.json', builtAt: raw._builtAt, stats: raw.stats };
     return { map: _seedMapCache, meta: _seedMapMeta };

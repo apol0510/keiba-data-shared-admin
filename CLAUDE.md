@@ -13,6 +13,32 @@
 
 ---
 
+## Cross Project Safety Rule
+
+keiba-data-shared-admin / keiba-intelligence / analytics-keiba にまたがる作業では、どれか一方の表示ロジックに寄せた修正を禁止する。
+
+実装前に必ず以下を報告すること。
+
+- 共通データ契約
+- 影響範囲
+- 壊れる可能性
+- 禁止事項
+- 回帰確認
+- 触るファイル
+- 触らないファイル
+
+原則:
+- admin/shared data 側を共通データ生成・保存・受け渡しの中心とする
+- keiba-intelligence / analytics-keiba 側だけに独自補完を入れない
+- 表示側の場当たり修正で共通データの欠陥を隠さない
+- 片方で直って片方が壊れる修正を禁止する
+- 表示修正より先に、JSON構造・データ契約・責任範囲を確認する
+- 実装前に調査報告し、許可後に作業する
+
+詳細は [docs/cross-project-safety-rules.md](docs/cross-project-safety-rules.md) を参照すること。
+
+---
+
 ## 【開発実行ルール】
 
 > 「claude.mdを読んで」と指示された時点で、作業に必要な初期確認を自動で進めること。
@@ -355,10 +381,11 @@ analytics-keiba / keiba-intelligence 側の `importPredictionJra.js` の
 
 ---
 
-**📅 最終更新日**: 2026-04-09
+**📅 最終更新日**: 2026-05-25
 **🏁 Project Phase**: Phase 1-8 完了 ✅
 **📌 詳細仕様**: → `CLAUDE.details.md`
 **📌 修正履歴**: → `CLAUDE.archive.md`
+**🚨 クロスプロジェクト安全運用ルール**: → `docs/cross-project-safety-rules.md`
 
 ---
 

@@ -7,6 +7,8 @@
 import { dispatchToTargets, dispatchToAnalyticsKeiba } from '../lib/dispatch.mjs';
 import { isPairReady } from '../lib/pair-guard.mjs';
 import { applyDarkHorsesToComputerData } from './_shared/dark-horse.mjs';
+import { normalizeDataPastRaces } from '../lib/past-races-normalizer.mjs';
+import { enrichDataPastRaces } from '../lib/past-races-enricher.mjs';
 
 export const handler = async (event) => {
   const headers = {
@@ -44,6 +46,17 @@ export const handler = async (event) => {
 
     // コンピ指数で補完（事前にcomputer-managerで保存済みの場合）
     await enrichWithComputerIndex(data);
+
+    // pastRaces 段階 A: 共通形式へ正規化（既存値非破壊・並び順非変更）
+    normalizeDataPastRaces(data);
+    // pastRaces 段階 B: results 突合で distance/popularity/margin/raceName 等を補完
+    if (data.category === 'jra' || data.category === 'nankan') {
+      try {
+        await enrichDataPastRaces(data, { category: data.category, raceDate: data.date });
+      } catch (e) {
+        console.warn('[Save KeibaBook] enrichDataPastRaces 失敗（続行）:', e.message);
+      }
+    }
 
     // GitHubに保存
     const result = await saveToGitHub(data);
@@ -377,6 +390,14 @@ async function backfillComputerFile(data) {
       finalJson = applyDarkHorsesToComputerData(compiJson, data);
       const totalDh = finalJson.races.reduce((s, r) => s + (r.darkHorses?.length || 0), 0);
       console.log(`[Backfill] pastRaces ${pastRacesAdded}頭分を補完 → darkHorses ${totalDh}頭を再抽出`);
+    }
+
+    // computer JSON 側も pastRaces を共通形式 + results 補完して書き戻す
+    normalizeDataPastRaces(finalJson);
+    try {
+      await enrichDataPastRaces(finalJson, { category: cat, raceDate: date });
+    } catch (e) {
+      console.warn('[Backfill] enrichDataPastRaces 失敗（続行）:', e.message);
     }
 
     finalJson.backfilledFrom = 'racebook';

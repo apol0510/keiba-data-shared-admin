@@ -1,0 +1,28 @@
+{
+  "_comment": "Keibabook PDF の PUA 外字 (距離グリフ) → 距離(m) の seed マップ。per-PDF bootstrap で教師ペアが得られなかった codepoint だけにフォールバックとして使う。font subset は PDF ごとに変わる可能性があるため、static map を絶対正解扱いにしてはならない。conflict が出る codepoint はこのマップから外し、null のまま残す方針。",
+  "_method": "output.xml (2026-04-02 サンプル keibabook XML) の過去走 2479 件から、jra/results/2026 で時計+venue 一致した 208 件を教師ペアとして集計。95% 多数決で確定した 14 codepoint。conflict 0。",
+  "_builtAt": "2026-05-25",
+  "_warningPolicy": "per-PDF bootstrap を primary とし、このマップは未学習 codepoint のみの限定的 fallback。decoder のログで per-PDF 由来と seed 由来を区別する。",
+  "stats": {
+    "totalAttempted": 2466,
+    "matched": 208,
+    "conflictCount": 0,
+    "finalMapSize": 14
+  },
+  "map": {
+    "E567": 1200,
+    "E568": 1400,
+    "E56A": 1600,
+    "E56C": 1800,
+    "E56E": 2000,
+    "E570": 2200,
+    "E57E": 1200,
+    "E57F": 1300,
+    "E580": 1400,
+    "E582": 1600,
+    "E583": 1700,
+    "E584": 1800,
+    "E586": 2000,
+    "E587": 2100
+  }
+}

@@ -14,15 +14,29 @@
  * 使い方:
  *   node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt
  *   node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt --venue-code=TOK
+ *   GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx \
+ *     node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt \
+ *       --push --confirm-push=keiba-data-shared
  *
  * オプション:
- *   --urls=PATH         R1 URL を行ごとに記述したファイル (必須)
- *   --venue-code=CODE   特定の場 (TOK/KYO/NII/...) のみ処理。省略時は全場
- *   --delay=2500        fetch 間隔 (ms)。デフォルト 2500
- *   --out=PATH          出力ディレクトリ。デフォルト tmp/jra-horse-histories
+ *   --urls=PATH                       R1 URL を行ごとに記述したファイル (必須)
+ *   --venue-code=CODE                 特定の場のみ処理。省略時は全場
+ *   --delay=2500                      fetch 間隔 (ms)。デフォルト 2500
+ *   --out=PATH                        出力ディレクトリ。デフォルト tmp/jra-horse-histories
+ *   --push                            実書き込みフラグ (単独では実行されない)
+ *   --confirm-push=keiba-data-shared  二段階確認。--push と同時指定が必須。
+ *                                     値は文字列 "keiba-data-shared" 固定
  *
- * tmp出力のみ。push / dispatch は本スクリプトでは行わない (意図的)。
- * keiba-data-shared への保存や repository_dispatch は別スクリプトに分離する。
+ * --push の保存先: jra/horseHistories/YYYY/MM/YYYY-MM-DD-{VENUE_CODE}.json
+ *
+ * 安全装置:
+ *   1. --push 単独では絶対に書き込まない (--confirm-push=keiba-data-shared 必須)
+ *   2. token は GITHUB_TOKEN_KEIBA_DATA_SHARED のみ受け付ける
+ *      (GITHUB_TOKEN へのフォールバックなし — 誤って汎用 token で push を防ぐ)
+ *   3. confirm / token チェックは fetch 開始前に実施
+ *      (9分 fetch が終わってから落ちる UX を防ぐ)
+ *
+ * dispatch (repository_dispatch) は本スクリプトでは行わない (意図的)。
  */
 
 import * as cheerio from 'cheerio';
@@ -51,13 +65,24 @@ const JYO_MAP = {
 };
 
 // ───── CLI ─────
+const CONFIRM_PUSH_REQUIRED = 'keiba-data-shared';
+
 function parseArgs(argv) {
-  const args = { urls: null, venueCode: null, delay: DEFAULT_DELAY_MS, out: DEFAULT_OUT_DIR };
+  const args = {
+    urls: null,
+    venueCode: null,
+    delay: DEFAULT_DELAY_MS,
+    out: DEFAULT_OUT_DIR,
+    push: false,
+    confirmPush: null,
+  };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
     else if (a.startsWith('--venue-code=')) args.venueCode = a.slice('--venue-code='.length).toUpperCase();
     else if (a.startsWith('--delay=')) args.delay = parseInt(a.slice('--delay='.length), 10) || DEFAULT_DELAY_MS;
     else if (a.startsWith('--out=')) args.out = a.slice('--out='.length);
+    else if (a === '--push') args.push = true;
+    else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
   }
   return args;
 }
@@ -397,6 +422,7 @@ async function main() {
   const args = parseArgs(process.argv);
   if (!args.urls) {
     console.error('Usage: node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt [--venue-code=TOK] [--delay=2500] [--out=PATH]');
+    console.error('  push: --push --confirm-push=keiba-data-shared (要 GITHUB_TOKEN_KEIBA_DATA_SHARED)');
     process.exit(2);
   }
   if (!fs.existsSync(args.urls)) {
@@ -441,8 +467,28 @@ async function main() {
     process.exit(2);
   }
 
+  // --push 指定なら fetch 開始前に二段階確認と token をチェック
+  // (9分 fetch が完了してから落ちる UX を防ぐ + 誤実行を物理的に防ぐ)
+  if (args.push) {
+    if (args.confirmPush !== CONFIRM_PUSH_REQUIRED) {
+      console.error('❌ --push 指定だが --confirm-push=keiba-data-shared が未指定 (or 値不一致)');
+      console.error(`   実pushには「--push --confirm-push=keiba-data-shared」が必要 (二段階確認)`);
+      console.error(`   指定された値: ${JSON.stringify(args.confirmPush)}`);
+      process.exit(3);
+    }
+    // GITHUB_TOKEN フォールバックは禁止 (専用 token のみ)
+    const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+    if (!token) {
+      console.error('❌ --push 指定だが GITHUB_TOKEN_KEIBA_DATA_SHARED が未設定');
+      console.error('   GITHUB_TOKEN へのフォールバックは安全上の理由で削除しました');
+      console.error('   実pushには「GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx」が必須');
+      process.exit(3);
+    }
+  }
+
   console.log(`📥 対象場: ${venueR1s.map(r => `${JYO_MAP[r.jyo]?.name}(${JYO_MAP[r.jyo]?.code})`).join(', ')}`);
   console.log(`⏱  fetch間隔: ${args.delay}ms`);
+  console.log(`📤 push:         ${args.push ? `YES (keiba-data-shared, confirm=${args.confirmPush})` : 'NO (tmp出力のみ)'}`);
   console.log('');
 
   const startedAt = Date.now();
@@ -481,7 +527,7 @@ async function main() {
     console.log(`💾 saved: ${fpath}`);
 
     reportVenue(venueData);
-    summaries.push({ venueData, fpath });
+    summaries.push({ venueData, fpath, outJson });
   }
 
   const elapsedMs = Date.now() - startedAt;
@@ -497,8 +543,124 @@ async function main() {
   console.log(`  失敗:            ${totalFails}`);
   console.log(`  推定リクエスト数: ${totalRequests} (結果ページ + 馬詳細)`);
   console.log(`  所要時間:        ${(elapsedMs / 1000).toFixed(1)}s`);
+  // ── --push 指定時のみ keiba-data-shared に PUT ──
+  // (confirm-push + token チェックは fetch 開始前に実施済み)
+  if (!args.push) {
+    console.log('');
+    console.log('ℹ️  tmp出力のみ。実push には「--push --confirm-push=keiba-data-shared」が必要。');
+    console.log('   dispatch (repository_dispatch) は本スクリプトでは行わない。');
+    return;
+  }
+
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
   console.log('');
-  console.log('ℹ️  tmp出力のみ。push / dispatch は本スクリプトでは行わない。');
+  console.log('📤 keiba-data-shared に PUT 中...');
+  let pushedCount = 0;
+  for (const { outJson } of summaries) {
+    try {
+      const r = await pushHorseHistoriesToKeibaDataShared(outJson, token);
+      console.log(`✅ ${outJson.venue}(${outJson.venueCode}): saved (${r.action}, horses=${Object.keys(outJson.horses).length})`);
+      pushedCount++;
+    } catch (e) {
+      console.error(`❌ ${outJson.venue}(${outJson.venueCode}): ${e.message}`);
+    }
+    await sleep(1500); // GitHub API rate limit 配慮
+  }
+
+  console.log('');
+  console.log(`━━━ push 完了: ${pushedCount}/${summaries.length} venue ━━━`);
+  console.log('ℹ️  dispatch (repository_dispatch) は本スクリプトでは行わない。');
+}
+
+/**
+ * keiba-data-shared に horseHistories JSON を GitHub Contents API で PUT。
+ * 保存先: jra/horseHistories/YYYY/MM/YYYY-MM-DD-{VENUE_CODE}.json
+ *
+ * merge ルール:
+ *   - 既存ファイルがある場合は horses{} を horseId 単位でマージ
+ *     (incoming に同 horseId があれば incoming で上書き、なければ既存を維持)
+ *   - source / generatedAt / date / venue / venueCode / sourceR1Url / stats /
+ *     failures は incoming で上書き
+ *   - failures は今回 venue 分のみを保持 (履歴蓄積ではないので意図通り)
+ */
+async function pushHorseHistoriesToKeibaDataShared(outJson, token) {
+  const OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
+  const REPO = 'keiba-data-shared';
+  const BRANCH = 'main';
+  const { date, venue, venueCode } = outJson;
+  if (!date || !venueCode) {
+    throw new Error(`date or venueCode missing: date=${date} venueCode=${venueCode}`);
+  }
+  const [year, month] = date.split('-');
+  const filePath = `jra/horseHistories/${year}/${month}/${date}-${venueCode}.json`;
+
+  // 既存ファイル取得 (SHA + content)
+  const getUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${filePath}?ref=${BRANCH}`;
+  let sha = null;
+  let existing = null;
+  const getRes = await fetch(getUrl, {
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'jra-horse-histories',
+    },
+  });
+  if (getRes.ok) {
+    const j = await getRes.json();
+    sha = j.sha;
+    try {
+      existing = JSON.parse(Buffer.from(j.content, 'base64').toString('utf-8'));
+    } catch {
+      existing = null;
+    }
+  } else if (getRes.status !== 404) {
+    const text = await getRes.text().catch(() => '');
+    throw new Error(`GET failed: HTTP ${getRes.status} ${text}`);
+  }
+
+  // horses{} を horseId 単位でマージ
+  const mergedHorses = { ...(existing?.horses || {}) };
+  for (const [hid, h] of Object.entries(outJson.horses || {})) {
+    mergedHorses[hid] = h;
+  }
+  const merged = {
+    ...outJson,
+    horses: mergedHorses,
+  };
+
+  const action = sha ? 'updated' : 'created';
+  const horseCount = Object.keys(mergedHorses).length;
+  const message = `🐎 ${date} ${venue} 馬別出走履歴${sha ? '更新' : '追加'} (${horseCount}頭)
+
+【JRA horseHistories / JRA公式 auto-fetch】
+- 開催日: ${date}
+- 競馬場: ${venue}（${venueCode}）
+- ファイル: ${filePath}
+- 馬数: ${horseCount}
+
+Co-Authored-By: Claude <noreply@anthropic.com>`;
+
+  const putUrl = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${filePath}`;
+  const putRes = await fetch(putUrl, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'jra-horse-histories',
+    },
+    body: JSON.stringify({
+      message,
+      content: Buffer.from(JSON.stringify(merged, null, 2), 'utf-8').toString('base64'),
+      branch: BRANCH,
+      ...(sha && { sha }),
+    }),
+  });
+  if (!putRes.ok) {
+    const text = await putRes.text().catch(() => '');
+    throw new Error(`PUT failed: HTTP ${putRes.status} ${text}`);
+  }
+  return { action, horseCount };
 }
 
 main().catch((e) => {

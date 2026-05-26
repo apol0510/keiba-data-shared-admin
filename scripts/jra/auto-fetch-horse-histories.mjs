@@ -17,26 +17,35 @@
  *   GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx \
  *     node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt \
  *       --push --confirm-push=keiba-data-shared
+ *   GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx \
+ *   KEIBA_INTELLIGENCE_TOKEN=ghp_xxx \
+ *   ANALYTICS_KEIBA_TOKEN=ghp_xxx \
+ *     node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt \
+ *       --push --confirm-push=keiba-data-shared \
+ *       --dispatch --confirm-dispatch=horse-histories-updated
  *
  * オプション:
- *   --urls=PATH                       R1 URL を行ごとに記述したファイル (必須)
- *   --venue-code=CODE                 特定の場のみ処理。省略時は全場
- *   --delay=2500                      fetch 間隔 (ms)。デフォルト 2500
- *   --out=PATH                        出力ディレクトリ。デフォルト tmp/jra-horse-histories
- *   --push                            実書き込みフラグ (単独では実行されない)
- *   --confirm-push=keiba-data-shared  二段階確認。--push と同時指定が必須。
- *                                     値は文字列 "keiba-data-shared" 固定
+ *   --urls=PATH                              R1 URL を行ごとに記述したファイル (必須)
+ *   --venue-code=CODE                        特定の場のみ処理。省略時は全場
+ *   --delay=2500                             fetch 間隔 (ms)。デフォルト 2500
+ *   --out=PATH                               出力ディレクトリ。デフォルト tmp/jra-horse-histories
+ *   --push                                   keiba-data-shared への書き込みフラグ
+ *   --confirm-push=keiba-data-shared         二段階確認。--push と同時指定が必須
+ *   --dispatch                               repository_dispatch 送信フラグ
+ *   --confirm-dispatch=horse-histories-updated  二段階確認。--dispatch と同時指定が必須
  *
- * --push の保存先: jra/horseHistories/YYYY/MM/YYYY-MM-DD-{VENUE_CODE}.json
+ * --push 保存先:     jra/horseHistories/YYYY/MM/YYYY-MM-DD-{VENUE_CODE}.json
+ * --dispatch event:  horse-histories-updated
+ * --dispatch 送信先: apol0510/keiba-intelligence + apol0510/analytics-keiba
  *
  * 安全装置:
- *   1. --push 単独では絶対に書き込まない (--confirm-push=keiba-data-shared 必須)
- *   2. token は GITHUB_TOKEN_KEIBA_DATA_SHARED のみ受け付ける
- *      (GITHUB_TOKEN へのフォールバックなし — 誤って汎用 token で push を防ぐ)
+ *   1. --push / --dispatch 単独では絶対に実行しない (各々 confirm 必須)
+ *   2. token は専用 env のみ受け付ける (GITHUB_TOKEN フォールバックなし)
+ *        - --push     : GITHUB_TOKEN_KEIBA_DATA_SHARED
+ *        - --dispatch : KEIBA_INTELLIGENCE_TOKEN + ANALYTICS_KEIBA_TOKEN (両方必須)
  *   3. confirm / token チェックは fetch 開始前に実施
- *      (9分 fetch が終わってから落ちる UX を防ぐ)
- *
- * dispatch (repository_dispatch) は本スクリプトでは行わない (意図的)。
+ *   4. --dispatch を指定するなら --push も必須 (未保存ファイルへの dispatch は
+ *      受信側で 404 になるため、論理的不整合を物理的に禁止)
  */
 
 import * as cheerio from 'cheerio';
@@ -66,6 +75,12 @@ const JYO_MAP = {
 
 // ───── CLI ─────
 const CONFIRM_PUSH_REQUIRED = 'keiba-data-shared';
+const CONFIRM_DISPATCH_REQUIRED = 'horse-histories-updated';
+const DISPATCH_EVENT_TYPE = 'horse-histories-updated';
+const DISPATCH_TARGET_REPOS = [
+  'apol0510/keiba-intelligence',
+  'apol0510/analytics-keiba',
+];
 
 function parseArgs(argv) {
   const args = {
@@ -75,6 +90,8 @@ function parseArgs(argv) {
     out: DEFAULT_OUT_DIR,
     push: false,
     confirmPush: null,
+    dispatch: false,
+    confirmDispatch: null,
   };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
@@ -83,6 +100,8 @@ function parseArgs(argv) {
     else if (a.startsWith('--out=')) args.out = a.slice('--out='.length);
     else if (a === '--push') args.push = true;
     else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
+    else if (a === '--dispatch') args.dispatch = true;
+    else if (a.startsWith('--confirm-dispatch=')) args.confirmDispatch = a.slice('--confirm-dispatch='.length);
   }
   return args;
 }
@@ -422,7 +441,9 @@ async function main() {
   const args = parseArgs(process.argv);
   if (!args.urls) {
     console.error('Usage: node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt [--venue-code=TOK] [--delay=2500] [--out=PATH]');
-    console.error('  push: --push --confirm-push=keiba-data-shared (要 GITHUB_TOKEN_KEIBA_DATA_SHARED)');
+    console.error('  push:     --push --confirm-push=keiba-data-shared (要 GITHUB_TOKEN_KEIBA_DATA_SHARED)');
+    console.error('  dispatch: --dispatch --confirm-dispatch=horse-histories-updated');
+    console.error('            (要 KEIBA_INTELLIGENCE_TOKEN + ANALYTICS_KEIBA_TOKEN, かつ --push 必須)');
     process.exit(2);
   }
   if (!fs.existsSync(args.urls)) {
@@ -467,7 +488,7 @@ async function main() {
     process.exit(2);
   }
 
-  // --push 指定なら fetch 開始前に二段階確認と token をチェック
+  // --push / --dispatch 指定なら fetch 開始前に二段階確認と token をチェック
   // (9分 fetch が完了してから落ちる UX を防ぐ + 誤実行を物理的に防ぐ)
   if (args.push) {
     if (args.confirmPush !== CONFIRM_PUSH_REQUIRED) {
@@ -486,9 +507,35 @@ async function main() {
     }
   }
 
+  if (args.dispatch) {
+    // --dispatch には --push が必須 (未保存ファイルへの dispatch は受信側 404)
+    if (!args.push) {
+      console.error('❌ --dispatch 指定だが --push が未指定');
+      console.error('   --dispatch は --push と同時指定が必須 (未保存ファイルへの dispatch は受信側 404 になる)');
+      process.exit(3);
+    }
+    if (args.confirmDispatch !== CONFIRM_DISPATCH_REQUIRED) {
+      console.error('❌ --dispatch 指定だが --confirm-dispatch=horse-histories-updated が未指定 (or 値不一致)');
+      console.error(`   実dispatchには「--dispatch --confirm-dispatch=horse-histories-updated」が必要 (二段階確認)`);
+      console.error(`   指定された値: ${JSON.stringify(args.confirmDispatch)}`);
+      process.exit(3);
+    }
+    // GITHUB_TOKEN フォールバックは禁止 (専用 token のみ・両方必須)
+    const intelligenceToken = process.env.KEIBA_INTELLIGENCE_TOKEN;
+    const analyticsToken = process.env.ANALYTICS_KEIBA_TOKEN;
+    if (!intelligenceToken || !analyticsToken) {
+      console.error('❌ --dispatch 指定だが dispatch 用 token が不足');
+      console.error(`   KEIBA_INTELLIGENCE_TOKEN: ${intelligenceToken ? 'OK' : 'MISSING'}`);
+      console.error(`   ANALYTICS_KEIBA_TOKEN:    ${analyticsToken ? 'OK' : 'MISSING'}`);
+      console.error('   両方必須。GITHUB_TOKEN へのフォールバックは安全上の理由で削除しました');
+      process.exit(3);
+    }
+  }
+
   console.log(`📥 対象場: ${venueR1s.map(r => `${JYO_MAP[r.jyo]?.name}(${JYO_MAP[r.jyo]?.code})`).join(', ')}`);
   console.log(`⏱  fetch間隔: ${args.delay}ms`);
   console.log(`📤 push:         ${args.push ? `YES (keiba-data-shared, confirm=${args.confirmPush})` : 'NO (tmp出力のみ)'}`);
+  console.log(`📡 dispatch:     ${args.dispatch ? `YES (event=${DISPATCH_EVENT_TYPE}, targets=${DISPATCH_TARGET_REPOS.join(', ')})` : 'NO'}`);
   console.log('');
 
   const startedAt = Date.now();
@@ -547,8 +594,9 @@ async function main() {
   // (confirm-push + token チェックは fetch 開始前に実施済み)
   if (!args.push) {
     console.log('');
-    console.log('ℹ️  tmp出力のみ。実push には「--push --confirm-push=keiba-data-shared」が必要。');
-    console.log('   dispatch (repository_dispatch) は本スクリプトでは行わない。');
+    console.log('ℹ️  tmp出力のみ。');
+    console.log('   実push には「--push --confirm-push=keiba-data-shared」が必要。');
+    console.log('   実dispatch には「--push --confirm-push=keiba-data-shared --dispatch --confirm-dispatch=horse-histories-updated」が必要。');
     return;
   }
 
@@ -569,7 +617,99 @@ async function main() {
 
   console.log('');
   console.log(`━━━ push 完了: ${pushedCount}/${summaries.length} venue ━━━`);
-  console.log('ℹ️  dispatch (repository_dispatch) は本スクリプトでは行わない。');
+
+  // ── --dispatch 指定時のみ repository_dispatch 送信 ──
+  // (confirm-dispatch + token + --push 同時指定 チェックは fetch 開始前に実施済み)
+  if (!args.dispatch) {
+    console.log('ℹ️  dispatch (repository_dispatch) は送信しない。');
+    console.log('   送信するには「--dispatch --confirm-dispatch=horse-histories-updated」を追加');
+    return;
+  }
+
+  if (pushedCount === 0) {
+    console.error('❌ push が 0 件のため dispatch をスキップ (受信側 404 防止)');
+    process.exit(4);
+  }
+
+  // payload 構築
+  const date = summaries[0]?.outJson?.date;
+  const venues = summaries.map((s) => s.outJson.venueCode);
+  const paths = summaries.map((s) => {
+    const [year, month] = s.outJson.date.split('-');
+    return `jra/horseHistories/${year}/${month}/${s.outJson.date}-${s.outJson.venueCode}.json`;
+  });
+  const payload = {
+    category: 'jra',
+    kind: 'horseHistories',
+    date,
+    dates: [date],
+    venues,
+    paths,
+    source: 'jra-official',
+  };
+
+  console.log('');
+  console.log('━━━ dispatch 送信予定 ━━━');
+  console.log(`  event_type: ${DISPATCH_EVENT_TYPE}`);
+  console.log(`  targets:`);
+  DISPATCH_TARGET_REPOS.forEach((r) => console.log(`    - ${r}`));
+  console.log(`  payload:`);
+  console.log(JSON.stringify(payload, null, 2).split('\n').map((l) => `    ${l}`).join('\n'));
+  console.log('');
+  console.log('📡 dispatch 送信中...');
+
+  const tokens = {
+    'apol0510/keiba-intelligence': process.env.KEIBA_INTELLIGENCE_TOKEN,
+    'apol0510/analytics-keiba': process.env.ANALYTICS_KEIBA_TOKEN,
+  };
+  let dispatched = 0;
+  for (const repo of DISPATCH_TARGET_REPOS) {
+    try {
+      await sendRepositoryDispatch(repo, DISPATCH_EVENT_TYPE, payload, tokens[repo]);
+      console.log(`✅ dispatched: ${repo}`);
+      dispatched++;
+    } catch (e) {
+      console.error(`❌ dispatch failed: ${repo}: ${e.message}`);
+    }
+    await sleep(500);
+  }
+
+  console.log('');
+  console.log(`━━━ dispatch 完了: ${dispatched}/${DISPATCH_TARGET_REPOS.length} repo ━━━`);
+}
+
+/**
+ * GitHub API で repository_dispatch を送信する。
+ *
+ * 注意: 既存 netlify/lib/dispatch.mjs は使わない。
+ *   - 既存モジュールには GITHUB_TOKEN_KEIBA_DATA_SHARED フォールバックが入っており、
+ *     本スクリプトの「専用 token のみ」方針に反するため。
+ *   - 既存モジュールを変更すると既存 dispatch (prediction-updated 等) に影響するため、
+ *     本スクリプト内に最小実装を内製する。
+ */
+async function sendRepositoryDispatch(repo, eventType, payload, token) {
+  if (!token) {
+    throw new Error(`token missing for ${repo}`);
+  }
+  const url = `https://api.github.com/repos/${repo}/dispatches`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'jra-horse-histories',
+    },
+    body: JSON.stringify({
+      event_type: eventType,
+      client_payload: payload,
+    }),
+  });
+  // 成功は 204 No Content
+  if (res.status === 204) return { ok: true };
+  if (res.ok) return { ok: true };
+  const text = await res.text().catch(() => '');
+  throw new Error(`HTTP ${res.status} ${text}`);
 }
 
 /**

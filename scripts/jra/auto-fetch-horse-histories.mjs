@@ -107,18 +107,21 @@ function parseArgs(argv) {
 }
 
 // ───── CNAME パース ─────
-const CNAME_SDE_RE = /^pw01sde(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})(\d{8})\/([0-9A-F]{2})$/i;
+// pw01sde (accessS.html 系) と pw01dde (accessD.html 系) の両方を受理する。
+// kind フィールドで 'sde' / 'dde' を区別し、後段の URL 再構築・リンク抽出で分岐する。
+const CNAME_RE = /^pw01(sde|dde)(\d{2})(\d{2})(\d{4})(\d{2})(\d{2})(\d{2})(\d{8})\/([0-9A-F]{2})$/i;
 
 function extractCname(url) {
   const m = String(url).match(/[?&]CNAME=([^&]+)/);
   return m ? decodeURIComponent(m[1]) : null;
 }
 
-function parseSdeCname(cname) {
-  const m = cname.match(CNAME_SDE_RE);
+function parseCname(cname) {
+  const m = cname.match(CNAME_RE);
   if (!m) return null;
-  const [, dateType, jyo, year, kai, nichi, race, raceDate, chk] = m;
+  const [, kindRaw, dateType, jyo, year, kai, nichi, race, raceDate, chk] = m;
   return {
+    kind: kindRaw.toLowerCase(), // 'sde' | 'dde'
     dateType, jyo, year, kai, nichi,
     race: parseInt(race, 10),
     raceDate,
@@ -172,13 +175,16 @@ async function fetchHtml(url) {
 function extractVenueRaceUrlsFromR1Page(html, r1) {
   const $ = cheerio.load(html);
   const urls = new Map();
-  const linkRe = /^\/JRADB\/accessS\.html\?CNAME=(pw01sde[A-Z0-9]+\/[0-9A-F]{2})$/i;
-  $('a[href*="accessS.html?CNAME="]').each((_, a) => {
+  // accessS / accessD どちらのリンクも拾い、parseCname 後に r1.kind と一致するものだけ採用する。
+  // accessD ページ内には他週ナビ等で別 kind のリンクが混在するため、kind 一致フィルタで巻き込みを防ぐ。
+  const linkRe = /^\/JRADB\/access[SD]\.html\?CNAME=(pw01(?:sde|dde)[A-Z0-9]+\/[0-9A-F]{2})$/i;
+  $('a[href*="accessS.html?CNAME="],a[href*="accessD.html?CNAME="]').each((_, a) => {
     const href = $(a).attr('href') || '';
     const m = href.match(linkRe);
     if (!m) return;
-    const parsed = parseSdeCname(m[1]);
+    const parsed = parseCname(m[1]);
     if (!parsed) return;
+    if (parsed.kind !== r1.kind) return;
     if (parsed.jyo !== r1.jyo) return;
     if (parsed.kai !== r1.kai) return;
     if (parsed.nichi !== r1.nichi) return;
@@ -307,7 +313,10 @@ async function processVenue(r1, delayMs) {
   console.log(`━━ ${venueName} (${venueCode}) ${date} ━━`);
 
   // R1 fetch
-  const r1Url = `https://www.jra.go.jp/JRADB/accessS.html?CNAME=pw01sde${r1.dateType}${r1.jyo}${r1.year}${r1.kai}${r1.nichi}01${r1.raceDate}/${r1.chk.toString(16).toUpperCase().padStart(2, '0')}`;
+  // kind ('sde'|'dde') に応じて accessS / accessD を切り替える
+  const accessHtml = r1.kind === 'dde' ? 'accessD.html' : 'accessS.html';
+  const cnamePrefix = `pw01${r1.kind}`;
+  const r1Url = `https://www.jra.go.jp/JRADB/${accessHtml}?CNAME=${cnamePrefix}${r1.dateType}${r1.jyo}${r1.year}${r1.kai}${r1.nichi}01${r1.raceDate}/${r1.chk.toString(16).toUpperCase().padStart(2, '0')}`;
   const r1Fetch = await fetchHtml(r1Url);
   if (!r1Fetch.ok) {
     console.error(`  ❌ R1 fetch failed HTTP ${r1Fetch.status}`);
@@ -467,9 +476,9 @@ async function main() {
       console.warn(`  ⚠️  CNAME 抽出失敗: ${line}`);
       continue;
     }
-    const parsed = parseSdeCname(cname);
+    const parsed = parseCname(cname);
     if (!parsed) {
-      console.warn(`  ⚠️  CNAME パターン不一致: ${cname}`);
+      console.warn(`  ⚠️  CNAME パターン不一致 (sde/dde どちらにも一致しない): ${cname}`);
       continue;
     }
     if (parsed.race !== 1) {

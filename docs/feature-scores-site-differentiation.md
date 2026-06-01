@@ -3,6 +3,12 @@
 最終更新: 2026-06-01
 関連: [feature-scores-jra-progress.md](feature-scores-jra-progress.md)
 
+> ## ✅ JRA は実装・本番反映・確認まで **完了**（2026-06-01）
+> KI=6項目詳細（#19/#20/#21）/ AK=3項目要約（#50 premium・#51 free）。
+> premium・free 両JRAで 安定性 / 能力上位性 / 展開利 の3項目が本番表示、6項目名は非表示を実測確認済み。
+> **AK を KI と同じ6項目・同じ値に戻さないこと。** 詳細・完了PR・禁止事項は
+> [feature-scores-jra-progress.md](feature-scores-jra-progress.md) を参照。南関は別設計（未着手）。
+
 ## 方針
 - **KI（keiba-intelligence）と AK（analytics-keiba）で、同じ 6項目・同じ値を「そのまま」表示しない。**
 - 同じ素材を同じ見せ方で出すと 2 サイトに分ける意味が薄れる。提供価値を分けるため、

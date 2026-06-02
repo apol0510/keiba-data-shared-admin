@@ -466,6 +466,37 @@ racebook 素材ベースでは全485件に `no-track-condition`/`no-corner-order
 
 ---
 
+## 9.5. FUN / KAW write-local 追加確認
+
+**実施日**: 2026-06-02 / **形態**: main 上の Phase 3 generator（`--write-local`）で 4場網羅確認。生成先は admin repo 内 `tmp/` 配下のみ（[implementation-plan §10.2](nankan-recent-horse-histories-implementation-plan.md)）。**shared PUT・dispatch・AK/KI接続なし。**
+
+### 実測数値
+
+| 指標 | FUN（2026-05-08） | KAW（2026-05-15） |
+|---|---|---|
+| 規模 | 12R / 131頭 / pastRaces 406 | 12R / 127頭 / pastRaces 407 |
+| matched | 179 | 149 |
+| match率 | 44.1% | 36.6% |
+| recentRaces 件数 | 406（入力一致） | 407（入力一致） |
+| validateOutput | PASS | PASS |
+| time-fail | 9件 | 8件 |
+| headCount 出力 | あり | あり |
+| fieldSize 出力 | なし | なし |
+
+- 検証用JSONは削除済み。keiba-data-shared はクリーン。
+
+### 所見
+
+- **4場すべて（URA / OOI / FUN / KAW）で generator は動作確認済み。**
+- **FUN/KAW は match率が URA/OOI（約61%）より低い**（FUN 44.1% / KAW 36.6%）。
+- 低下の主因は **no-result-file**（5月初旬で過去走が results 窓外に多く落ちる）と思われるが、**time-fail も新たな venue 依存品質問題として確認**（URA/OOI は 0件、FUN/KAW で 9/8件）。
+  - 失敗サンプル: `"11頭 5枠"` / `"10頭 6枠 433"` / `"12頭 1枠 437"` — time フィールドに「頭数・枠・馬体重」らしき文字列が混入。
+  - racebook pastRaces の time パースに **FUN/KAW 固有の崩れ**がある可能性。generator はクラッシュせず warn ＋ 生値保持で処理。
+- **time-fail は fail ではなく warn として扱う方針でよい。**
+- **Phase 4 では time-fail の件数とサンプルを保存前検査に含める。**
+
+---
+
 ## 10. AK / KI への影響範囲確認（読み取り専用結果）
 
 - `recentHorseHistories` は AK / KI / shared の**どこにも未出現** → 新規 shared ファイルは純粋に追加的で、既存読み手のロードを壊さない。

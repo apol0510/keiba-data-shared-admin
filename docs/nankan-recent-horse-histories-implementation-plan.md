@@ -460,6 +460,19 @@
 - no-result-file率 >= 70%
 - passingOrder欠損率 >= 30%（horse-level、§8.1）
 
+#### time-fail の実測知見（2026-06-02 / 4場 write-local 検証）
+
+- **URA / OOI では time正規化失敗は 0件**だった。
+- **FUN / KAW の追加 write-local 検証で time正規化失敗が発生**した:
+  - FUN 2026-05-08: **time-fail 9件**
+  - KAW 2026-05-15: **time-fail 8件**
+- 失敗サンプル: `"11頭 5枠"` / `"10頭 6枠 433"` / `"12頭 1枠 437"`。
+- **time フィールドに「頭数・枠・馬体重」らしき文字列が混入**している（タイム値ではない）。
+- これは **FUN/KAW の racebook pastRaces パースに venue 依存の崩れがある可能性**を示す。
+- generator は**クラッシュせず warn として可視化**し、**生値保持**で処理できている（[§9.5 dryrun-design](nankan-recent-horse-histories-dryrun-design.md) 参照）。
+- **validateOutput では time-fail は fail ではなく warn のまま**とする。
+- **Phase 4 では time-fail 件数・サンプル列挙・閾値評価を保存前検査に含める。**
+
 ### 5. 出力JSON確認方法（jq）
 
 ```bash

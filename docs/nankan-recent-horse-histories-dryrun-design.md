@@ -329,6 +329,7 @@ ls -l keiba-data-shared/nankan/results/2026/05/2026-05-29-URA.json
 
 - `raceNumber` / `raceName` / `surface` / `trackCondition` / `headCount` / `popularity` / `margin` / `horseNumber`：**299/299（100%）**
 - `passingOrder`（cornerData導出）：**290/299**（cornerData 欠落9R分のみ未補完）
+  - **【訂正注記 2026-06-02】** この **290/299（97.0%）は race-level**（=「レースに cornerData が存在するか」）の粗い指標だった。**Phase 2 generator の horse-level 導出（=その馬の当時馬番が cornerData 各コーナー order 配列に実際に現れ `derivePassingOrder` が非nullを返す）では 253/299**。recentHorseHistories の実装上は **horse-level が正しい基準**であり、今後の保存前検査・summary では **horse-level の passingOrder 欠損**を採用する（[implementation-plan §10.1](nankan-recent-horse-histories-implementation-plan.md)）。
 - `headCount`：results `races[].horses`（出走頭数）から **299/299 取得可能**。**`fieldSize` は出力不要、`headCount` 統一で問題なし**（§9.1 と整合）。
 
 ### 構造欠損フラグの補完後実効値
@@ -419,11 +420,13 @@ racebook 素材ベースでは全485件に `no-track-condition`/`no-corner-order
 | └ name-miss | 3 |
 | ambiguous | 0 |
 | results補完8項目（raceNumber/raceName/surface/trackCondition/headCount/popularity/margin/horseNumber） | 339/339 |
-| passingOrder | 336/339 |
+| passingOrder | 336/339（※下記訂正注記） |
 | headCount | 339/339 |
 | result-present-horse-absent | 3 |
 | racebook-pastrace-suspect | 3 |
 | horse-name-mismatch | 0 |
+
+> **【passingOrder 訂正注記 2026-06-02】** 上表の **336/339（99.1%）は race-level**（=「レースに cornerData が存在するか」）の粗い指標だった。**Phase 2 generator の horse-level 導出（=その馬の当時馬番が cornerData 各コーナー order 配列に実際に現れ `derivePassingOrder` が非nullを返す）では 314/339**。recentHorseHistories の実装上は **horse-level が正しい基準**であり、今後の保存前検査・summary では **horse-level の passingOrder 欠損**を採用する（[implementation-plan §10.1](nankan-recent-horse-histories-implementation-plan.md)）。
 
 ### name-miss 3件の簡易分類
 
@@ -448,7 +451,8 @@ racebook 素材ベースでは全485件に `no-track-condition`/`no-corner-order
 | ambiguous | 0件 | 0件 | **両方0** |
 | year-inferred | 70件（14.4%） | 129件（23.2%） | **OOIが多い** |
 | headCount統一 | 問題なし | 問題なし | **両方問題なし** |
-| passingOrder補完率 | 97.0% | 99.1% | 大差なし |
+| passingOrder補完率（race-level 旧記録） | 97.0% | 99.1% | 粗い指標 |
+| passingOrder補完率（**horse-level 正基準**） | **253/299=84.6%** | **314/339=92.6%** | generator 実測。今後はこちらを採用 |
 
 ### 所見
 

@@ -173,7 +173,7 @@
 | name-miss件数 | suspect flag 付与済か |
 | ambiguous件数 | 採用0か |
 | headCount欠損件数 | matched分の欠損数 |
-| passingOrder欠損件数 | cornerData欠落分 |
+| passingOrder欠損件数 | **horse-level**（馬番が cornerData に現れず derivePassingOrder=null）。§8.1 |
 | unknown venue件数 | **0** 期待。>0なら全件列挙 |
 | time正規化失敗件数 | **0** 期待。>0なら全件列挙 |
 | 必須項目欠損件数 | schemaVersion/date/venue/races/horses/recentRaces |
@@ -360,6 +360,17 @@
 - time正規化失敗 > 0
 - match率 < 30%
 - no-result-file率 >= 70%
+
+### 8.1. passingOrder の定義（計測基準の確定 2026-06-02）
+
+> Phase 2 generator 実装後の dry-run で、docs §9.2/§9.4 の passingOrder 値（race-level）と generator 値（horse-level）に差が出たため、定義を確定する。
+
+- **passingOrder 補完率は horse-level で測る。**
+- **horse-level とは**: matched した馬の**当時馬番が results の `cornerData` 各コーナー `order` 配列に実際に現れ、`derivePassingOrder` が非null を返す**こと。
+- **race-level の cornerData 存在だけでは補完成功扱いにしない**（=「レースに cornerData がある」だけでは passingOrder を埋めたことにしない）。
+- 保存前検査・stdout summary では **horse-level の passingOrder 欠損数**を表示する（`passingOrder欠損(matched)`）。
+- **passingOrder 欠損は `validateOutput` では fail にしない。warn / summary 対象**にとどめる（後方追走で各コーナーに現れない馬は正常に発生し得るため）。
+- 実測差（race-level → horse-level）: URA 290/299→**253/299**、OOI 336/339→**314/339**（docs §9.2/§9.4 訂正注記）。
 
 ### 9. preview 方針
 

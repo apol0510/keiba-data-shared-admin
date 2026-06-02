@@ -214,6 +214,174 @@
 
 ---
 
+## 10.1. Phase 2 stdout generator 詳細設計
+
+> Phase 2（stdout dry-run generator）の実装前詳細設計。**本節は設計のみ。コード・JSON生成・PUT・dispatch は行わない。**
+
+### 1. generator 配置案
+
+- **配置**: `scripts/enrich-recent-horse-histories.mjs`。
+- **`netlify/functions` には置かない**。理由:
+  - 本番 dispatch 経路（pair-guard / prediction-updated）に混ぜない。
+  - オフラインCLIのため **HTTPトリガ不要**。
+  - 誤 PUT / 誤 dispatch を構造的に避ける。
+- **既存 scripts との衝突なし**（`compare-past-races.mjs` / `verify-past-races.mjs` 等とは別名・別責務）。
+
+### 2. CLI 仕様
+
+| 引数 | 必須/既定 | 挙動 |
+|---|---|---|
+| `--date` | **必須** | 対象開催日 `YYYY-MM-DD`。不正形式は usage 表示 + exit 1 |
+| `--venue` | **必須** | `OOI`/`KAW`/`FUN`/`URA`。それ以外は exit 1 |
+| `--dry-run` | **既定ON** | stdout summary のみ・書き込みなし |
+| `--out <path>` | 任意 | 出力先候補。**単独では保存しない** |
+| `--write-local` | 既定OFF | 明示時のみローカル保存を許可。Phase 2 では未使用または無効でもよい |
+| `--push` | — | **Phase 2 では未実装**。指定されたら明示エラーで exit 1 |
+| `--help` / `-h` | — | usage 表示 + exit 0 |
+
+**安全方針**:
+- `--dry-run` は既定ON。
+- `--out` 指定だけでは保存しない。**書き込みには `--write-local` が必須**。
+- `--push` は Phase 2 では必ずエラー。
+- `--dry-run` と `--write-local` が同時指定された場合は**安全側で dry-run 維持・書き込まない**（＋警告）。
+
+### 3. 関数分割案
+
+| 関数 | 種別 |
+|---|---|
+| `parseArgs` | 純粋 |
+| `loadRacebook` | **I/O** |
+| `loadResultsIndex` | **I/O** |
+| `parsePastRaceDate` | 純粋 |
+| `normalizeVenue` | 純粋 |
+| `normalizeHorseName` | 純粋 |
+| `normalizeDistanceMeters` | 純粋 |
+| `normalizeTime` | 純粋 |
+| `buildResultLookup` | 純粋 |
+| `derivePassingOrder` | 純粋 |
+| `matchPastRaceToResult` | 純粋（突合判定＋フラグ生成の単一責任点） |
+| `buildRecentRace` | 純粋 |
+| `buildRecentHorseHistories` | 合成 |
+| `collectSummary` | 純粋 |
+| `validateOutput` | 純粋 |
+| `printSummary` | **I/O** |
+| `maybeWriteLocal` | **I/O** |
+| `main` | 合成 |
+
+- **I/O は `loadRacebook` / `loadResultsIndex` / `printSummary` / `maybeWriteLocal` の4関数に限定**。残りは純粋関数。
+
+### 4. 突合ロジック（判定木）
+
+```
+1. parsePastRaceDate → 失敗: NO_DATE（resultsロードしない）
+2. normalizeVenue:
+   - outside → OUTSIDE
+   - unknown → UNKNOWN_VENUE（unknown-venue記録, NO_FILE扱い）
+   - venueCode あり → 次へ
+3. resultsFile load(date, venueCode):
+   - null → NO_FILE
+4. lookup(normalizeHorseName(parent)):
+   - 0件 → HORSE_ABSENT
+   - 2件以上 → AMBIGUOUS
+   - 1件 → 距離矛盾チェックへ
+5. distanceMeters(past) と distanceMeters(cand) が両方既知で不一致:
+   - 不一致 → AMBIGUOUS
+   - それ以外 → MATCHED
+```
+
+**確定ルール**:
+- **parent horseName 完全/正規化一致が必須ゲート**。
+- **基本キー**: `date + venueCode + normalized parent horseName`。
+- **`distanceMeters` は降格専用の検証補助**（一致を増やす方向には使わない。名前一致でも距離矛盾は AMBIGUOUS に降格）。
+- **time / distance / finish / winner 類似だけでは採用しない**。
+- **ambiguous は採用しない**（results 値を取り込まず racebook-only）。
+- **`horse-name-mismatch` は正規化一致で救済できた場合だけ**付与（`result-present-horse-absent` とは別物）。
+
+### 5. status 分類
+
+| status | 意味 | source | 主フラグ |
+|---|---|---|---|
+| `MATCHED` | 名前一致・距離矛盾なし | results-enriched | `source-results-enriched` |
+| `HORSE_ABSENT` | results在・馬名不在 | racebook-only | `result-present-horse-absent` + `racebook-pastrace-suspect` |
+| `AMBIGUOUS` | 複数候補 or 距離矛盾 | racebook-only | `match-ambiguous` |
+| `NO_FILE` | results ファイル無 | racebook-only | `no-result-file` |
+| `OUTSIDE` | 南関4場以外 | racebook-only | `outside-nankan` |
+| `NO_DATE` | 日付解釈不能 | racebook-only | `no-date` |
+
+### 6. dataQualityFlags 付与順序（固定）
+
+1. `source-results-enriched` / `source-racebook-only`
+2. `no-result-match`
+3. `no-result-file` / `outside-nankan` / `result-present-horse-absent` / `racebook-pastrace-suspect` / `match-ambiguous`
+4. `horse-name-mismatch`
+5. `year-inferred`
+6. `no-track-condition` / `no-corner-order` / `no-popularity` / `no-margin` / `no-field-size` / `no-surface`
+
+**補足**:
+- source系は必ず先頭・排他で1つ。
+- **欠損フラグは補完後の実効値で付与**（MATCHED で results 供給された項目には付けない。corner-order は passingOrder null 時のみ）。
+- **`no-field-size` はフラグ名として残すが、出力フィールドは `headCount`**。
+
+### 7. stdout summary 仕様
+
+必ず出す項目:
+- 入力ファイル（racebook パス）
+- results 動的ロード数
+- races / horses / pastRaces
+- output recentRaces 件数
+- matched / match率
+- no-result-match / no-result-match率
+- no-result-file
+- outside-nankan
+- name-miss（= result-present-horse-absent）
+- ambiguous
+- year-inferred
+- no-date
+- unknown-venue（>0 は全件列挙）
+- time-fail（>0 は全件列挙）
+- headCount欠損（matched）
+- passingOrder欠損（matched）
+- flags集計
+- validateOutput PASS/FAIL
+- 書込モード（dry-run / write-local / skipped）
+
+### 8. validateOutput 設計
+
+**fail（1つでもあれば書き込み不可）**:
+- 入力pastRaces総件数 != 出力recentRaces件数
+- races/horses 構造欠落
+- schemaVersion / date / venue / venueName 欠落
+- MATCHED で headCount 欠損
+- ambiguous なのに results-enriched になっている
+- 入力より出力件数が減っている
+
+**warn（書き込みは止めないが強調）**:
+- unknown-venue > 0
+- time正規化失敗 > 0
+- match率 < 30%
+- no-result-file率 >= 70%
+
+### 9. preview 方針
+
+- **Phase 2 では full JSON dump しない。summary のみ。**
+- 将来 `--preview` を追加する余地は残すが、**作る場合も1Rまたは1頭限定**。全件 dump はしない。
+
+### 10. 未確定論点への暫定方針
+
+| 論点 | 暫定方針 |
+|---|---|
+| match率 warn 閾値 | **30%未満** |
+| no-result-file率 warn 閾値 | **70%以上** |
+| `racebook-pastrace-suspect` | Phase 2 では **HORSE_ABSENT 時に付与** |
+| `--out` 既定パス | **Phase 3 で確定** |
+| horseName 正規化 | **NFKC + 空白除去 + 中黒除去** |
+| `[J]` 等プレフィックス | Phase 2 では**検出・summary表示のみ**、自動除去は保留 |
+| recentRaces 最大保持件数 | **racebook由来をそのまま保持** |
+| `generatedAt` | **生成時刻の ISO 文字列** |
+| unit test | **Phase 2 実装後、必要に応じて別PR** |
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

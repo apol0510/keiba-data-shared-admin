@@ -393,6 +393,131 @@
 
 ---
 
+## 10.2. Phase 3 ローカルJSON生成 詳細設計
+
+> Phase 3（ローカル一時JSON生成）の実装前詳細設計。**本節は設計のみ。`--write-local` 実装・JSON生成・shared PUT・dispatch・AK/KI接続は行わない。**
+
+### 確定方針（重要）
+
+- **Phase 3 の出力先は admin repo 内 `tmp/` 配下のみ許可**。
+- **repo外 `/tmp` は今回は許可しない。**
+- **keiba-data-shared 実パスへの書き込みは禁止。**
+- **既存ファイル上書きは禁止**（将来 `--overwrite` を検討）。
+- **`--write-local` 実装はまだしない。**
+
+### 1. Phase 3 の目的
+
+- shared PUT 手前の**ローカル一時JSON生成段階**。
+- 生成JSONを **jq 等で検査するための段階**。
+- **AK/KI接続はまだ行わない。** **shared PUT はまだ行わない。** **workflow_dispatch はまだ行わない。**
+
+### 2. 出力先設計（A/B/C 比較）
+
+| 案 | パス | 誤commitリスク | 実保存先との近さ | 検査しやすさ | .gitignore 必要性 | Phase4/5移行性 |
+|---|---|---|---|---|---|---|
+| A | repo外 `/tmp/nankan-recentHorseHistories/...` | 極小 | 低 | やや低 | 不要 | 中 |
+| **B（推奨）** | admin内 `tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json` | **極小（`tmp/` は既に .gitignore 済）** | **高** | **高** | **不要** | **高** |
+| C | shared 実パス `keiba-data-shared/nankan/recentHorseHistories/...` | 高（禁止事項） | 同一 | 高 | 別repo | — |
+
+**推奨案: B**（`tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json`）。理由:
+- admin の `.gitignore` に **`tmp/` が既に登録済み**。
+- 誤commitリスクが低い。
+- 実保存先に近い構造を再現できる。
+- jq/ls で検査しやすい。
+- keiba-data-shared 本体を書き換えない。
+- Phase 5 では **`tmp/` プレフィックスを外すだけ**で shared 相対パスへ移行しやすい。
+
+### 3. CLI 仕様（Phase 3 案）
+
+- **`--write-local` を有効化する。**
+- **`--out` は任意。**
+- `--out` 未指定時の既定パス: `tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json`。
+- `--out` を指定する場合も、**admin repo 内 `tmp/` 配下でなければ fail**。
+- **Phase 3 では許可ディレクトリは admin repo 内 `tmp/` 配下のみ**。**repo外 `/tmp` は今回は許可しない。**
+- `--dry-run` と `--write-local` が同時指定された場合は **dry-run 優先で書き込まない**。
+- `--push` は引き続き未実装・exit 1。
+- **`--write-local` 実行時も validateOutput PASS が必須**（FAIL なら書き込まず exit 2）。
+
+### 4. 書き込み前 validation
+
+**必須 fail（1つでも該当で書き込み不可）**:
+- validateOutput FAIL
+- 入力pastRaces総件数 != 出力recentRaces件数
+- schemaVersion / date / venue / venueName 欠落
+- races / horses / recentRaces 構造欠落
+- MATCHED で headCount 欠損
+- ambiguous なのに results-enriched
+- 出力先が keiba-data-shared の本番パス
+- 出力先が git tracked path
+- 出力先が admin repo 内 `tmp/` 配下以外
+- 出力先ファイルが既に存在する
+- `--push` 指定
+
+**warn（書き込みは止めないが強調）**:
+- unknown-venue > 0
+- time正規化失敗 > 0
+- match率 < 30%
+- no-result-file率 >= 70%
+- passingOrder欠損率 >= 30%（horse-level、§8.1）
+
+### 5. 出力JSON確認方法（jq）
+
+```bash
+F=tmp/nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
+# トップ構造
+jq '{schemaVersion, date, venue, venueName, races: (.races|length)}' "$F"
+# recentRaces 総数（= 入力 pastRaces と一致するか）
+jq '[.races[].horses[].recentRaces[]] | length' "$F"
+# source 内訳
+jq '[.races[].horses[].recentRaces[].source] | group_by(.) | map({(.[0]): length}) | add' "$F"
+# dataQualityFlags 集計
+jq '[.races[].horses[].recentRaces[].dataQualityFlags[]] | group_by(.) | map({(.[0]): length}) | add' "$F"
+# headCount が存在し fieldSize が存在しないこと
+jq '[.races[].horses[].recentRaces[] | keys] | add | unique | map(select(.=="headCount" or .=="fieldSize"))' "$F"
+# result-present-horse-absent / racebook-pastrace-suspect 件数
+jq '[.races[].horses[].recentRaces[].dataQualityFlags[] | select(.=="result-present-horse-absent" or .=="racebook-pastrace-suspect")] | length' "$F"
+```
+
+確認観点:
+- `schemaVersion` / `date` / `venue` / `venueName` / `races件数` が正しい。
+- recentRaces 総数 == 入力 pastRaces 件数。
+- `source-results-enriched` / `source-racebook-only` 件数が dry-run summary と一致。
+- **`headCount` が存在し `fieldSize` が存在しない**こと（`no-field-size` はフラグ名としてのみ存在）。
+- `result-present-horse-absent` / `racebook-pastrace-suspect` が name-miss 件数分出ている。
+
+### 6. 安全装置
+
+- **`git add .` / `git add -A` 禁止。**
+- 生成JSONは **`tmp/` 配下のみ**。`tmp/` は `.gitignore` 対象。
+- **keiba-data-shared 本体には書き込まない。**
+- **shared PUT は別Phase。** **workflow_dispatch は別Phase。** **AK/KI接続は別Phase。**
+- 生成後に **`git status` で tracked 増分がないこと**を確認。
+- **生成先パスを stdout summary に必ず表示。**
+- **既存ファイルがある場合は上書きせず fail。**
+
+### 7. 未確定論点への暫定方針
+
+| 論点 | 暫定方針 |
+|---|---|
+| 既定出力先 | `tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json` |
+| 許可ディレクトリ | admin repo 内 `tmp/` 配下のみ |
+| repo外 `/tmp` | 今回は許可しない |
+| tracked path 判定 | `git ls-files --error-unmatch` 相当で拒否 |
+| passingOrder欠損 warn閾値 | 30%以上 |
+| 既存ファイル上書き | Phase 3 では禁止。将来 `--overwrite` を検討 |
+| `generatedAt` | 生成時刻 ISO |
+
+### 8. まだやらないこと（明示）
+
+- `--write-local` 実装しない
+- JSON生成しない
+- shared PUT しない
+- workflow_dispatch しない
+- AK/KI接続しない
+- Feature Importance 改善に入らない
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

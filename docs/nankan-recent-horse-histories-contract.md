@@ -228,6 +228,46 @@ confidence = w1*nameExact + w2*dateExact + w3*venueExact
 
 ---
 
+## 9.1. ドライラン実測で確定した突合の追加ルール（2026-05-29-URA 精査由来）
+
+> 2026-05-29-URA 単独ドライランの name-miss 4件精査（[dryrun-design §9.3](nankan-recent-horse-histories-dryrun-design.md)）で確定した契約追補。
+
+### A. 距離照合は `distanceMeters` で行う
+
+- results 側の距離は `"1300"` のような **数値文字列**、racebook 側は `"ダ1300"` のような表記。
+- **距離照合は文字列一致ではなく `distanceMeters` に正規化して比較する**。`distance` / `surface` の表記をそのまま比較しない。
+
+### B. winner 名は弱い補助情報として扱う
+
+- racebook pastRace の `winner` は **約6文字で切り捨てられている可能性がある**（例: `エミネントキ` = results の `エミネントキャリア`）。
+- **winner は補助情報**にとどめ、強い突合キーにしない。**winner の前方一致だけで results 行を採用しない**。
+
+### C. 補助突合による救済は禁止（偽陽性防止）
+
+- parent horseName が results 側に存在しない場合、**`time` / `distance` / `finish` / `winner` の類似だけで別馬の results 行へ接続しない**。
+- 補助突合で救済すると **偽陽性**が発生する。実測 case1 では、補助突合すると別馬（カスカナノゾミ）の行へ誤接続する可能性が確認された。
+- よって **parent horseName の完全/正規化一致を必須条件**とし、満たさなければ `no-result-match`（racebook-only）のまま据え置く。§8 の `confidence` 案も「nameExact を必須ゲートとし、補助項目は確証の上積みのみ。nameExact=0 なら採用しない」と解釈する。
+
+### D. dataQualityFlags 追加（name-miss の細分化）
+
+既存の `horse-name-mismatch`（表記ゆれ・正規化差分の疑い）とは**別物**として、次を追加する:
+
+- `result-present-horse-absent` — 推定 `date` + `venueCode` の results は存在するが、parent horseName が results に存在しない。
+- `racebook-pastrace-suspect` — racebook pastRace の日付・場・winner・着順などが親馬の実戦績と整合せず、**racebook 側の誤紐付け（パース列ずれ・幻行）**が疑われる。
+
+| フラグ | 意味 | 救済方針 |
+|---|---|---|
+| `horse-name-mismatch` | 表記ゆれ・正規化差分。正規化一致で救える | 正規化一致なら results 採用可 |
+| `result-present-horse-absent` | results はあるが馬名が無い（表記ゆれではない） | **救済しない**。racebook-only |
+| `racebook-pastrace-suspect` | 過去走行と親馬の対応自体が疑わしい | **救済しない**。racebook-only |
+
+### E. 実装方針への影響
+
+- **horseName 突合ルールの緩和は不要**。むしろ緩和しない方が安全。
+- name-miss は **racebook-only として残し、専用フラグ（D）で可視化**する。`dataQualityFlags` で後段に伝え、**無理に補完しない**。
+
+---
+
 ## 10. AK / KI 利用方針
 
 - AK / KI は **この recentHorseHistories を共通正本として読む**。

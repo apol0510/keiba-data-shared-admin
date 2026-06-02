@@ -24,8 +24,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ADMIN_ROOT = path.resolve(__dirname, '..');           // keiba-data-shared-admin
+const TMP_ROOT = path.join(ADMIN_ROOT, 'tmp');              // Phase 3 で許可する唯一の書き込み先（.gitignore 済）
 // admin/scripts/ から見て keiba-data-shared は admin repo の兄弟
 const SHARED_ROOT = process.env.KEIBA_DATA_SHARED_ROOT
   ? path.resolve(process.env.KEIBA_DATA_SHARED_ROOT)
@@ -42,18 +45,19 @@ const OUTSIDE_NANKAN = new Set([
 
 const MATCH_RATE_WARN = 0.30;       // match率 < 30% で warn
 const NO_RESULT_FILE_RATE_WARN = 0.70; // no-result-file率 >= 70% で warn
+const PASSING_ORDER_MISSING_RATE_WARN = 0.30; // passingOrder欠損率(matched基準) >= 30% で warn
 
 // ---------------------------------------------------------------------------
 // parseArgs
 // ---------------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { date: null, venue: null, dryRun: true, out: null, writeLocal: false, push: false, help: false };
+  const args = { date: null, venue: null, dryRun: true, dryRunExplicit: false, out: null, writeLocal: false, push: false, help: false };
   for (const raw of argv) {
     const [k, v] = raw.includes('=') ? raw.split(/=(.*)/s) : [raw, true];
     switch (k) {
       case '--date': args.date = v; break;
       case '--venue': args.venue = typeof v === 'string' ? v.toUpperCase() : v; break;
-      case '--dry-run': args.dryRun = true; break;
+      case '--dry-run': args.dryRun = true; args.dryRunExplicit = true; break;
       case '--out': args.out = v; break;
       case '--write-local': args.writeLocal = true; break;
       case '--push': args.push = true; break;
@@ -408,14 +412,49 @@ function validateOutput(json, summary, pastTotal) {
   if (summary.timeFail > 0) warnings.push(`time正規化失敗 ${summary.timeFail}件: ${summary.timeFailSamples.join(', ')}`);
   if (summary.matchRate < MATCH_RATE_WARN) warnings.push(`match率が低い: ${(summary.matchRate * 100).toFixed(1)}% < ${MATCH_RATE_WARN * 100}%`);
   if (summary.noResultFileRate >= NO_RESULT_FILE_RATE_WARN) warnings.push(`no-result-file率が高い: ${(summary.noResultFileRate * 100).toFixed(1)}% >= ${NO_RESULT_FILE_RATE_WARN * 100}%`);
+  const poRate = summary.matched ? summary.passingOrderMissingMatched / summary.matched : 0;
+  if (poRate >= PASSING_ORDER_MISSING_RATE_WARN) warnings.push(`passingOrder欠損率(matched基準)が高い: ${(poRate * 100).toFixed(1)}% >= ${PASSING_ORDER_MISSING_RATE_WARN * 100}%`);
 
   return { pass: errors.length === 0, errors, warnings };
 }
 
 // ---------------------------------------------------------------------------
+// 出力先パスの解決と許可判定（Phase 3: admin repo 内 tmp/ 配下のみ許可）
+// ---------------------------------------------------------------------------
+function resolveDefaultOutputPath(date, venue) {
+  const [y, m] = date.split('-');
+  return path.join(TMP_ROOT, 'nankan', 'recentHorseHistories', y, m, `${date}-${venue}.json`);
+}
+
+function isWithin(parent, child) {
+  const rel = path.relative(parent, child);
+  return rel !== '' && !rel.startsWith('..') && !path.isAbsolute(rel);
+}
+
+function isGitTracked(absPath) {
+  try {
+    execSync(`git ls-files --error-unmatch -- ${JSON.stringify(absPath)}`, { cwd: ADMIN_ROOT, stdio: 'ignore' });
+    return true; // exit 0 = tracked
+  } catch {
+    return false;
+  }
+}
+
+// 書き込み許可判定（fail 理由の配列を返す。空なら許可）
+function assertAllowedOutputPath(outPath) {
+  const errors = [];
+  const abs = path.resolve(outPath);
+  if (isWithin(SHARED_ROOT, abs)) errors.push(`出力先が keiba-data-shared 本番パス配下です（禁止）: ${abs}`);
+  if (!isWithin(TMP_ROOT, abs)) errors.push(`出力先が admin repo 内 tmp/ 配下ではありません（Phase 3 で許可されるのは tmp/ のみ）: ${abs}`);
+  if (isGitTracked(abs)) errors.push(`出力先が git tracked path です（禁止）: ${abs}`);
+  if (fs.existsSync(abs)) errors.push(`出力先ファイルが既に存在します（上書き禁止）: ${abs}`);
+  return { abs, errors };
+}
+
+// ---------------------------------------------------------------------------
 // printSummary
 // ---------------------------------------------------------------------------
-function printSummary({ rbPath, summary: s, validation, args }) {
+function printSummary({ rbPath, summary: s, validation, args, write }) {
   const pct = (x) => `${(x * 100).toFixed(1)}%`;
   const flagKeys = [
     'source-results-enriched', 'source-racebook-only',
@@ -424,7 +463,17 @@ function printSummary({ rbPath, summary: s, validation, args }) {
     'year-inferred',
     'no-track-condition', 'no-corner-order', 'no-popularity', 'no-margin', 'no-field-size', 'no-surface',
   ];
-  console.log(`=== recentHorseHistories dry-run: ${args.date}-${args.venue} ===`);
+  const mode = write && write.wrote ? 'write-local' : 'dry-run';
+  let writeInfo;
+  if (write && write.wrote) {
+    writeInfo = `write-local 成功: ${write.path}`;
+  } else if (write) {
+    writeInfo = write.reason || 'dry-run（書き込みなし）';
+    if (write.errors) for (const e of write.errors) writeInfo += `\n         ✗ ${e}`;
+  } else {
+    writeInfo = 'dry-run（書き込みなし）';
+  }
+  console.log(`=== recentHorseHistories ${mode}: ${args.date}-${args.venue} ===`);
   console.log(`[入力]   racebook: ${rbPath}`);
   console.log(`         results : 動的ロード ${s.resultsLoadCount} ファイル`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  pastRaces=${s.pastTotal}`);
@@ -439,16 +488,30 @@ function printSummary({ rbPath, summary: s, validation, args }) {
   console.log(`[検査]   validateOutput: ${validation.pass ? 'PASS' : 'FAIL'}`);
   for (const e of validation.errors) console.log(`         ✗ ERROR: ${e}`);
   for (const w of validation.warnings) console.log(`         ⚠ WARN : ${w}`);
-  const writeMode = args.out ? `dry-run（--out 指定あり: "${args.out}" だが Phase 2 は保存しない）` : 'dry-run（書き込みなし）';
-  console.log(`[書込]   ${writeMode}`);
+  console.log(`[書込]   ${writeInfo}`);
 }
 
 // ---------------------------------------------------------------------------
-// maybeWriteLocal — Phase 2 では書き込まない（呼ばれたら明示エラー）
+// maybeWriteLocal — Phase 3: admin repo 内 tmp/ 配下のみ書き込み
+//   書き込み条件: writeLocal && !dryRun && validateOutput PASS && 出力先許可 && --push でない
+//   いずれか満たさなければ書き込まず、理由を返す。
 // ---------------------------------------------------------------------------
-function maybeWriteLocal() {
-  console.error('maybeWriteLocal は Phase 2 では実装されていません（--write-local は無効）。');
-  process.exit(1);
+function maybeWriteLocal(json, args, validation) {
+  // dry-run 優先（--dry-run 明示時は書き込まない）
+  if (!args.writeLocal) return { wrote: false, reason: 'dry-run（--write-local 未指定・書き込みなし）' };
+  if (args.dryRunExplicit) return { wrote: false, reason: 'dry-run 優先（--dry-run と --write-local 同時指定のため書き込まない）' };
+  if (args.push) return { wrote: false, reason: '--push 指定のため書き込まない（exit 1 済）' };
+
+  const outPath = args.out ? args.out : resolveDefaultOutputPath(args.date, args.venue);
+  const { abs, errors: pathErrors } = assertAllowedOutputPath(outPath);
+
+  // content validation FAIL なら書き込まない
+  if (!validation.pass) return { wrote: false, reason: `validateOutput FAIL のため書き込まない`, errors: validation.errors };
+  if (pathErrors.length) return { wrote: false, reason: '出力先 validation FAIL のため書き込まない', errors: pathErrors };
+
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  fs.writeFileSync(abs, JSON.stringify(json, null, 2) + '\n', 'utf8');
+  return { wrote: true, path: abs };
 }
 
 // ---------------------------------------------------------------------------
@@ -458,8 +521,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { console.log(USAGE); process.exit(0); }
 
-  if (args.push) { console.error('--push は Phase 2 では未実装です（exit 1）。'); process.exit(1); }
-  if (args.writeLocal) { console.error('--write-local は Phase 2 では無効です（exit 1）。'); process.exit(1); }
+  if (args.push) { console.error('--push は Phase 3 では未実装です（exit 1）。'); process.exit(1); }
 
   if (!args.date || !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) { console.error('--date=YYYY-MM-DD が必要です。\n' + USAGE); process.exit(1); }
   if (!args.venue || !NANKAN_CODES.has(args.venue)) { console.error('--venue は OOI/KAW/FUN/URA のいずれかが必要です。\n' + USAGE); process.exit(1); }
@@ -469,8 +531,13 @@ function main() {
   const built = buildRecentHorseHistories(racebook, resultsIndex, args.date, args.venue);
   const summary = collectSummary(built, racebook, resultsIndex);
   const validation = validateOutput(built.json, summary, built.pastTotal);
-  printSummary({ rbPath, summary, validation, args });
-  // Phase 2: 書き込みは一切しない。maybeWriteLocal は呼ばない。
+
+  const write = maybeWriteLocal(built.json, args, validation);
+  printSummary({ rbPath, summary, validation, args, write });
+
+  // 書き込みを要求したのに validation 等で書けなかった場合は失敗終了
+  const writeRequested = args.writeLocal && !args.dryRunExplicit;
+  if (writeRequested && !write.wrote) process.exit(2);
   process.exit(validation.pass ? 0 : 2);
 }
 

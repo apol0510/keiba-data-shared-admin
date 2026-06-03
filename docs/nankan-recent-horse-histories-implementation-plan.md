@@ -1255,6 +1255,83 @@ scripts/push-recent-horse-histories.mjs
 
 ---
 
+## 10.8. Phase 5 2件目 shared PUT 成功記録
+
+> 2026-06-03 実施。初回 URA（§10.7）に続く **2件目** の create-only PUT。**マコさんのローカルターミナル**で実行・成功。本節は再現性確認の実績記録。3件目 PUT・workflow_dispatch・repository_dispatch・AK/KI接続・Feature Importance 改善は含まない。
+
+### 1. 2件目 PUT 実行結果
+
+- 実行対象: `tmp/nankan/recentHorseHistories/2026/05/2026-05-22-OOI.json`
+- shared 保存先: `nankan/recentHorseHistories/2026/05/2026-05-22-OOI.json`
+- **create-only PUT 成功**
+- 実行者: **マコさんのローカルターミナル**
+- token: `GITHUB_TOKEN_KEIBA_DATA_SHARED`（値は記録しない／旧 classic PAT 失効による 401 を新 token 差し替えで解消後に実行）
+- **workflow_dispatch / repository_dispatch は未実行**
+- **AK/KI接続は未実行**
+
+### 2. shared commit
+
+- commit hash: `b4bf0320f5821ef106d858ebf0b7a93fccc80a28`
+- commit message: `add nankan recentHorseHistories 2026-05-22 OOI`
+- author: `apol0510`
+- 変更ファイル: `nankan/recentHorseHistories/2026/05/2026-05-22-OOI.json` の **1件のみ**（`1 file changed, 21732 insertions(+)`）
+
+### 3. 保存後検証
+
+- **PUT 成功 status=201**
+- 保存後 **GET=200**
+- tmp JSON と shared JSON が **一致**
+- **JSON parse OK**
+- schemaVersion: `nankan-recent-horse-histories-v0`
+- recentRaces: **555**
+- source-results-enriched: **339**
+- source-racebook-only: **216**
+- 339 + 216 = **555**（一致）
+
+### 4. schema / key 検証
+
+- `headCount` は **555件全件に存在**
+- `fieldSize` は **0件**
+- output key は **`headCount` に統一**（`fieldSize` は出力しない）
+- recentRaces 件数は generator / validator 時点（555）と **一致**
+
+### 5. 初回 URA との対比
+
+| 項目 | 初回 URA | 2件目 OOI |
+|---|---|---|
+| 日付 | 2026-05-29 | 2026-05-22 |
+| shared commit | `0c6d289` | `b4bf032` |
+| recentRaces | 485 | 555 |
+| source-results-enriched | 299 | 339 |
+| source-racebook-only | 186 | 216 |
+
+- **2件連続**で create-only PUT → GET 200 → 内容一致 → headCount 全件 / fieldSize 0 を確認。
+- **Phase 5 shared PUT フローの再現性を確認**。
+
+### 6. repo 状態
+
+- admin: **禁止3ファイルのみ未追跡**（`publish-prediction.mjs` / `build-feature-scores-once.mjs` / `enrich-past-races-once.mjs`）
+- shared: **clean**（HEAD `b4bf032`）
+- AK: 既存 `.claude/worktrees/` のみ
+- KI: **clean**
+
+### 7. dispatch / 接続状態
+
+- **workflow_dispatch 未実行**
+- **repository_dispatch 未実行**
+- **AK/KI変更なし**
+- recentHorseHistories **読み取り接続は未実装**
+- **Feature Importance改善は未着手**
+
+### 8. 次工程候補
+
+- 3件目 PUT へ進む場合も **1ファイルずつ・別許可**。
+- FUN / KAW へ拡大する場合も、**generator → validator → push dry-run → execute → 保存後確認** を **1件ずつ**行う。
+- Phase 6（AK/KI 読み取り接続）は**別設計から開始**。
+- **一括 PUT・dispatch・AK/KI接続にいきなり進まない**。
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

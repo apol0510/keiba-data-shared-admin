@@ -854,6 +854,172 @@ nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
 
 ---
 
+## 10.5. push専用スクリプト詳細設計
+
+> 本節は設計のみ。`scripts/push-recent-horse-histories.mjs` の実装・shared PUT 実行・workflow_dispatch・repository_dispatch・AK/KI接続は含まない。§10.4（B案）の具体化。
+
+### 1. 目的
+
+- tmp JSON を `keiba-data-shared` の `recentHorseHistories` namespace へ保存する**専用スクリプト**。
+- **generator / validator は壊さない**（別ファイル・呼び出すだけ）。
+- **shared PUT だけを隔離する**。
+- **dispatch はしない**。
+- **AK/KI接続はしない**。
+
+### 2. 対象スクリプト
+
+```
+scripts/push-recent-horse-histories.mjs
+```
+
+### 3. CLI 仕様
+
+```
+node scripts/push-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
+node scripts/push-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistories/2026/05/2026-05-29-URA.json --execute
+```
+
+方針:
+- `--file` **必須**
+- `--dry-run` **既定 ON**
+- `--execute` が**ない限り PUT しない**
+- `--execute` は**明示許可後のみ**
+- `--dry-run` と `--execute` 同時指定時は **dry-run 優先**
+- `--help` / `-h`
+- `--file` は **admin repo 内 `tmp/` 配下のみ許可**
+- shared 実パス指定は**禁止**
+- 保存先 shared path は **file path から自動算出**
+- **`--path` 任意指定は初回では持たない**
+
+### 4. 保存先変換
+
+```
+tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json
+        ↓
+nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json
+```
+
+補足:
+- **先頭 `tmp/` を剥がすだけ**（`path.relative(TMP_ROOT, absFile)`）。
+- 算出後、`nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{OOI|KAW|FUN|URA}.json` に**一致するか再検証**。
+- **namespace ガードを必須**にする。
+
+### 5. 必須ゲート（dry-run / execute 共通）
+
+- validator が **PASS**
+- validator **HOLD / FAIL は中止**
+- `keiba-data-shared` が **clean**
+- tmp JSON が**存在**
+- tmp JSON が **parse 可能**
+- `schemaVersion` が `nankan-recent-horse-histories-v0`
+- `source-results-enriched` + `source-racebook-only` = **recentRaces 総数**
+- **headCount あり**
+- **fieldSize なし**
+- 保存先が **recentHorseHistories namespace に一致**
+- 保存先が**未存在**
+- JSON 生成物が **git に露出していない**
+- `GITHUB_TOKEN_KEIBA_DATA_SHARED` が **execute 時に存在**
+
+### 6. validator 呼び出し方針
+
+- **validator を再実装しない**。
+- `scripts/validate-recent-horse-histories.mjs --file=...` を**子プロセスで呼ぶ**。
+- **exit 0 の PASS のみ許可**。
+- **exit 3 の HOLD は中止**。
+- **exit 2 の FAIL は中止**。
+- 検査ロジックの**二重管理を避ける**（PASS の単一情報源は validator）。
+
+### 7. GitHub Contents API 設計
+
+**GET:**
+```
+https://api.github.com/repos/apol0510/keiba-data-shared/contents/{path}?ref=main
+```
+- **200**（既存ファイルあり）→ **中止**
+- **404** → **create-only PUT へ**
+- それ以外 → **中止**
+
+**PUT:**
+- **sha なし**
+- **新規作成のみ**
+- body:
+  - `message`
+  - `content`: base64(JSON)
+  - `branch`: `main`
+
+- repository: `apol0510/keiba-data-shared`
+- branch: `main`
+- commit message 案: `add nankan recentHorseHistories 2026-05-29 URA`
+
+**PUT 後:**
+- **GET して内容一致確認**
+- **dispatch はしない**
+
+### 8. dry-run / execute の扱い
+
+**dry-run:**
+- 全ゲート実行
+- 保存先 path 表示
+- PUT 予定内容表示
+- **実 PUT しない**
+- **token なしでも計画表示可**
+- token がない場合、**execute 時に必要と表示**
+
+**execute:**
+- dry-run 相当ゲートを**再実行**
+- **PASS 時のみ PUT**
+- **PUT 後 GET 確認**
+- **dispatch しない**
+
+### 9. 初回対象
+
+- **2026-05-29-URA**
+- **1ファイルのみ**
+- **4場一括はしない**
+- **ループ / glob 展開機能を初回スクリプトに持たせない**
+
+### 10. 保存後確認
+
+- GET **200**
+- content **decode**
+- **tmp JSON とバイトまたは構造一致**
+- shared に**意図した1ファイルだけ増えた**
+- PUT レスポンスの **content.path が想定と一致**
+- **dispatch 未発火**
+- **AK/KI 変更なし**
+
+### 11. 失敗時の exit コード
+
+| 状況 | exit |
+|---|---|
+| 正常 dry-run / execute 成功 | **0** |
+| validator HOLD | **3** |
+| validator FAIL | **2** |
+| 既存ファイルあり | **1** |
+| token なし execute | **1** |
+| その他ゲート不合格 | **2** |
+| 保存後 GET 不一致 | **2**（ただし PUT 成功済みなので**要手動確認を強く表示**） |
+
+### 12. token 方針
+
+- dry-run では **token なしでも計画表示可**。
+- execute では **`GITHUB_TOKEN_KEIBA_DATA_SHARED` 必須**。
+- **Claude 実行環境に token が届かない可能性がある**。
+- **実 PUT はマコさんのターミナルで実行する前提**。
+- Claude は **plan / dry-run / PUT 直前確認まで**。
+
+### 13. まだやらないこと（明示）
+
+- push script 実装しない
+- shared PUT 実行しない
+- workflow_dispatch しない
+- repository_dispatch しない
+- AK/KI接続しない
+- Feature Importance 改善に入らない
+- keiba-data-shared を変更しない
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

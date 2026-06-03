@@ -1130,7 +1130,33 @@
         });
 
         if (!response.ok) {
-          throw new Error('保存に失敗しました: ' + response.statusText);
+          // 500時の詳細を可視化（原因確定用）。
+          // 注意: token / Authorization / 環境変数値は Function 側で出力しない設計のため、
+          // ここで読むのは error/details/message のみ。secret は含めない。
+          let detail = '';
+          const rawBody = await response.text().catch(() => '');
+          try {
+            const errJson = JSON.parse(rawBody);
+            detail = errJson.details || errJson.error || errJson.message || '';
+            console.error('[Save Computer] 失敗レスポンス(JSON):', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errJson.error || null,
+              details: errJson.details || null,
+              message: errJson.message || null,
+            });
+          } catch {
+            detail = rawBody;
+            console.error('[Save Computer] 失敗レスポンス(text):', {
+              status: response.status,
+              statusText: response.statusText,
+              body: rawBody,
+            });
+          }
+          throw new Error(
+            `保存に失敗しました (${response.status} ${response.statusText})` +
+            (detail ? ': ' + detail : '')
+          );
         }
 
         const result = await response.json();

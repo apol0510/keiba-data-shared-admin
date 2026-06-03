@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 /**
- * 南関 recentHorseHistories 生成 — Phase 2 stdout dry-run generator
+ * 南関 recentHorseHistories generator — dry-run / local JSON output（Phase 3）
  *
- * 設計: docs/nankan-recent-horse-histories-implementation-plan.md §10.1
+ * 設計: docs/nankan-recent-horse-histories-implementation-plan.md §10.1 / §10.2
  *
- * 本スクリプトは Phase 2 の「stdout summary のみ」実装である。
- *   - JSON生成・ローカル保存・shared PUT・workflow_dispatch・AK/KI接続はしない。
- *   - --dry-run は既定ON。--push / --write-local は明示エラーで exit 1。
- *   - --out が指定されても保存しない（summary に「指定あり・保存なし」と表示するだけ）。
+ * 本スクリプトは dry-run summary と tmp/ 配下ローカルJSON生成に対応する。
+ *   - --dry-run は既定ON（stdout summary のみ・書き込みなし）。
+ *   - --write-local で admin repo 内 tmp/ 配下にローカルJSON生成（Phase 3）。
+ *     validateOutput PASS かつ出力先許可（tmp/配下のみ）が条件。--dry-run 同時指定は dry-run 優先。
+ *   - --out 未指定時の既定は tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json。
+ *   - shared PUT は未対応（--push は exit 1。Phase 5・別許可）。workflow_dispatch / AK・KI接続も未対応。
+ *   - 保存前検査（preflight）は別スクリプト scripts/validate-recent-horse-histories.mjs --file=... を使う。
  *
  * 突合ルール:
  *   - parent horseName 完全/正規化一致を必須ゲート
@@ -70,19 +73,26 @@ function parseArgs(argv) {
   return args;
 }
 
-const USAGE = `南関 recentHorseHistories generator (Phase 2: dry-run summary only)
+const USAGE = `南関 recentHorseHistories generator (Phase 3: dry-run + ローカルJSON生成)
 
 Usage:
-  node scripts/enrich-recent-horse-histories.mjs --date=YYYY-MM-DD --venue=OOI|KAW|FUN|URA [--dry-run]
+  node scripts/enrich-recent-horse-histories.mjs --date=YYYY-MM-DD --venue=OOI|KAW|FUN|URA [--dry-run | --write-local]
 
 Options:
   --date=YYYY-MM-DD   対象開催日（必須）
   --venue=CODE        会場 3文字コード OOI/KAW/FUN/URA（必須）
-  --dry-run           stdout summary のみ（既定ON）
-  --out=<path>        出力先候補。Phase 2 では保存しない（表示のみ）
-  --write-local       【Phase 2では無効】指定するとエラー終了
-  --push              【Phase 2では未実装】指定するとエラー終了
+  --dry-run           stdout summary のみ・書き込みなし（既定ON）
+  --out=<path>        出力先（任意）。未指定時は tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json。
+                      指定時も admin repo 内 tmp/ 配下のみ許可（それ以外は書き込まず fail）
+  --write-local       ローカルJSON生成を許可（Phase 3 で有効）。validateOutput PASS かつ出力先許可が条件。
+                      --dry-run と同時指定した場合は dry-run 優先で書き込まない
+  --push              【未実装】指定すると exit 1。shared PUT は未対応（Phase 5・別許可）
   --help, -h          このヘルプ
+
+保存前検査（preflight）は別スクリプト:
+  node scripts/validate-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json
+
+未対応（別Phase・別許可）: shared PUT / workflow_dispatch / analytics-keiba・keiba-intelligence 接続
 `;
 
 // ---------------------------------------------------------------------------

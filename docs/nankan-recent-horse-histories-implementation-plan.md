@@ -1332,6 +1332,110 @@ scripts/push-recent-horse-histories.mjs
 
 ---
 
+## 10.9. Phase 6 AK/KI 読み取り接続 設計
+
+> 2026-06-03 追記。Phase 5（§10.4 / §10.7 / §10.8）で shared に create-only PUT 済みの南関 recentHorseHistories を、analytics-keiba / keiba-intelligence が将来安全に読み取れるようにするための**設計のみ**。**本節では接続実装・JSON生成・shared PUT・workflow_dispatch・repository_dispatch・Feature Importance 改善・表示コンポーネント変更を一切行わない。** 読み取り契約・変換方針・衝突回避・禁止事項を明文化するだけに留める。
+
+### 1. Phase 6 の目的
+
+- 南関 recentHorseHistories を **shared data の正本**として扱い、AK/KI が将来的に**安全に読み取れる**状態の契約を定める。
+- ただしこの Phase では**接続実装は行わない**。読み取り契約・変換方針・衝突回避・禁止事項を明文化する。
+
+### 2. shared data の位置づけ
+
+- `keiba-data-shared/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-VENUE.json` を**南関 recentHorseHistories の正本候補**とする。
+- admin 側で**生成・検査・create-only PUT** されたものを読む（§10.7 / §10.8 のフロー由来）。
+- **AK/KI 側で独自に過去走を再構成しない。**
+- **AK/KI 側で shared JSON を直接改変しない。**
+
+### 3. AK/KI の役割分離
+
+#### analytics-keiba（AK）
+
+- ユーザー向けに**分かりやすい3項目**へ要約する。
+- 例:
+  - 近走安定性
+  - 距離・条件適性
+  - 展開/上昇気配
+- 競馬初心者にも意味が分かる説明を優先する。
+- **機械学習風6項目をそのまま表示しない。**
+
+#### keiba-intelligence（KI）
+
+- **機械学習風の6項目詳細**として表示する。
+- 例:
+  - Speed Index
+  - Stamina Rating
+  - Form Trend
+  - Track Compatibility
+  - Distance Fitness
+  - Jockey/Trainer Factor
+- ただし **shared recentHorseHistories の値をそのまま表示値にしない。**
+- shared の**事実データをもとに**、KI 用の**派生評価**として扱う。
+
+> 役割分離は [project_feature_scores_site_differentiation](../) で確定済みの「KI=6項目詳細 / AK=3項目要約」方針と整合する。6項目統一案は撤回済み。
+
+### 4. 同じ shared 値をそのまま両サイトに出さない
+
+- shared recentHorseHistories は**事実データの正本**であり、**表示スコアの正本ではない**。
+- AK/KI で**同一の数値・同一の説明文・同一の6項目**を並べることは**禁止**。
+- 両サイトの**差別化を維持**する。
+- ただし、事実データに基づく説明が**矛盾しない**ようにする。
+
+### 5. 矛盾防止
+
+- 同じ馬について、AK では「距離適性高い」、KI では「Distance Fitness 低い」のような**真逆説明が出ない**ようにする。
+- shared data 由来の**基礎事実は共通**にする。
+- サイト別の派生表示は、**表現粒度・項目数・見せ方を変えるだけ**にする。
+- 評価ロジックを分ける場合でも、**共通の中間判定・正規化ルールを docs 化してから**進める。
+
+### 6. 既存データとの衝突回避
+
+Phase 6 では以下に**触れない**:
+
+- JRA horseHistories
+- 南関 recentRaces
+- predictions
+- results
+- archiveResults
+- AI指数
+- 印
+- 買い目
+- Feature Importance
+- featureScores
+- AK/KI の表示コンポーネント実装
+
+### 7. 読み取り優先順位の設計案
+
+将来的な実装時の優先順位案として、以下を記載する（**今回実装しない**）。
+
+1. 南関 recentHorseHistories が存在する場合は、それを**近走履歴の優先ソース候補**とする。
+2. 存在しない場合は、**既存 recentRaces を維持**する。
+3. データ欠損時に**表示を壊さず**、既存表示へ**安全にフォールバック**する。
+4. ただし、この優先順位は **Phase 6 docs 上の設計案**であり、**今回実装しない**。
+
+### 8. 禁止事項
+
+- analytics-keiba **のみ**を先に recentHorseHistories 対応することは**禁止**。
+- keiba-intelligence **のみ**を先に recentHorseHistories 対応することは**禁止**。
+- shared data 契約なしに表示側で**独自補正**することは**禁止**。
+- Feature Importance の**数値改善に入る**ことは**禁止**。
+- 既存 AI指数・印・買い目を**変更**することは**禁止**。
+- **repository_dispatch / workflow_dispatch を実行しない。**
+- **shared PUT を実行しない。**
+- **token 値を表示しない。**
+
+### 9. Phase 6 の出口条件
+
+- docs に AK/KI 読み取り接続の設計が追記されている。
+- AK/KI の役割分離が明文化されている。
+- shared recentHorseHistories と existing recentRaces / Feature Importance の衝突回避方針が明文化されている。
+- 実装禁止範囲が明文化されている。
+- 差分が **docs のみ**である。
+- PR 作成前に diff を提示できる状態で**停止**する。
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

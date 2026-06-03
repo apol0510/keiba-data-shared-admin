@@ -531,6 +531,152 @@ jq '[.races[].horses[].recentRaces[].dataQualityFlags[] | select(.=="result-pres
 
 ---
 
+## 10.3. Phase 4 保存前検査 詳細設計
+
+> Phase 4（shared 保存前検査 preflight）の実装前詳細設計。**本節は設計のみ。validator script 実装・JSON生成・shared PUT・dispatch・AK/KI接続は行わない。**
+
+### 1. Phase 4 の目的
+
+- **shared PUT 前の保存前検査（preflight）を自動化・強化する段階。**
+- Phase 3 の tmp JSON を対象に、**shared へ出してよいかを判定**する。
+- **shared PUT はまだしない。workflow_dispatch はまだしない。AK/KI接続はまだしない。**
+- **Phase 5（PUT）への唯一のゲート**にする。
+
+### 2. 検査対象
+
+- `tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json`
+- generator の stdout summary
+- racebook 入力 / results enrichment 状況 / `dataQualityFlags` / 出力JSON構造
+- **環境健全性**: keiba-data-shared が clean か / tmp配下のみ生成か / git に生成物が出ていないか
+
+### 3. 判定ステータス（3段階）
+
+| ステータス | 意味 |
+|---|---|
+| **PASS** | 構造・件数・保存前条件すべてOK |
+| **HOLD** | 構造はOKだが time-fail など品質上の人間確認が必要（PUT 前に承認必須） |
+| **FAIL** | 保存禁止条件に該当し、PUT 不可 |
+
+### 4. 必須 pass 条件
+
+- JSON が存在する
+- JSON parse 可能
+- `schemaVersion === "nankan-recent-horse-histories-v0"`
+- `date` / `venue` / `venueName` が存在
+- `races[]` / `horses[]` / `recentRaces[]` 構造が存在
+- recentRaces 総数 == 入力 pastRaces 総数
+- `source-results-enriched` + `source-racebook-only` == recentRaces 総数
+- MATCHED で headCount 欠損 0
+- 出力JSONキーに `fieldSize` が存在しない
+- `headCount` が出力される
+- ambiguous が results-enriched になっていない
+- keiba-data-shared 本体に変更がない
+- tmp/ 配下のみの生成である
+- git status に JSON生成物が tracked/untracked として出ていない
+
+### 5. warn 条件
+
+- time-fail > 0
+- unknown-venue > 0
+- match率 < 30%
+- no-result-file率 >= 70%
+- passingOrder欠損率 >= 30%（horse-level）
+- `result-present-horse-absent` が多い
+- `racebook-pastrace-suspect` が多い
+- `no-surface` が多い
+- `no-track-condition` が多い
+- `no-popularity` が多い
+- `no-margin` が多い
+
+### 6. time-fail 検査
+
+- **time-fail は fail ではなく warn。**
+- 件数を必ず表示。**サンプルを最大10件表示**。
+- サンプルには **horseName / raceNumber / raw time / date / venue** を含める。
+- `"11頭 5枠"` のような**頭数・枠・馬体重混入を検出**する（パターン例: `/\d+頭/` または `/\d+枠/`）。
+- **time-fail率 >= 5% で強warn**。
+- **time-fail率 >= 10% で HOLD**。
+- HOLD は構造OKだが Phase 5 PUT 前に**人間確認必須**の状態。
+
+### 7. 4場別の暫定基準（実測ベース）
+
+| 場 | 日付 | match率 | time-fail |
+|---|---|---|---|
+| URA | 2026-05-29 | 61.6% | 0 |
+| OOI | 2026-05-22 | 61.1% | 0 |
+| FUN | 2026-05-08 | 44.1% | 9 |
+| KAW | 2026-05-15 | 36.6% | 8 |
+
+- **KAW/FUN の match率が低いだけでは fail にしない。**
+- **no-result-file が主因なら racebook-only を許容。**
+- **time-fail は warn・サンプル表示で扱う。件数次第で強warn/HOLD。**
+
+### 8. 保存禁止条件（FAIL）
+
+- JSON parse 不可
+- schemaVersion 不一致
+- recentRaces 総数不一致
+- MATCHED で headCount 欠損
+- `fieldSize` キーが出力されている
+- ambiguous が results-enriched として採用されている
+- keiba-data-shared に変更がある
+- 出力先が tmp/ 配下ではない
+- JSON生成物が git tracked/untracked に出ている
+- `--push` 指定
+- validateOutput FAIL
+
+### 9. 実装方式比較
+
+| 観点 | A. generator に `--preflight` 統合 | B. 別 validator script |
+|---|---|---|
+| 実装コスト | 低い | 中 |
+| 生成と検査 | 混在する | **分離できる** |
+| 冪等な再検査 | 不向き（生成し直し要） | **既存 tmp JSON を書き込みなしで再検査可** |
+| tmp 汚染リスク | 検査時に tmp を汚す可能性 | **入力を読むだけで安全** |
+| generator 回帰リスク | あり | **低い** |
+| 不正パス拒否 | 可 | **tmp配下以外/shared実パス指定は即FAIL** |
+
+**推奨: B. 別 validator script**
+```
+scripts/validate-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-URA.json
+```
+
+### 10. 自動化対象の検査
+
+- top構造
+- recentRaces総数
+- source内訳
+- dataQualityFlags集計
+- headCount/fieldSizeキー検査
+- time-fail件数
+- time-failサンプル
+- suspect系件数（result-present-horse-absent / racebook-pastrace-suspect）
+- no-surface / no-track-condition / no-popularity / no-margin件数
+
+### 11. Phase 5 へ進む条件
+
+- 4場または複数日で **preflight PASS**
+- HOLD がある場合は**人間承認済み**
+- **FAIL 0**
+- warn は**人間確認済み**
+- **time-fail サンプル確認済み**
+- shared が clean
+- tmp JSON の件数・スキーマ確認済み
+- **shared PUT は別PR/別許可**
+- **workflow_dispatch はさらに別許可**
+
+### 12. まだやらないこと（明示）
+
+- Phase 4 実装しない
+- validator script 作らない
+- shared PUT しない
+- workflow_dispatch しない
+- AK/KI接続しない
+- Feature Importance 改善に入らない
+- keiba-data-shared を変更しない
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

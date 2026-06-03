@@ -1020,6 +1020,169 @@ https://api.github.com/repos/apol0510/keiba-data-shared/contents/{path}?ref=main
 
 ---
 
+## 10.6. push script --execute 有効化設計
+
+> 本節は設計のみ。`scripts/push-recent-horse-histories.mjs` の変更・`--execute` 有効化・shared PUT 実行・workflow_dispatch・repository_dispatch・AK/KI接続は含まない。
+
+### 1. 目的
+
+- `scripts/push-recent-horse-histories.mjs` の `--execute` を有効化する**前の設計**。
+- tmp JSON を `keiba-data-shared` に **create-only PUT** するための実行経路を定義する。
+- ただし docs 追記段階では**実装しない**。
+- **shared PUT 実行もしない**。
+- **dispatch もしない**。
+- **AK/KI接続もしない**。
+
+### 2. --execute 有効化の基本方針
+
+- `--execute` は**明示指定時のみ実 PUT 候補**になる。
+- `--dry-run` が指定されている場合は**常に dry-run 優先**。
+- `--execute` 単独でも、**内部で dry-run 相当チェックを再実行**する。
+- **validator PASS が必須**。
+- **HOLD / FAIL は中止**。
+- **`GITHUB_TOKEN_KEIBA_DATA_SHARED` が必須**。
+- **token なしなら exit 1**。
+- **実 PUT はマコさんのターミナルで実行する前提**。
+
+### 3. 初回実 PUT 対象
+
+以下 **1ファイルのみ**:
+```
+tmp/nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
+```
+shared 保存先:
+```
+nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
+```
+
+理由:
+- URA 2026-05-29 は **validator PASS 実績あり**
+- **time-fail 0**
+- **match率 61.6%**
+- **既存確認 404 = 未存在OK 確認済み**
+- 初回は **1日1場1ファイルのみ**
+- **4場一括はしない**
+
+### 4. 実 PUT 前ゲート（すべて必須）
+
+- admin が **main**
+- **local main = origin/main**
+- push script が main に存在
+- generator が main に存在
+- validator が main に存在
+- 禁止3ファイルは**未追跡のまま**
+- shared / AK / KI に**変更なし**
+- tmp JSON が**存在**
+- tmp JSON が **parse 可能**
+- **validator PASS**
+- shared 保存先 path が **recentHorseHistories namespace に一致**
+- 保存先が**未存在**
+- `keiba-data-shared` が **clean**
+- JSON 生成物が **git に露出していない**
+- **`GITHUB_TOKEN_KEIBA_DATA_SHARED` が存在**
+- **`--execute` 指定時にも dry-run 相当チェックを再実行**
+
+### 5. GitHub Contents API PUT
+
+- repository: `apol0510/keiba-data-shared`
+- branch: `main`
+- method: **PUT**
+- endpoint:
+  ```
+  https://api.github.com/repos/apol0510/keiba-data-shared/contents/{path}
+  ```
+- **sha なし**
+- **create-only**
+- 既存ファイルがある場合は**中止**
+- body:
+  - `message`
+  - `content`: base64(JSON)
+  - `branch`: `main`
+- commit message:
+  ```
+  add nankan recentHorseHistories 2026-05-29 URA
+  ```
+
+### 6. 保存後チェック（すべて必須）
+
+- PUT レスポンス**成功**
+- **commit sha 取得**
+- `content.path` が**想定パスと一致**
+- GET で保存先を**再取得**
+- GET **200**
+- content **decode**
+- **tmp JSON と shared JSON が一致**
+- 保存後 JSON が **parse 可能**
+- **validator 相当検査 PASS**
+- shared 側に**意図した1ファイルだけが増えた**こと
+- **dispatch 未発火**
+- **AK/KI 変更なし**
+
+### 7. 失敗時の扱い
+
+- **PUT 前の失敗**は何も保存せず**中止**
+- 既存ファイルあり → **exit 1**
+- token なし → **exit 1**
+- validator HOLD → **exit 3**
+- validator FAIL → **exit 2**
+- namespace 不一致・schema 不一致・source 不整合 → **exit 2**
+- **PUT 後 GET 不一致 → exit 2**。ただし **PUT 成功済みのため、強く手動確認を促す**
+- **PUT 成功後の失敗は「要手動確認」として明示**
+
+### 8. dispatch 禁止
+
+- `--execute` 有効化後も **repository_dispatch は呼ばない**
+- **workflow_dispatch も呼ばない**
+- `prediction-updated` など**既存 dispatch 経路に触れない**
+- dispatch は **Phase 6 以降、別許可**
+
+### 9. AK/KI 接続禁止
+
+- analytics-keiba **変更禁止**
+- keiba-intelligence **変更禁止**
+- `recentHorseHistories` **読み取り実装禁止**
+- AK/KI接続は **Phase 6 以降、別設計**
+
+### 10. 実行手順案
+
+1. `generator --write-local`
+2. `validator --file`
+3. push script **dry-run**
+4. `--execute` 有効化版の**事前確認**
+5. **マコさんがターミナルで `--execute` 実行**
+6. 保存後 **GET 確認**
+7. **shared 状態確認**
+8. **dispatch 未発火確認**
+9. **AK/KI 無変更確認**
+
+### 11. 実装PRの範囲
+
+`--execute` 有効化実装 PR では**以下だけを変更対象**にする:
+```
+scripts/push-recent-horse-histories.mjs
+```
+
+含めないもの:
+- generator 変更
+- validator 変更
+- docs 変更
+- JSON 生成物
+- keiba-data-shared 変更
+- AK/KI 変更
+- dispatch 実装
+
+### 12. まだやらないこと（明示）
+
+- `--execute` 実装しない
+- shared PUT 実行しない
+- workflow_dispatch しない
+- repository_dispatch しない
+- AK/KI接続しない
+- Feature Importance 改善に入らない
+- keiba-data-shared を変更しない
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

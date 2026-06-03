@@ -1183,6 +1183,78 @@ scripts/push-recent-horse-histories.mjs
 
 ---
 
+## 10.7. Phase 5 初回 shared PUT 成功記録
+
+> 2026-06-03 実施。初回 create-only PUT は **マコさんのローカルターミナル**で実行・成功。本節は実績記録。追加 PUT・workflow_dispatch・repository_dispatch・AK/KI接続・Feature Importance 改善は含まない。
+
+### 1. 初回 PUT 実行結果
+
+- 実行対象: `tmp/nankan/recentHorseHistories/2026/05/2026-05-29-URA.json`
+- shared 保存先: `nankan/recentHorseHistories/2026/05/2026-05-29-URA.json`
+- **create-only PUT 成功**
+- 実行者: **マコさんのローカルターミナル**
+- token: `GITHUB_TOKEN_KEIBA_DATA_SHARED`（値は記録しない）
+- **workflow_dispatch / repository_dispatch は未実行**
+- **AK/KI接続は未実行**
+
+### 2. shared commit
+
+- commit hash: `0c6d289c8d5fdfb3e72409d56fafbb3175ca5553`
+- commit message: `add nankan recentHorseHistories 2026-05-29 URA`
+- author: `apol0510`
+- 変更ファイル: `nankan/recentHorseHistories/2026/05/2026-05-29-URA.json` の **1件のみ**（`1 file changed, 18989 insertions(+)`）
+
+### 3. 保存後 GET 検証
+
+- GET 200（admin 側は `keiba-data-shared` を `git pull origin main` で同期して取得確認）
+- **tmp JSON と shared JSON が一致**（648,499 bytes・同一）
+- JSON parse **OK**
+- schemaVersion: `nankan-recent-horse-histories-v0`
+- recentRaces: **485**
+- source-results-enriched: **299**
+- source-racebook-only: **186**
+- **299 + 186 = 485**（recentRaces と一致）
+
+### 4. schema / key 検証
+
+- **headCount は485件全件に存在**
+- **fieldSize は0件**（出力されていない）
+- output key は **headCount に統一**
+- recentRaces 件数は generator / validator 時の件数（485）と**一致**
+
+### 5. create-only 再実行防止確認
+
+- 保存先 `nankan/recentHorseHistories/2026/05/2026-05-29-URA.json` は **shared に実在**（pull + `git log` で commit `0c6d289` を確認）。
+- push script は **sha なし create-only PUT**。既存ファイルに対する再 PUT は、
+  - 有効 token 環境では push script の既存確認 GET が **200 → 「既存あり（中止）」exit 1**、
+  - 仮にゲートを越えても GitHub Contents API が **422（sha 不一致）** を返す、
+  のいずれかで**二重 PUT が構造的に防止される**。
+- ※補足（透明性）: 漏えい対応で旧 token が失効したため、**Claude の実行環境の token は現在無効（既存確認 GET が 401）**。そのため「既存あり（中止）」の dry-run 再現は **有効 token のあるマコさんのターミナルで行う**前提。Claude 環境からは再現できない（401）が、ファイル実在は pull で確認済みのため create-only 防止は成立している。
+
+### 6. repo 状態
+
+- admin: 禁止3ファイル（`publish-prediction.mjs` / `build-feature-scores-once.mjs` / `enrich-past-races-once.mjs`）のみ未追跡
+- shared: **clean**（commit `0c6d289` は main 取り込み済）
+- AK: 既存 `.claude/worktrees/` のみ
+- KI: **clean**
+
+### 7. dispatch / 接続状態
+
+- **workflow_dispatch 未実行**
+- **repository_dispatch 未実行**
+- **AK/KI 変更なし**
+- `recentHorseHistories` **読み取り接続は未実装**
+- **Feature Importance 改善は未着手**
+
+### 8. 次工程候補
+
+- 追加 PUT は **1ファイルずつ・別許可**。
+- OOI / FUN / KAW へ拡大する場合も、**generator → validator → push dry-run → execute → 保存後確認** を **1件ずつ**行う。
+- Phase 6（AK/KI 読み取り接続）は**別設計から開始**。
+- **いきなり複数場一括・dispatch・AK/KI接続に進まない**。
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

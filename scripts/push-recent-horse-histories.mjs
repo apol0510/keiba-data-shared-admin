@@ -39,7 +39,7 @@ const TOKEN_ENV = 'GITHUB_TOKEN_KEIBA_DATA_SHARED';
 // 保存先 namespace の許可形（YYYY/MM/YYYY-MM-DD-{VENUE}.json）
 const NAMESPACE_RE = /^nankan\/recentHorseHistories\/(\d{4})\/(\d{2})\/(\d{4})-(\d{2})-(\d{2})-(OOI|KAW|FUN|URA)\.json$/;
 
-const USAGE = `南関 recentHorseHistories push 専用スクリプト (Phase 5: dry-run のみ有効)
+const USAGE = `南関 recentHorseHistories push 専用スクリプト (Phase 5: dry-run / --execute create-only PUT)
 
 Usage:
   node scripts/push-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json [--dry-run]
@@ -47,7 +47,8 @@ Usage:
 Options:
   --file=<path>   保存対象の tmp JSON（admin repo 内 tmp/ 配下のみ）。必須
   --dry-run       全ゲート実行＋保存計画表示のみ・実 PUT しない（既定ON）
-  --execute       【このフェーズでは無効】指定すると exit 1。実 PUT は別許可後
+  --execute       実 PUT（create-only）を実行。${TOKEN_ENV} 必須。
+                  --dry-run 同時指定時は dry-run 優先で PUT しない
   --help, -h      このヘルプ
 
 このスクリプトは shared PUT を隔離する。dispatch（repository_dispatch / workflow_dispatch）はしない。
@@ -56,12 +57,12 @@ Options:
 
 // ---------------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { file: null, dryRun: true, execute: false, help: false };
+  const args = { file: null, dryRun: true, dryRunExplicit: false, execute: false, help: false };
   for (const raw of argv) {
     const [k, v] = raw.includes('=') ? raw.split(/=(.*)/s) : [raw, true];
     switch (k) {
       case '--file': args.file = v; break;
-      case '--dry-run': args.dryRun = true; break;
+      case '--dry-run': args.dryRun = true; args.dryRunExplicit = true; break;
       case '--execute': args.execute = true; break;
       case '--help': case '-h': args.help = true; break;
       default: console.error(`Unknown argument: ${k}`); process.exit(1);
@@ -143,16 +144,49 @@ async function checkRemoteExists(sharedPath) {
   }
 }
 
+// create-only PUT（sha なし）。201/200 を成功とみなす。
+async function putToShared(sharedPath, rawText, commitMessage, token) {
+  const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}`;
+  const body = {
+    message: commitMessage,
+    content: Buffer.from(rawText, 'utf8').toString('base64'),
+    branch: BRANCH,
+    // sha は付けない（create-only。既存があれば GitHub 側が 422 を返す）
+  };
+  try {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'push-recent-horse-histories', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.status === 201 || res.status === 200, status: res.status, data };
+  } catch (e) {
+    return { ok: false, status: null, error: e.message };
+  }
+}
+
+// 保存後 GET（content を decode して返す）
+async function getSharedContent(sharedPath, token) {
+  const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}?ref=${BRANCH}`;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'push-recent-horse-histories' } });
+    if (res.status !== 200) return { ok: false, status: res.status };
+    const data = await res.json();
+    const decoded = Buffer.from(data.content || '', 'base64').toString('utf8');
+    return { ok: true, status: 200, decoded, sha: data.sha, path: data.path };
+  } catch (e) {
+    return { ok: false, status: null, error: e.message };
+  }
+}
+
 // ---------------------------------------------------------------------------
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) { console.log(USAGE); process.exit(0); }
 
-  // --execute はこのフェーズでは無効（安全優先）
-  if (args.execute) {
-    console.error('--execute is disabled in this phase（実 PUT は別許可後）。dry-run のみ実行可能です。');
-    process.exit(1);
-  }
+  // 実 PUT するのは --execute 指定かつ --dry-run 未指定のときだけ（dry-run 優先）
+  const doExecute = args.execute && !args.dryRunExplicit;
 
   if (!args.file) { console.error('--file=<tmp配下path> が必要です。\n' + USAGE); process.exit(1); }
 
@@ -168,12 +202,12 @@ async function main() {
   const sharedPath = deriveSharedPath(absFile);
   if (!NAMESPACE_RE.test(sharedPath)) errors.push(`保存先 namespace 形式に一致しません（nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{OOI|KAW|FUN|URA}.json）: ${sharedPath}`);
 
-  // ---- tmp JSON 読み込み ----
-  let json = null;
+  // ---- tmp JSON 読み込み（PUT は raw バイトをそのまま送る）----
+  let json = null, rawText = null;
   if (!fs.existsSync(absFile)) {
     errors.push(`tmp JSON が存在しません: ${absFile}`);
   } else {
-    try { json = JSON.parse(fs.readFileSync(absFile, 'utf8')); }
+    try { rawText = fs.readFileSync(absFile, 'utf8'); json = JSON.parse(rawText); }
     catch (e) { errors.push(`tmp JSON parse 不可: ${e.message}`); }
   }
 
@@ -216,12 +250,23 @@ async function main() {
     else if (!remote.checked) notes.push(remote.reason);
   }
 
+  // ---- execute 用ゲート（token 必須 / 既存確認の確実性）----
+  const token = process.env[TOKEN_ENV];
+  let tokenMissingExecute = false;
+  if (doExecute) {
+    if (!token) tokenMissingExecute = true;
+    else if (errors.length === 0 && (!remote.checked || remote.exists === null)) {
+      errors.push(`execute には保存先の未存在を GET で確定する必要があるが確認できない: ${remote.reason || 'GET 不確定'}`);
+    }
+  }
+
   // ---- commit message 案 ----
   const m = sharedPath.match(NAMESPACE_RE);
   const commitMessage = m ? `add nankan recentHorseHistories ${m[3]}-${m[4]}-${m[5]} ${m[6]}` : '(保存先 namespace 不一致のため未確定)';
 
   // ============================ 出力 ============================
-  console.log(`=== recentHorseHistories push (dry-run) ===`);
+  const mode = doExecute ? 'execute' : 'dry-run';
+  console.log(`=== recentHorseHistories push (${mode}) ===`);
   console.log(`[入力]   --file: ${path.relative(ADMIN_ROOT, absFile)}`);
   console.log(`[保存先] repository: ${REPO}`);
   console.log(`         branch    : ${BRANCH}`);
@@ -237,23 +282,48 @@ async function main() {
   if (validatorTail) for (const l of validatorTail.split('\n')) console.log(`            ${l}`);
   console.log(`[既存確認] ${remote.checked ? (remote.exists === true ? '既存あり（中止）' : remote.exists === false ? '404（未存在・OK）' : remote.reason) : remote.reason}`);
   console.log(`[shared] clean=${sharedClean}`);
-  console.log(`[PUT]    実 PUT しない（--execute はこのフェーズで無効）`);
+  console.log(`[token]  ${TOKEN_ENV} ${token ? 'あり' : 'なし'}${doExecute ? '（execute 必須）' : '（dry-run では任意）'}`);
   console.log(`[dispatch] repository_dispatch / workflow_dispatch はしない（このスクリプトは dispatch を持たない）`);
   console.log(`[AK/KI]  接続しない・変更しない`);
+  if (args.execute && args.dryRunExplicit) console.log(`[mode]   --dry-run と --execute 同時指定 → dry-run 優先で PUT しない`);
   for (const n of notes) console.log(`         ℹ ${n}`);
   for (const w of warnings) console.log(`         ⚠ WARN: ${w}`);
   for (const e of errors) console.log(`         ✗ GATE: ${e}`);
 
-  // ---- 判定 / exit ----
-  // 優先順: パス/内容/環境ゲート(2) → 既存ファイル(1) → validator(HOLD=3/FAIL=2)
+  // ---- ゲート判定（PUT 前）----
+  // 優先順: その他ゲート(2) → token未設定execute(1) → 既存ファイル(1) → validator(HOLD=3/FAIL=2)
   const existsErr = errors.find(e => e.startsWith('保存先が既に存在します'));
   const otherErrs = errors.filter(e => !e.startsWith('保存先が既に存在します'));
   if (otherErrs.length) { console.log(`[判定]   GATE FAIL`); process.exit(2); }
+  if (tokenMissingExecute) { console.log(`[判定]   ${TOKEN_ENV} 未設定 → execute 中止`); process.exit(1); }
   if (existsErr) { console.log(`[判定]   既存ファイルあり → 中止`); process.exit(1); }
   if (validatorCode === 3) { console.log(`[判定]   validator HOLD → 中止`); process.exit(3); }
   if (validatorCode === 2) { console.log(`[判定]   validator FAIL → 中止`); process.exit(2); }
   if (validatorCode !== 0) { console.log(`[判定]   validator 異常 (code ${validatorCode}) → 中止`); process.exit(2); }
-  console.log(`[判定]   PASS（dry-run・保存計画のみ。実 PUT は別許可後）`);
+
+  // ---- 全ゲート PASS ----
+  if (!doExecute) {
+    console.log(`[PUT]    実 PUT しない（${args.execute && args.dryRunExplicit ? 'dry-run 優先' : 'dry-run'}）`);
+    console.log(`[判定]   PASS（dry-run・保存計画のみ。実 PUT は --execute）`);
+    process.exit(0);
+  }
+
+  // ---- execute: create-only PUT → 保存後 GET 一致確認 ----
+  console.log(`[PUT]    実 PUT 実行（create-only, sha なし）...`);
+  const put = await putToShared(sharedPath, rawText, commitMessage, token);
+  if (!put.ok) { console.log(`[判定]   PUT 失敗 (status ${put.status}${put.error ? ', ' + put.error : ''}) → 中止`); process.exit(2); }
+  const commitSha = put.data?.commit?.sha;
+  const contentPath = put.data?.content?.path;
+  console.log(`         PUT 成功 status=${put.status}  commit=${commitSha}  content.path=${contentPath}`);
+  if (contentPath !== sharedPath) { console.log(`[要手動確認] content.path 不一致: ${contentPath} != ${sharedPath}（PUT は成功済み）`); process.exit(2); }
+  const got = await getSharedContent(sharedPath, token);
+  if (!got.ok) { console.log(`[要手動確認] 保存後 GET 失敗 (status ${got.status})（PUT は成功済み）`); process.exit(2); }
+  let parseOk = true; try { JSON.parse(got.decoded); } catch { parseOk = false; }
+  const match = got.decoded === rawText;
+  console.log(`[保存後] GET=200  内容一致=${match}  parse可=${parseOk}  sha=${got.sha}`);
+  if (!match || !parseOk) { console.log(`[要手動確認] 保存後内容が tmp と一致しない（PUT は成功済み・手動確認必須）`); process.exit(2); }
+  console.log(`[dispatch] 発火しない（このスクリプトは dispatch を持たない）`);
+  console.log(`[判定]   EXECUTE 成功（1ファイル create-only PUT 完了・内容一致確認済み）`);
   process.exit(0);
 }
 

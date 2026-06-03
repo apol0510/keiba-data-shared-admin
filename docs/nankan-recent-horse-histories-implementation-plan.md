@@ -677,6 +677,183 @@ scripts/validate-recent-horse-histories.mjs --file=tmp/nankan/recentHorseHistori
 
 ---
 
+## 10.4. Phase 5 shared PUT 詳細設計
+
+> 本節は設計のみ。push script 実装・shared PUT 実行・workflow_dispatch・AK/KI接続は含まない。
+
+### 1. Phase 5 の目的
+
+- Phase 3 で生成し、Phase 4 validator で **PASS** した tmp JSON を `keiba-data-shared` に保存する段階。
+- **shared PUT 経路を初めて作る段階**。
+- ただし **workflow_dispatch はまだ行わない**。
+- **AK/KI接続はまだ行わない**。
+- **Feature Importance 改善にも入らない**。
+- 「生成 → 検査 → 保存」の最後の1段を**安全に確立する**。
+
+### 2. shared 保存先パス（正式）
+
+```
+keiba-data-shared/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json
+```
+
+例:
+```
+nankan/recentHorseHistories/2026/05/2026-05-29-URA.json
+```
+
+方針:
+- racebook / results / predictions とは**別 namespace**。
+- 既存読者がいないため **additive**（壊す対象ゼロ）。
+- tmp 側 `tmp/nankan/recentHorseHistories/YYYY/MM/...` と **1対1対応**。
+
+### 3. 初回対象
+
+初回は以下 **1ファイルのみ**。
+
+```
+2026-05-29-URA
+```
+
+理由:
+- match率 **61.6%**
+- **time-fail 0**
+- validator **PASS 実績あり**
+- FUN/KAW は time-fail があるため**初回対象にしない**
+- OOI も候補だが、初回は**最も検証が厚い URA** を選ぶ
+- **1日・1会場・1ファイル**で保存経路を確立する
+
+### 4. tmp JSON生成 → validator → shared保存 の流れ
+
+1. `generator --write-local` で tmp JSON を生成
+2. `validator --file=tmp/...` で preflight
+3. validator **PASS の場合のみ** shared保存候補
+4. **HOLD / FAIL の場合は保存しない**
+5. push 経路は **validator PASS を内部で再確認**する
+6. **GitHub Contents API で create-only PUT**
+7. 保存後に **GET して内容一致を確認**
+8. **dispatch はしない**
+
+### 5. PASS / HOLD / FAIL の扱い
+
+| 判定 | shared 保存 |
+|---|---|
+| **PASS** | 保存を**許可** |
+| **HOLD** | **保存しない**。人間確認後に**別許可**が必要 |
+| **FAIL** | **保存禁止** |
+
+- **自動で HOLD を進めない**。
+- **自動で FAIL を進めない**。
+
+### 6. 既存ファイル上書き禁止
+
+- Phase 5 初回は **create-only**。
+- 保存先が既に存在したら**中止**。
+- GitHub Contents API で**既存ファイル確認**。
+- **sha を使った上書き更新は実装しない**。
+- 再生成・更新が必要な場合は**別 Phase で設計**する。
+
+### 7. shared 保存前チェック（必須ゲート）
+
+- validator 判定 = **PASS**
+- `keiba-data-shared` が **clean**
+- 保存先パスが `nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-{VENUE}.json` に一致
+- 保存先が**未存在**
+- `schemaVersion` が `nankan-recent-horse-histories-v0`
+- `date` / `venue` / `venueName` が存在
+- `source-results-enriched` + `source-racebook-only` = **recentRaces 総数**
+- tmp ファイルが admin repo 内 **`tmp/` 配下**
+- tmp JSON が **git に露出していない**
+
+### 8. shared 保存後チェック
+
+- PUT レスポンスが**成功**
+- **commit sha を取得**
+- 保存先を GET して **200**
+- 取得 content を decode して **tmp JSON と一致確認**
+- 取得 JSON を parse して **validator 相当の検査**
+- shared 側に**意図した1ファイルだけが増えた**こと
+- **dispatch が発火していないことを明示確認**
+
+### 9. shared commit / push 方針
+
+**推奨: GitHub Contents API PUT = 1コミットで完結**
+
+理由:
+- 既存 save 系 function と**同系統**
+- ローカル `keiba-data-shared` working tree を**汚さない**
+- `git add .` の事故を避けられる
+- **create-only PUT に限定しやすい**
+
+**非推奨: ローカル shared を編集 → `git add` → commit → push**
+
+理由:
+- ローカル mutation が増える
+- 誤 add リスクが増える
+- clean 前提が崩れやすい
+
+### 10. dispatch 禁止
+
+- `repository_dispatch` **禁止**
+- `workflow_dispatch` **禁止**
+- `prediction-updated` など**既存 dispatch 経路に触れない**
+- dispatch は **Phase 6 以降、別許可**
+
+### 11. AK/KI 接続禁止
+
+- analytics-keiba **変更禁止**
+- keiba-intelligence **変更禁止**
+- `recentHorseHistories` **読み取り実装禁止**
+- AK/KI接続は **Phase 6 以降、別設計**
+
+### 12. 実装方式比較
+
+| 案 | 内容 | 評価 |
+|---|---|---|
+| **A. generator に `--push` を実装** | 生成と shared 書き込みが結合する / 誤 PUT リスクが増える / 現状 `--push` exit 1 の安全性を崩す | **非推奨** |
+| **B. 新規 push 専用スクリプト** `scripts/push-recent-horse-histories.mjs --file=tmp/...` | generator / validator を壊さない / validator PASS を必須ゲートにできる / shared PUT だけを隔離できる / dispatch を構造的に排除しやすい | **推奨** |
+| **C. Netlify function** | HTTP トリガや UI 経路が絡む / 今回の手動・限定 PUT には過剰 | **非推奨** |
+
+**推奨: B. 新規 push 専用スクリプト**
+
+### 13. 実行者
+
+- `GITHUB_TOKEN_KEIBA_DATA_SHARED` が **Claude 実行環境に届かない可能性**がある。
+- **実 PUT はマコさんのターミナルで実行する前提**。
+- Claude は **plan / dry-run / PUT 直前確認まで**。
+- **実 PUT は明示許可後のみ**。
+
+### 14. Phase 6 へ進む条件
+
+- 初回 URA が shared に **1ファイル保存**される
+- 保存後 **GET 200**
+- **tmp JSON と shared JSON が一致**
+- **validator 相当検査 PASS**
+- shared 側で**意図した1ファイルだけが増えている**
+- **dispatch 未発火**
+- **shared clean / commit 状態確認済み**
+- 複数日・複数場展開は**別許可**
+- AK/KI接続は**さらに別 Phase**
+
+### 15. docs 追記後の次工程
+
+- §10.4 を **commit/PR**
+- merge 後に **push 専用スクリプト設計または実装**
+- **実 PUT はまだ別許可**
+- **shared PUT と dispatch は分離**
+
+### 16. まだやらないこと（明示）
+
+- push script 実装しない
+- shared PUT しない
+- workflow_dispatch しない
+- repository_dispatch しない
+- AK/KI接続しない
+- Feature Importance 改善に入らない
+- keiba-data-shared を変更しない
+- JSON を shared 本体に保存しない
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

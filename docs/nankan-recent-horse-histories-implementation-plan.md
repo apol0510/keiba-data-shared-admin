@@ -1436,6 +1436,115 @@ Phase 6 では以下に**触れない**:
 
 ---
 
+## 10.10. Phase 6.1 shared recentHorseHistories 表示契約
+
+> 2026-06-03 追記。Phase 6（§10.9）の **AK/KI 読み取り接続に入る前**に、表示側が `keiba-data-shared/nankan/recentHorseHistories/...` を**読んでよい範囲＝表示契約**を明文化する。**本節は docs のみ。** AK/KI 実装・shared PUT・dispatch・Feature Importance 改善は行わない。
+>
+> **関連**: データ生成・保存・突合・dataQualityFlags の**生成側契約**は [nankan-recent-horse-histories-contract.md](nankan-recent-horse-histories-contract.md)（§10 AK/KI利用方針 / §11 Feature Importance接続 / §9 dataQualityFlags）に既出。本§は**表示側が読む契約**を扱い、生成側契約と二重定義しない。値の定義・生成根拠は contract.md を正とし、本§は「表示が依存してよいか」だけを規定する。
+>
+> 本表示契約は **Phase 6 実装前監査（§10.9 直後に実施）**で確認した実データ事実（URA 2026-05-29 / OOI 2026-05-22）に基づく。
+
+### 1. 正本の位置づけ
+
+- `keiba-data-shared/nankan/recentHorseHistories/YYYY/MM/YYYY-MM-DD-VENUE.json` は南関 recentHorseHistories の**事実データ正本**とする。
+- ただし、**表示スコア・Feature Importance・AI指数・印・買い目の正本ではない**。
+- AK/KI はこの JSON を**直接改変しない**。
+- 表示側は**読み取り専用**とする。
+
+### 2. top-level 構造（実データ準拠）
+
+現時点の実データ構造として以下を契約候補にする。
+
+| 階層 | キー |
+|---|---|
+| top-level | `schemaVersion` / `category` / `date` / `venue` / `venueName` / `source` / `races` |
+| `races[]` | `raceNumber` / `raceName` / `horses[]` |
+| `horses[]` | `horseNumber` / `horseName` / `recentRaces[]` |
+
+- **実データは `entries[]` ではなく `horses[]`** である点を明記する（監査で確認）。
+- 馬配列キーは `horses` に固定して読む（`entries` を期待する実装は壊れる）。
+
+### 3. 表示側が読んでよいキー（ホワイトリスト）
+
+表示側が依存してよいキーを以下に限定する。
+
+- top / race / horse: `date` / `venue` / `venueName` / `raceNumber` / `raceName` / `horseNumber` / `horseName` / `recentRaces`
+- `recentRaces[]`: `date` / `venue` / `venueName` / `raceName` / `distance` / `surface` / `finish` / `time` / `last3f` / `corner` / `headCount`
+
+> ⚠️ `headCount` は **null の可能性がある**（監査: racebook-only 由来の record では値が null。URA 186件 / OOI 216件）。**数値前提で扱わない**（§5 参照）。
+> ⚠️ 上記ホワイトリストのキーでも、実データに存在しない record がありうる（例: `recentRaces` 空配列、走によっては `last3f`/`corner` 欠落）。**存在前提でアクセスしない**。
+
+### 4. 表示側が依存してはいけないキー（契約外）
+
+以下は**内部・診断・生成都合**のフィールドとして扱い、AK/KI 表示実装が依存しないことを明記する。
+
+- `_status` / `_timeFail` / `_unknownVenue`
+- `resultMatchKey` / `sourcePriority` / `dataQualityFlags`
+- その他 **`_` prefix** のフィールド全般
+
+これらは**デバッグ・検査・生成側突合用**であり、**表示契約外**。表示ロジック・分岐・スコアの入力に使わない。生成側での意味は contract.md §9 / §8 を参照。
+
+### 5. null / 欠損 / 空配列の扱い（表示側共通 fallback）
+
+表示側共通の安全条件として以下を明記する。**「既存表示を壊さない」ことを最優先**とする。
+
+1. recentHorseHistories **ファイルが存在しない** → 既存 `horse.recentRaces` を維持。
+2. 該当 **race が存在しない** → 既存 `horse.recentRaces` を維持。
+3. 該当 **horse が存在しない**（馬名照合不成立含む） → 既存 `horse.recentRaces` を維持。
+4. 該当 horse の **`recentRaces` が空配列** → 既存 `horse.recentRaces` を維持（監査: URA に2頭存在）。
+5. `headCount === null` → 表示では **「—」等に安全置換**する。
+6. `headCount === null` を**数値計算に使わない**。
+7. `fieldSize` は**現時点で表示契約に含めない**（監査: 実データに当キーは0件）。
+
+> これらは AK/KI **両サイト共通**で定義する。片側だけ fallback を実装すると「片側 repo 寄せ」になり禁止（CLAUDE.md / §10.9）。
+
+### 6. 最大走数
+
+- shared recentHorseHistories は**最大4走**を持つ可能性がある（監査確認）。
+- **KI は既存実装で最大3走の前提**がある（`slice(0,3)` 由来）。
+- AK/KI で表示走数を変える場合は、**表示仕様として別途明記**する。
+- Phase 6.1 では「**shared 側は事実データとして保持し、表示側が何走使うかは別契約**」とする。
+- 走数変更は **Feature Importance / 6項目評価に波及**するため、**今回変更しない**。
+
+### 7. Feature Importance との分離
+
+- shared recentHorseHistories を読んでも、**Feature Importance / featureScores / `generateAdvancedMetrics` に自動接続しない**。
+- `recentRaces` の**供給元差し替え**は、Feature Importance 値を変える可能性がある（監査: 両サイトとも近走を特徴量入力に使用）。
+- そのため Phase 6.1 では「**表示用近走データ**」と「**特徴量計算用入力**」を**分離する方針**を明記する。
+- **Feature Importance 改善は別 Phase**（Phase 7）とする。
+
+### 8. AK/KI 表示差別化との関係
+
+- shared recentHorseHistories は**事実データ**であり、**AK/KI 共通の表示スコアではない**。
+- AK は**3項目要約**へ派生 / KI は**6項目詳細**へ派生（§10.9 で確定）。
+- ただし **Phase 6.1 では派生計算を実装しない**。
+- **同じ shared 値をそのまま AK/KI に出すことは禁止**。
+- 同じ馬について**真逆の説明が出ない**よう、**将来の中間判定契約**が必要（§10.9 / 監査 C-4）。
+
+### 9. 実装前ゲート
+
+Phase 6.1 完了後でも、以下が**未完了なら AK/KI 実装に入らない**。
+
+- [ ] AK/KI 両 repo が **main または作業開始に適したブランチ状態**であること（監査: 現状 AK=`feat/ak-feature-summary-jra-free`＋11 worktree / KI=`feat/jra-free-feature-scores-ui`、いずれも main 外）。
+- [ ] **shared 表示契約**が docs に明記されていること（本§）。
+- [ ] **fallback 条件**が明記されていること（§5）。
+- [ ] **Feature Importance に接続しない方針**が明記されていること（§7）。
+- [ ] **AK/KI 表示差別化の中間判定方針**が明記されていること（§8 / §10.9）。
+- [ ] **本番同梱方式の違い**を確認済みであること（監査 B-5: AK=明示 `readFileSync` / KI=`included_files` glob + multi-candidate path）。
+
+### 10. 禁止事項
+
+- AK/KI 実装禁止
+- keiba-data-shared PUT 禁止
+- workflow_dispatch / repository_dispatch 禁止
+- Feature Importance 改善禁止
+- AI指数・印・買い目変更禁止
+- shared JSON 直接改変禁止
+- token 値表示禁止
+- 禁止3ファイルを触らない（`netlify/functions/publish-prediction.mjs` / `scripts/build-feature-scores-once.mjs` / `scripts/enrich-past-races-once.mjs`）
+
+---
+
 ## 11. Phase 整理
 
 | Phase | 内容 | ゲート |

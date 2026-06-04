@@ -202,13 +202,14 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 ## 12. 進捗チェックリスト
 
 ### Phase A: 5走表示化
-- [ ] validator `maxLen <= 5` 追加
-- [ ] generator（必要なら最大5走 cap）
-- [ ] docs 契約更新（正本5走・表示5走）
-- [ ] AK free/premium/HorseMainCard/RaceHorseSection 5走化
-- [ ] KI 3ページ 5走化
-- [ ] 2026-06-03 FUN 再 validate PASS（maxLen=5）
-- [ ] AK/KI 実地表示確認（リーク0・fallback0・CSS）
+- [x] validator `maxLen <= 5` 追加（>5 で FAIL・maxLen/分布を出力）(2026-06-05)
+- [x] generator 防御的に最大5走 cap（≤5 は無変更・cappedExpected 整合）(2026-06-05)
+- [x] docs 契約更新（正本5走・表示5走）(2026-06-05)
+- [x] AK free/premium/HorseMainCard/RaceHorseSection 5走化（slice・summary・RECENT_LABELS）(2026-06-05)
+- [x] KI 3ページ 5走化（slice(0,5)。RECENT_LABELS は既存5要素で対応）(2026-06-05)
+- [x] 2026-06-03 FUN 再生成 validate PASS（maxLen=5・分布{1:1,2:2,3:20,4:99,5:10}）(2026-06-05)
+- [ ] AK/KI 実地表示確認（リーク0・fallback0・CSS）※ commit/merge/deploy 後
+- 注: featureScores の `recentRaces.slice(0,4)`（AK L57 / KI L112）は **horse.recentRaces 特徴量入力**で Phase A 対象外＝不変。
 
 ### Phase B: 馬詳細表示
 - [ ] 中央版コンポーネント/参照元 特定

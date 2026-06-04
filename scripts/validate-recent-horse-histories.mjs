@@ -106,6 +106,7 @@ function collect(json) {
     matched: 0, passingOrderMissingMatched: 0,
     suspectAbsent: 0, suspectPastrace: 0,
     noSurface: 0, noTrackCond: 0, noPopularity: 0, noMargin: 0,
+    maxRecentLen: 0, lenDist: {}, over5: [],
   };
   const inc = (f) => { s.flags[f] = (s.flags[f] || 0) + 1; };
   const races = json.races || [];
@@ -114,6 +115,10 @@ function collect(json) {
     const horses = race.horses || [];
     s.horses += horses.length;
     for (const h of horses) {
+      const rlen = (h.recentRaces || []).length;
+      if (rlen > s.maxRecentLen) s.maxRecentLen = rlen;
+      s.lenDist[rlen] = (s.lenDist[rlen] || 0) + 1;
+      if (rlen > 5 && s.over5.length < 10) s.over5.push({ raceNumber: race.raceNumber, horseNumber: h.horseNumber, horseName: h.horseName, len: rlen });
       for (const rr of (h.recentRaces || [])) {
         s.recentTotal++;
         const keys = Object.keys(rr);
@@ -173,6 +178,12 @@ function judge({ absFile, parsed, json, s, pastTotalExpected }) {
   if (!Array.isArray(json.races) || json.races.some(r => !Array.isArray(r.horses))) errors.push('races/horses 構造欠落');
   if (json.races && json.races.some(r => (r.horses || []).some(h => !Array.isArray(h.recentRaces)))) errors.push('recentRaces 構造欠落');
 
+  // 正本 recentHorseHistories は最大5走（公式出馬表に合わせる）。6走以上は FAIL。
+  if (s.maxRecentLen > 5) {
+    const sample = s.over5.map(x => `R${x.raceNumber} ${x.horseNumber}番 ${x.horseName}(${x.len}走)`).join(', ');
+    errors.push(`recentRaces が最大5走を超過: maxLen=${s.maxRecentLen} / 違反${s.over5.length}件 [${sample}]`);
+  }
+
   // recentRaces総数検査: pastTotalExpected が渡された場合のみ厳密比較。なければ source 内訳整合のみ
   if (pastTotalExpected != null && s.recentTotal !== pastTotalExpected) {
     errors.push(`recentRaces総数(${s.recentTotal}) != 入力pastRaces総数(${pastTotalExpected})`);
@@ -225,6 +236,7 @@ function printSummary(absFile, json, s, verdict) {
   console.log(`=== recentHorseHistories preflight: ${path.relative(ADMIN_ROOT, absFile)} ===`);
   console.log(`[meta]   schemaVersion=${json.schemaVersion}  date=${json.date}  venue=${json.venue}  venueName=${json.venueName}`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  recentRaces=${s.recentTotal}`);
+  console.log(`[走数]   maxLen=${s.maxRecentLen}（上限5）  分布=${JSON.stringify(s.lenDist)}`);
   console.log(`[source] results-enriched=${s.sourceEnriched}  racebook-only=${s.sourceRacebook}  (合計=${s.sourceEnriched + s.sourceRacebook})`);
   console.log(`[突合]   match率=${pct(s.matchRate)}  no-result-file率=${pct(s.noResultFileRate)}  passingOrder欠損率(matched)=${pct(s.passingOrderMissingRate)}`);
   console.log(`[キー]   headCount存在=${s.headCountKeyFound}  fieldSize存在=${s.fieldSizeKeyFound}`);

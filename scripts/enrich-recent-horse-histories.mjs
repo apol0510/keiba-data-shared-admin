@@ -313,6 +313,19 @@ function buildRecentRace(past, parentName, dateInfo, venueInfo, match) {
   };
 }
 
+// 正本 recentHorseHistories は最大5走（地方競馬公式の出馬表に合わせる）。表示側 slice(0,5) は二重安全。
+const MAX_RECENT_RACES = 5;
+
+// 防御的に直近5走へ収める。5走以下はそのまま（既存挙動を維持＝racebook 最大5走なので通常は無変更）。
+// 6走以上が混入したときだけ、日付降順で最新5件を採り、表示契約（古→新）に合わせ昇順へ戻す。
+function limitRecentRacesToLatest5(races) {
+  if (races.length <= MAX_RECENT_RACES) return races;
+  return [...races]
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    .slice(0, MAX_RECENT_RACES)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+}
+
 // ---------------------------------------------------------------------------
 // buildRecentHorseHistories
 // ---------------------------------------------------------------------------
@@ -331,26 +344,30 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
     },
     races: [],
   };
-  let pastTotal = 0;
+  let pastTotal = 0;       // 入力 pastRaces 総数
+  let cappedExpected = 0;  // cap後の期待出力数 = Σ min(馬ごと入力走数, 5)
   const allRecent = [];
   for (const race of racebook.races || []) {
     const horsesOut = [];
     for (const h of race.horses || []) {
-      const recentRaces = [];
+      const builtRaces = [];
       for (const past of h.pastRaces || []) {
         pastTotal++;
         const dateInfo = parsePastRaceDate(past.venue, baseDate);
         const venueInfo = normalizeVenue(dateInfo.name);
         const match = matchPastRaceToResult(past, h.name, resultsIndex, dateInfo, venueInfo);
         const rr = buildRecentRace(past, h.name, dateInfo, venueInfo, match);
-        recentRaces.push(rr);
-        allRecent.push(rr);
+        builtRaces.push(rr);
       }
+      // 正本は最大5走に防御 cap。allRecent は cap 後の出力のみを反映する（通常は無変更）。
+      const recentRaces = limitRecentRacesToLatest5(builtRaces);
+      cappedExpected += Math.min(builtRaces.length, MAX_RECENT_RACES);
+      for (const rr of recentRaces) allRecent.push(rr);
       horsesOut.push({ horseNumber: h.number ?? null, horseName: h.name, recentRaces });
     }
     out.races.push({ raceNumber: race.raceNumber, raceName: race.raceClass ?? null, horses: horsesOut });
   }
-  return { json: out, pastTotal, allRecent };
+  return { json: out, pastTotal, cappedExpected, allRecent };
 }
 
 // ---------------------------------------------------------------------------
@@ -400,11 +417,18 @@ function collectSummary({ json, pastTotal, allRecent }, racebook, resultsIndex) 
 // ---------------------------------------------------------------------------
 // validateOutput
 // ---------------------------------------------------------------------------
-function validateOutput(json, summary, pastTotal) {
+function validateOutput(json, summary, expectedOut) {
   const errors = [], warnings = [];
 
-  if (summary.recentOut !== pastTotal) errors.push(`出力recentRaces件数(${summary.recentOut}) != 入力pastRaces総件数(${pastTotal})`);
-  if (summary.recentOut < pastTotal) errors.push(`出力件数が入力より減少（${summary.recentOut} < ${pastTotal}）`);
+  // 正本は最大5走 cap 後の期待件数と一致すること（cap 以外でのサイレントな増減を検出）。
+  if (summary.recentOut !== expectedOut) errors.push(`出力recentRaces件数(${summary.recentOut}) != cap後期待件数(${expectedOut})`);
+  // 正本は最大5走。6走以上が残っていれば FAIL。
+  const over = [];
+  for (const r of (json.races || [])) for (const h of (r.horses || [])) {
+    const n = (h.recentRaces || []).length;
+    if (n > MAX_RECENT_RACES) over.push(`${h.horseName}(${n}走)`);
+  }
+  if (over.length) errors.push(`recentRaces が最大5走を超過: ${over.length}件 [${over.slice(0, 10).join(', ')}]`);
   if (!Array.isArray(json.races) || json.races.some(r => !Array.isArray(r.horses))) errors.push('races/horses 構造が欠落');
   for (const k of ['schemaVersion', 'date', 'venue', 'venueName']) {
     if (json[k] == null || json[k] === '') errors.push(`必須トップ項目欠落: ${k}`);
@@ -487,7 +511,7 @@ function printSummary({ rbPath, summary: s, validation, args, write }) {
   console.log(`[入力]   racebook: ${rbPath}`);
   console.log(`         results : 動的ロード ${s.resultsLoadCount} ファイル`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  pastRaces=${s.pastTotal}`);
-  console.log(`[出力]   recentRaces=${s.recentOut}  (= pastRaces, 欠落 ${s.pastTotal - s.recentOut})`);
+  console.log(`[出力]   recentRaces=${s.recentOut}  (最大5走cap, 入力pastRaces=${s.pastTotal} / cap差 ${s.pastTotal - s.recentOut})`);
   console.log(`[突合]   matched=${s.matched} (${pct(s.matchRate)})  no-result-match=${s.noResultMatch} (${pct(s.noResultMatchRate)})`);
   console.log(`         ├ no-result-file=${s.noResultFile}  outside-nankan=${s.outside}  name-miss(result-present-horse-absent)=${s.nameMiss}  ambiguous=${s.ambiguous}`);
   console.log(`[日付]   year-inferred=${s.yearInferred}   no-date=${s.noDate}`);
@@ -540,7 +564,7 @@ function main() {
   const resultsIndex = loadResultsIndex();
   const built = buildRecentHorseHistories(racebook, resultsIndex, args.date, args.venue);
   const summary = collectSummary(built, racebook, resultsIndex);
-  const validation = validateOutput(built.json, summary, built.pastTotal);
+  const validation = validateOutput(built.json, summary, built.cappedExpected);
 
   const write = maybeWriteLocal(built.json, args, validation);
   printSummary({ rbPath, summary, validation, args, write });

@@ -129,6 +129,15 @@ function collectContentChecks(json) {
   return c;
 }
 
+// GitHub API のエラー応答から安全な診断情報だけを抜き出す（whitelist）。
+// token / Authorization / request body / base64 content は絶対に含めない。
+function formatGithubError(data) {
+  const parts = [];
+  if (data && typeof data.message === 'string') parts.push(`message: ${data.message}`);
+  if (data && typeof data.documentation_url === 'string') parts.push(`documentation_url: ${data.documentation_url}`);
+  return parts.length ? ` / ${parts.join(' / ')}` : '';
+}
+
 // 既存ファイル確認 GET（token があるときだけ実施。無ければ execute 時に確認するよう促す）
 async function checkRemoteExists(sharedPath) {
   const token = process.env[TOKEN_ENV];
@@ -138,7 +147,8 @@ async function checkRemoteExists(sharedPath) {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'push-recent-horse-histories' } });
     if (res.status === 200) return { checked: true, exists: true };
     if (res.status === 404) return { checked: true, exists: false };
-    return { checked: true, exists: null, status: res.status, reason: `想定外ステータス ${res.status}` };
+    const data = await res.json().catch(() => ({}));
+    return { checked: true, exists: null, status: res.status, reason: `想定外ステータス ${res.status}${formatGithubError(data)}` };
   } catch (e) {
     return { checked: false, reason: `GET 失敗（dry-run では警告扱い）: ${e.message}` };
   }
@@ -311,7 +321,7 @@ async function main() {
   // ---- execute: create-only PUT → 保存後 GET 一致確認 ----
   console.log(`[PUT]    実 PUT 実行（create-only, sha なし）...`);
   const put = await putToShared(sharedPath, rawText, commitMessage, token);
-  if (!put.ok) { console.log(`[判定]   PUT 失敗 (status ${put.status}${put.error ? ', ' + put.error : ''}) → 中止`); process.exit(2); }
+  if (!put.ok) { console.log(`[判定]   PUT 失敗 (status ${put.status}${put.error ? ', ' + put.error : ''}${formatGithubError(put.data)}) → 中止`); process.exit(2); }
   const commitSha = put.data?.commit?.sha;
   const contentPath = put.data?.content?.path;
   console.log(`         PUT 成功 status=${put.status}  commit=${commitSha}  content.path=${contentPath}`);

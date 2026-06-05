@@ -224,9 +224,31 @@ async function saveToGitHub(data) {
 }
 
 /**
+ * 馬名が「外字(PUA)1文字のみ」または「空」かどうかを判定する。
+ * JRA PDF 由来の外字（U+E615=(外) / U+E618=(地) 等）で馬名本体が欠落したケースを検出し、
+ * computer 側の正規名で補完する条件に使う。
+ * - 空 / null / undefined / trim後に空 → true
+ * - trim後が PUA(U+E000–U+F8FF) と空白だけで構成 → true
+ * - 通常のカタカナ馬名 / "(外)…" / "(地)…" → false
+ */
+function isGaijiOrEmptyName(name) {
+  if (name == null) return true;
+  const trimmed = String(name).trim();
+  if (trimmed === '') return true;
+  // PUA(U+E000–U+F8FF) と空白だけで構成されているか
+  for (const ch of trimmed) {
+    const cp = ch.codePointAt(0);
+    const isPua = cp >= 0xE000 && cp <= 0xF8FF;
+    if (!isPua && !/\s/.test(ch)) return false;
+  }
+  return true;
+}
+
+/**
  * コンピ指数で補完
  * computer-managerで事前保存されたデータをフェッチし、各馬にcomputerIndexを補完
  * コンピ45以上で印なし → 補欠に昇格、44以下 → 不要馬
+ * あわせて、外字で欠落した馬名を computer 側の正規名で補完する（isGaijiOrEmptyName）。
  */
 async function enrichWithComputerIndex(data) {
   const { date, trackCode, category } = data;
@@ -261,14 +283,27 @@ async function enrichWithComputerIndex(data) {
 
     const COMPI_THRESHOLD = 45;
     let enriched = 0;
+    let nameBackfilled = 0;
 
     for (const race of data.races) {
       const compiRace = compiJson?.races?.find(r => r.raceNumber === race.raceNumber);
 
       for (const horse of race.horses) {
-        // コンピ指数の補完（コンピデータがある場合）
+        // コンピデータがある場合の補完（馬名 + コンピ指数）
         if (compiRace) {
           const compiHorse = compiRace.horses?.find(ch => ch.number === horse.number);
+
+          // 馬名補完: racebook 側の馬名が外字(PUA)1文字のみ/空のとき、
+          // computer 側の正規名「(外)…/(地)…」で補完する。
+          // JRA PDF 由来の外字 U+E615=(外) / U+E618=(地) 等で馬名本体が欠落するバグ対策。
+          // 通常馬名は isGaijiOrEmptyName=false のため上書きしない。
+          if (compiHorse?.name && isGaijiOrEmptyName(horse.name)) {
+            const before = horse.name;
+            horse.name = compiHorse.name;
+            nameBackfilled++;
+            console.log(`[Enrich] 馬名補完: R${race.raceNumber} #${horse.number} ${JSON.stringify(before)} -> ${JSON.stringify(compiHorse.name)}`);
+          }
+
           if (compiHorse?.computerIndex) {
             if (!horse.computerIndex || horse.computerIndex === '') {
               horse.computerIndex = String(compiHorse.computerIndex);
@@ -294,6 +329,9 @@ async function enrichWithComputerIndex(data) {
 
     if (compiJson) {
       console.log(`[Enrich] コンピ指数補完: ${enriched}頭`);
+      if (nameBackfilled > 0) {
+        console.log(`[Enrich] 馬名補完: ${nameBackfilled}頭`);
+      }
     }
 
   } catch (err) {

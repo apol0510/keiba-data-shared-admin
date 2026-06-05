@@ -234,3 +234,48 @@ PR-JRA-6: 必要なら AK/KI 両方に馬番フォールバック防御を追加
             AK では computerIndex 注入失敗による不要馬化、KI では racebook 補完欠落として発現。
             admin/shared 側での補完・外字処理修正を優先し、AK/KI 片側修正は禁止。
 ```
+
+---
+
+## 12. PR-JRA-2 実装メモ（save-keiba-book 馬名補完）
+
+```text
+対象: netlify/functions/save-keiba-book.mjs（1ファイル）
+
+追加ヘルパ: isGaijiOrEmptyName(name)
+- name が空 / null / undefined / trim後に空 → true
+- trim後が PUA(U+E000–U+F8FF) と空白だけで構成 → true（codePointAt で数値判定。ソースに生PUA文字は埋めない）
+- 通常カタカナ名 / "(外)…" / "(地)…" → false
+
+補完ロジック: enrichWithComputerIndex() 内の既存 compiRace/compiHorse 突合を流用
+- compiRace = compiJson.races.find(r => r.raceNumber === race.raceNumber)
+- compiHorse = compiRace.horses.find(ch => ch.number === horse.number)
+- 条件: compiHorse?.name && isGaijiOrEmptyName(horse.name)
+- 処理: horse.name = compiHorse.name（computer の "(外)/(地)+名" を採用）
+- 既存の computerIndex 補完は同 if(compiRace) ブロック内で従来どおり維持
+- ログ: 補完時のみ「[Enrich] 馬名補完: R{n} #{num} "旧" -> "新"」+ 件数サマリ「[Enrich] 馬名補完: N頭」
+
+保存タイミング: enrichWithComputerIndex は saveToGitHub の前に実行されるため、
+補完後の馬名が保存される。computer 在席時に racebook を(再)保存したときに効く安全網。
+新規取込で computer 不在時の根治は PR-JRA-3（importer 側）が担当。
+
+検証(2026-06-06 TOK, read-only シミュレーション):
+- 馬名補完 6頭ちょうど（R6#11/R7#12/R11#12=(外), R9#6/R10#7/R12#7=(地)）
+- 通常馬 165頭は補完対象外（誤補完 0）
+- computerIndex 補完ロジックへの影響なし
+- node --check OK / helper 単体判定 期待どおり
+
+別件メモ: AK で JRA 発走時刻が表示されていない件は本バグとは別件。後続で read-only 監査し、
+別 PR で対応する（本 PR には混ぜない）。
+```
+
+---
+
+## 13. 更新履歴（追記）
+
+```text
+2026-06-05: PR-JRA-2 として save-keiba-book.mjs に馬名補完（isGaijiOrEmptyName + computer 馬番突合）を実装。
+            既存 computerIndex 補完を維持しつつ、外字/空の馬名のみ computer 正規名で補完。
+            2026-06-06 TOK 6頭の復元をシミュレーションで確認、通常馬 165頭は無影響。
+            AK の JRA 発走時刻未表示は別件として後続監査に分離。
+```

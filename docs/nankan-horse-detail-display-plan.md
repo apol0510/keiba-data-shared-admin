@@ -231,7 +231,7 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 
 ### Phase D: 自動 dispatch
 - [x] **Phase D-1**: 設計方針を docs 記録（方式A単発 opt-in＋バックフィル逐次・updates非対応・concurrency注意・token経路）(2026-06-05)（§18 参照）
-- [x] **Phase D-2**: 方式A 最小実装。`scripts/dispatch-recent-horse-histories-nankan.mjs` 追加（単発 opt-in dispatch・多段ゲート・byte一致gate＝案ア・AK/KI両token必須・dispatchToTargets不使用）(2026-06-05)（§19 参照）。実 dispatch はマコさん直接実行前提・本PRでは未実施
+- [x] **Phase D-2**: 方式A 最小実装。`scripts/dispatch-recent-horse-histories-nankan.mjs` 追加（単発 opt-in dispatch・多段ゲート・byte一致gate＝案ア・AK/KI両token必須・dispatchToTargets不使用）(2026-06-05)（§19 参照）。**実 dispatch 運用テスト成功（2026-06-01 FUN 1件・マコさん直接実行・AK/KI 204→workflow success→両repo取り込み）(2026-06-05)（§20 参照）**
 
 ---
 
@@ -454,6 +454,48 @@ AK/KI の workflow / import script / concurrency 設定・shared JSON・push ス
 
 ---
 
+## 20. Phase D-2 実 dispatch 運用テスト成功 (2026-06-05)
+
+§19 の dispatch script を使い、**新規1件**で `generate → validate → shared PUT → 同一 artifact dispatch → AK/KI 取り込み確認` のエンドツーエンド実運用フローを初めて通し、成功した記録。**マコさん直接ターミナル実行**（dispatch 用 token は Claude シェルに届かないため。[[feedback_dispatch_token_runtime]] 同様）。
+
+### 対象（1件のみ）
+- **2026-06-01 FUN**（複数日・複数場・一括は禁止。1件で実施）
+
+### 結果
+| 工程 | 結果 |
+|---|---|
+| generator（write-local） | 成功（C-2後 generator） |
+| validator | **PASS / WARN 0** |
+| shared PUT（`push-recent-horse-histories.mjs --execute`・create-only） | **HTTP status=201** |
+| 保存後 GET | **200 / 内容一致=true** |
+| dispatch（同一 artifact） | event=`recent-horse-histories-nankan-updated` |
+| payload | `{ "date":"2026-06-01", "venues":["FUN"], "source":"nankan-recent-horse-histories" }`（updates 配列なし・JRA event 不使用） |
+| AK/KI dispatch 応答 | 両方 **status=204** |
+| AK/KI workflow | `gh run list` 上で **success** |
+| 取り込み | AK/KI 両 repo に対象 JSON 取り込み確認済み |
+
+取り込み先（両 repo 同一パス）:
+```
+analytics-keiba   : astro-site/src/data/recentHorseHistories/nankan/2026/06/2026-06-01-FUN.json
+keiba-intelligence: astro-site/src/data/recentHorseHistories/nankan/2026/06/2026-06-01-FUN.json
+```
+
+### 確認できたこと
+- **byte一致gate は「PUT した同一 artifact」をそのまま dispatch することで通過**（再生成すると `meta.generatedAt` が変わり通らない＝§19 案ア の運用が正しいと実証）。
+- AK/KI 両方へ単発 dispatch（status=204）→ それぞれの workflow が success → 両 repo に取り込み、まで一気通貫で成功。
+
+### 運用ルール（実証済み・厳守）
+- **複数日一括 dispatch は禁止**（concurrency cancel 再発防止。§18 Phase C-6 事故参照）。
+- 実運用は必ず **1件ずつ**: `generate → validate(PASS/WARN0) → push(--execute, create-only) → 同一 artifact を dispatch → AK/KI workflow success を単発確認`。
+- dispatch 前に **tmp を再生成しない**（同一 artifact を使う）。
+- dispatch は **マコさん直接ターミナル**で `ANALYTICS_KEIBA_TOKEN` + `KEIBA_INTELLIGENCE_TOKEN`（両方必須）を設定して実行。token 値は出さない。
+- `gh run watch` / sleep / 長時間監視はしない（単発確認のみ）。
+
+### この記録で実施していないこと
+- 本 docs 追記以外の実 dispatch / shared PUT / workflow 実行 / AK・KI 変更 / JSON 手動編集はなし。
+
+---
+
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
@@ -462,5 +504,6 @@ AK/KI の workflow / import script / concurrency 設定・shared JSON・push ス
 - 2026-06-05: **Phase C-2 generator 根治を追記（§17）**。`parsePastRaceDate` 同月日=前年化（`>=`）・同日/未来日除外フィルタ・常時昇順ソート・件数整合維持を実装。テンカハル/ケイアイメビウスの同月日エントリは実在の前年走と判明（誤年推定）。4日再生成で同日0・未来日0・順序乱れ0・C-1 validator PASS を確認。duplicateDate は racebook 原本由来のため WARN 据え置き。
 - 2026-06-05: **Phase C-3〜C-7 完了をチェックリストへ反映（§12）**。横展開（OOI/KAW/URA）・既存 shared 差分監査・shared 上書き PUT（6件 HTTP200）・AK/KI 逐次 dispatch 同期（一括は concurrency cancel→逐次で全12件 PASS）・本番/表示確認（leak0・テンカハル/ケイアイメビウス是正）。
 - 2026-06-05: **Phase D-1 設計方針を追記（§18）**。方式A（admin 単発 opt-in dispatch）＋バックフィル逐次。updates 非対応・concurrency 注意・token 経路確定の前提を記録。
+- 2026-06-05: **Phase D-2 実 dispatch 運用テスト成功を追記（§20）**。2026-06-01 FUN 1件で `generate→validate(PASS/WARN0)→push(201)→同一artifact dispatch(AK/KI 204)→workflow success→両repo取り込み` を一気通貫で実証。byte一致gate は同一 artifact で通過（案ア）。複数日一括は引き続き禁止。
 - 2026-06-05: **Phase D-2 単発 dispatch 専用 script 実装を追記（§19）**。`scripts/dispatch-recent-horse-histories-nankan.mjs` を追加（送信専用・shared PUT なし）。event=`recent-horse-histories-nankan-updated` 固定（JRA `horse-histories-updated` 不使用）・単一 date/venues・updates/複数日一括 禁止。多段ゲート（--dispatch opt-in / --confirm-dispatch 完全一致 / validator PASS・WARN原則禁止 / shared GET200+byte一致 / AK・KI 両 token 必須・GITHUB_TOKEN フォールバック禁止 / token値非表示OK・MISSING のみ）。byte一致gate は「PUT した同一 artifact を dispatch」前提（案ア採用・generatedAt 除外の案イは不採用）。`dispatchToTargets` 不使用。本PRでは実 dispatch / shared PUT / AK・KI 変更なし。
 - 2026-06-05: **Phase D-1 設計方針を追記（§18）**。方式A（admin 単発 opt-in dispatch）を基本＋バックフィルは逐次併用。updates 配列/一括 dispatch/concurrency 分割/AK・KI 改修は不採用。Phase C-6 concurrency 事故の原因と逐次解決、最小差分案、token 経路確定の前提を記録。実装は Phase D-2（未着手）。

@@ -496,6 +496,92 @@ keiba-intelligence: astro-site/src/data/recentHorseHistories/nankan/2026/06/2026
 
 ---
 
+## 21. Phase B：南関馬詳細表示の実装前契約 (2026-06-05)
+
+Phase C/D-2 完了後の read-only 監査（admin/shared/AK/KI 4 repo）を踏まえ、**実装に入る前に**「実装方針・表示責務・禁止事項・PR 分割」を確定する契約節。**この節は docs のみ。実装・scripts・JSON・AK/KI 変更は含まない。**
+
+### 21.1 Phase B の目的
+- `recentHorseHistories` を使い、南関の**近走・馬詳細表示を安全に拡張**する。
+- **計算系・予想系には接続しない**（featureScores / generateAdvancedMetrics / AI指数 / 印 / 買い目）。
+- **`horse.recentRaces` は上書きしない**。表示専用フィールド **`recentRacesFromHistoriesNankan`** のみを使う。
+- 表示は必ず **表示 wrapper `getDisplayRecentRacesForNankan()` 経由**（生 JSON を直接テンプレート展開しない）。
+
+### 21.2 shared/admin 側の責務
+- `recentHorseHistories` は**表示専用契約**（`schemaVersion: nankan-recent-horse-histories-v0`、構造 `races[].horses[].recentRaces[]`、最大5走）。
+- 責務分担:
+  - generator = `scripts/enrich-recent-horse-histories.mjs`
+  - validator = `scripts/validate-recent-horse-histories.mjs`（PASS=0 / FAIL=2 / HOLD=3、WARN は exit code なし）
+  - push（create-only PUT）= `scripts/push-recent-horse-histories.mjs`
+  - dispatch（送信専用）= `scripts/dispatch-recent-horse-histories-nankan.mjs`（§19）
+- `source` / `diagnostic` / `dataQualityFlags` などの**内部キーを UI に出さない**（whitelist で除去。21.6 参照）。
+- **既存 shared JSON の手編集は禁止**（GitHub Web UI 手動追加も不採用）。
+- **`duplicateDate` は単純 dedup しない**（21.4 参照）。
+
+### 21.3 AK 側の責務
+- AK は **latest-only / `prerender = true`（build 時読み込み）** 前提。日付別ルートは現状なし。
+- 読み込み: `lib/loadRecentHorseHistoriesNankan.js` → `injectRecentHorseHistoriesNankan.js`（`horse.recentRacesFromHistoriesNankan` へ注入）→ 表示 wrapper `lib/getDisplayRecentRacesForNankan.js` 経由。
+- 表示候補: `components/HorseMainCard.astro` / `RaceHorseSection.astro` / `pages/free-prediction/nankan.astro` / `premium-prediction/nankan.astro`、または新規 `components/NankanHorseDetail.astro`。
+- **既存 3項目評価・買い目（三連複）・印・AI指数には接続しない**。
+- **AK 専用 UI として設計**し、KI と無理に統一しない（UI 差は正常）。
+- AK は prerender=true のため **included_files 制約の影響を受けない**（build 時にデータ同梱）。
+
+### 21.4 KI 側の責務
+- KI は**日付別ページ（`free-prediction/nankan/[slug].astro`＝prerender=true）と SSR ページ（`prediction/nankan/index.astro`・`free-prediction/nankan/index.astro`＝prerender=false）が混在**。
+- 読み込み: `utils/loadRecentHorseHistoriesNankan.js` → `utils/injectRecentHorseHistoriesNankan.js`（`recentRacesFromHistoriesNankan`）→ `utils/getDisplayRecentRacesForNankan.js`（KI は新→古に reverse）。
+- **Feature Importance 6項目（`utils/featureScores.js` の `generateAdvancedMetrics`）とは混同しない**。6項目は `horse.recentRaces` のみ使用。
+- **`recentHorseHistories` を `generateAdvancedMetrics` に渡さない**。
+- ⚠️ **SSR ページでは included_files 問題の実機確認が必要**: `astro-site/netlify.toml` の `included_files` は現状 `["src/data/horseHistories/**", "src/data/featureScores/**"]` で **`src/data/recentHorseHistories/**` を含まない**。`prerender=false` の 2 ページは本番 Function bundle にデータが同梱されず**注入が黙って失敗→`horse.recentRaces` にフォールバック**する疑い。Phase B でリッチ表示を載せる前に**本番実機で表示有無を確認**し、必要なら included_files 追加を別 PR（PR-2）で行う。`[slug].astro`（prerender=true）は build 時読み込みで機能する。
+- **KI 専用 UI として設計**し、AK と無理に統一しない。
+
+### 21.5 Phase B で表示してよい項目（whitelist）
+`date` / `venueName` / `venueCode` / `raceNumber` / `raceName` / `distance` / `distanceMeters` / `surface` / `trackCondition` / `headCount` / `horseNumber` / `rank`（shared の `finish` を表示時 `rank` へマップ）/ `finishStatus` / `popularity` / `bodyWeight` / `jockey` / `carriedWeight` / `time` / `passingOrder` / `last3f` / `margin`
+
+- 新フィールドを足す場合は**各サイトの `getDisplayRecentRacesForNankan.js` の whitelist を更新したうえで wrapper 経由でのみ参照**する。
+
+### 21.6 Phase B で表示してはいけない項目（内部キー）
+`yearInferred` / `resultMatched` / `source` / `sourcePriority` / `resultMatchKey` / `dataQualityFlags` / `diagnostic` / `_status` / `_timeFail` / `_unknownVenue` / `opponentName` / その他内部監査用キー
+
+- これらは shared 実データの `recentRaces[]` に**実在**するため、生 JSON を直接展開すると漏洩する。whitelist が唯一の防御線。
+
+### 21.7 PR 分割方針
+| PR | 内容 | 対象 repo |
+|---|---|---|
+| **PR-1** | **docs 契約確定のみ（本節）** | admin |
+| PR-2 | KI included_files 実機確認、必要なら設定修正 | keiba-intelligence 単独 |
+| PR-3 | duplicateDate 精密判別の read-only 監査 | admin（監査）|
+| PR-4 | AK 表示拡張 | analytics-keiba 単独 |
+| PR-5 | KI 表示拡張 | keiba-intelligence 単独 |
+
+- **AK/KI は別 repo・別 PR**。片側に寄せた共通契約変更はしない。
+
+### 21.8 禁止事項
+- AK/KI 片側寄せの共通契約変更
+- `horse.recentRaces` 上書き
+- `featureScores` 変更 / `generateAdvancedMetrics` 変更
+- AI指数 / 印 / 買い目 変更
+- JRA `horseHistories`（別ディレクトリ・別ローダー・別フィールド `recentRacesFromHistories`）との混同
+- shared JSON 手編集 / GitHub Web UI 手動追加
+- 一括 dispatch（複数日・複数場）
+- `updates` 配列の使用
+- JRA 用 `horse-histories-updated` event の使用（南関は `recent-horse-histories-nankan-updated` 固定）
+
+### 21.9 回帰確認項目
+- 内部キー（`dataQualityFlags` / `_status` 等）が UI に出ない
+- `horse.recentRaces` が不変
+- `featureScores` / 6項目 / 3項目評価 が不変
+- AI指数 / 印 / 買い目 が不変
+- JRA `horseHistories` 表示に影響なし
+- AK latest-only 仕様維持
+- KI SSR / prerender 差分を確認（included_files 起因のフォールバック有無）
+- `duplicateDate` を誤って消さない
+
+### 21.10 監査で判明した実装前の前提（要対応）
+- **KI included_files 欠落**（21.4）: KI SSR 2 ページで recentHorseHistories が本番表示されているか未確認。PR-2 で実機確認・修正判断。
+- **06-04 FUN duplicateDate=2**: R5 ノーヴヒーロー / R7 マサノプレジオーソ が「同一馬・同一日・同一レース名で `finish` が 7着/8着 と矛盾」する results-enriched 由来重複。**単純 dedup も無編集リッチ表示も両方危険** → PR-3（精密判別 read-only 監査）を Phase B 表示拡張の前提とする。
+- これら 2 点を解消するまで **PR-4/PR-5（実表示拡張）には進まない**。
+
+---
+
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
@@ -507,3 +593,4 @@ keiba-intelligence: astro-site/src/data/recentHorseHistories/nankan/2026/06/2026
 - 2026-06-05: **Phase D-2 実 dispatch 運用テスト成功を追記（§20）**。2026-06-01 FUN 1件で `generate→validate(PASS/WARN0)→push(201)→同一artifact dispatch(AK/KI 204)→workflow success→両repo取り込み` を一気通貫で実証。byte一致gate は同一 artifact で通過（案ア）。複数日一括は引き続き禁止。
 - 2026-06-05: **Phase D-2 単発 dispatch 専用 script 実装を追記（§19）**。`scripts/dispatch-recent-horse-histories-nankan.mjs` を追加（送信専用・shared PUT なし）。event=`recent-horse-histories-nankan-updated` 固定（JRA `horse-histories-updated` 不使用）・単一 date/venues・updates/複数日一括 禁止。多段ゲート（--dispatch opt-in / --confirm-dispatch 完全一致 / validator PASS・WARN原則禁止 / shared GET200+byte一致 / AK・KI 両 token 必須・GITHUB_TOKEN フォールバック禁止 / token値非表示OK・MISSING のみ）。byte一致gate は「PUT した同一 artifact を dispatch」前提（案ア採用・generatedAt 除外の案イは不採用）。`dispatchToTargets` 不使用。本PRでは実 dispatch / shared PUT / AK・KI 変更なし。
 - 2026-06-05: **Phase D-1 設計方針を追記（§18）**。方式A（admin 単発 opt-in dispatch）を基本＋バックフィルは逐次併用。updates 配列/一括 dispatch/concurrency 分割/AK・KI 改修は不採用。Phase C-6 concurrency 事故の原因と逐次解決、最小差分案、token 経路確定の前提を記録。実装は Phase D-2（未着手）。
+- 2026-06-05: **Phase B 実装前契約を追記（§21・PR-1）**。4 repo read-only 監査を踏まえ、目的（recentRacesFromHistoriesNankan 表示専用・計算系非接続・recentRaces 非上書き）、shared/AK/KI の表示責務、表示可否フィールド（whitelist 22 項目／内部キー禁止 11 項目）、PR 分割（PR-1 docs→PR-2 KI included_files→PR-3 duplicateDate 監査→PR-4 AK→PR-5 KI）、禁止事項、回帰確認を確定。実装前提として **KI netlify.toml included_files に recentHorseHistories 欠落（SSR 2 ページ要実機確認）** と **06-04 FUN duplicateDate=2 の矛盾重複** を要対応として明記。docs のみ・実装変更なし。

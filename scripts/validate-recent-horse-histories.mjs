@@ -94,6 +94,21 @@ function jsonNotExposedInGit(absFile) {
 // ---------------------------------------------------------------------------
 // 集計
 // ---------------------------------------------------------------------------
+// Phase C-1: 代表例の共通フォーマット（raceNo/horseNo/horseName + 過去走メタ）
+function sampleOf(race, h, rr) {
+  return {
+    raceNo: race.raceNumber ?? null,
+    horseNo: h.horseNumber ?? null,
+    horseName: h.horseName ?? null,
+    date: rr.date ?? null,
+    venue: rr.venue ?? rr.venueCode ?? null,
+    raceNumber: rr.raceNumber ?? null,
+    raceName: rr.raceName ?? null,
+    source: rr.source ?? null,
+    flags: rr.dataQualityFlags ?? [],
+  };
+}
+
 function collect(json) {
   const s = {
     races: 0, horses: 0, recentTotal: 0,
@@ -107,8 +122,12 @@ function collect(json) {
     suspectAbsent: 0, suspectPastrace: 0,
     noSurface: 0, noTrackCond: 0, noPopularity: 0, noMargin: 0,
     maxRecentLen: 0, lenDist: {}, over5: [],
+    // Phase C-1: 予想日当日/未来日混入・日付順乱れ・同一日重複の検出
+    sameDayRecent: 0, futureRecent: 0, orderBroken: 0, duplicateDate: 0, overMaxRecentRaces: 0,
+    sameDaySamples: [], futureSamples: [], orderBrokenSamples: [], duplicateSamples: [],
   };
   const inc = (f) => { s.flags[f] = (s.flags[f] || 0) + 1; };
+  const raceDate = json.date || null; // 予想日（recentRaces.date はこれより前であるべき）
   const races = json.races || [];
   s.races = races.length;
   for (const race of races) {
@@ -153,6 +172,42 @@ function collect(json) {
             s.timeFailSamples.push({ horseName: h.horseName, raceNumber: race.raceNumber, time: t, date: rr.date, venue: rr.venue });
           }
         }
+
+        // Phase C-1: 予想日当日/未来日のレースが「過去走」として混入していないか
+        if (raceDate && rr.date) {
+          if (String(rr.date) > String(raceDate)) {
+            s.futureRecent++;
+            if (s.futureSamples.length < 5) s.futureSamples.push(sampleOf(race, h, rr));
+          } else if (String(rr.date) === String(raceDate)) {
+            s.sameDayRecent++;
+            if (s.sameDaySamples.length < 5) s.sameDaySamples.push(sampleOf(race, h, rr));
+          }
+        }
+      }
+
+      // Phase C-1: 日付順（古→新昇順）乱れ・同一日重複（馬単位で1走列を走査）
+      if (rlen > 5) s.overMaxRecentRaces++;
+      const dts = (h.recentRaces || []).map(r => r.date).filter(Boolean);
+      let broken = false;
+      for (let i = 1; i < dts.length; i++) {
+        if (String(dts[i - 1]) > String(dts[i])) { broken = true; break; }
+      }
+      if (broken) {
+        s.orderBroken++;
+        if (s.orderBrokenSamples.length < 5) {
+          s.orderBrokenSamples.push({ raceNo: race.raceNumber ?? null, horseNo: h.horseNumber ?? null, horseName: h.horseName ?? null, dates: dts });
+        }
+      }
+      const seenDates = new Set();
+      for (const d of dts) {
+        if (seenDates.has(d)) {
+          s.duplicateDate++;
+          if (s.duplicateSamples.length < 5) {
+            s.duplicateSamples.push({ raceNo: race.raceNumber ?? null, horseNo: h.horseNumber ?? null, horseName: h.horseName ?? null, date: d, dates: dts });
+          }
+        } else {
+          seenDates.add(d);
+        }
       }
     }
   }
@@ -183,6 +238,11 @@ function judge({ absFile, parsed, json, s, pastTotalExpected }) {
     const sample = s.over5.map(x => `R${x.raceNumber} ${x.horseNumber}番 ${x.horseName}(${x.len}走)`).join(', ');
     errors.push(`recentRaces が最大5走を超過: maxLen=${s.maxRecentLen} / 違反${s.over5.length}件 [${sample}]`);
   }
+
+  // Phase C-1: 予想日当日/未来日の過去走混入は表示品質に直結 → FAIL（テンカハル型）
+  const fmtDateSample = (arr) => arr.map(x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName}(${x.date}/${x.venue}/${x.source})`).join(', ');
+  if (s.futureRecent > 0) errors.push(`recentRaces に未来日(予想日より後)が混入: ${s.futureRecent}件 [${fmtDateSample(s.futureSamples)}]`);
+  if (s.sameDayRecent > 0) errors.push(`recentRaces に予想日当日が混入(テンカハル型): ${s.sameDayRecent}件 [${fmtDateSample(s.sameDaySamples)}]`);
 
   // recentRaces総数検査: pastTotalExpected が渡された場合のみ厳密比較。なければ source 内訳整合のみ
   if (pastTotalExpected != null && s.recentTotal !== pastTotalExpected) {
@@ -216,6 +276,16 @@ function judge({ absFile, parsed, json, s, pastTotalExpected }) {
     if (s.recentTotal && n / s.recentTotal >= DEFICIENCY_RATE_WARN) warnings.push(`${label} が多い: ${n}件`);
   }
 
+  // Phase C-1: 日付順乱れ・同一日重複は表示品質問題だが generator 修正との兼ね合いで まず WARN
+  if (s.orderBroken > 0) {
+    const sample = s.orderBrokenSamples.map(x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName}[${x.dates.join('→')}]`).join(', ');
+    warnings.push(`recentRaces の日付順が古→新昇順でない: ${s.orderBroken}頭 [${sample}]`);
+  }
+  if (s.duplicateDate > 0) {
+    const sample = s.duplicateSamples.map(x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName}(${x.date})`).join(', ');
+    warnings.push(`recentRaces に同一日重複: ${s.duplicateDate}件 [${sample}]（date+venue+raceNumber 一致は将来 FAIL 候補）`);
+  }
+
   let status;
   if (errors.length) status = 'FAIL';
   else if (holds.length) status = 'HOLD';
@@ -237,6 +307,16 @@ function printSummary(absFile, json, s, verdict) {
   console.log(`[meta]   schemaVersion=${json.schemaVersion}  date=${json.date}  venue=${json.venue}  venueName=${json.venueName}`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  recentRaces=${s.recentTotal}`);
   console.log(`[走数]   maxLen=${s.maxRecentLen}（上限5）  分布=${JSON.stringify(s.lenDist)}`);
+  console.log(`[日付品質] 同日=${s.sameDayRecent}  未来日=${s.futureRecent}  順序乱れ=${s.orderBroken}頭  重複=${s.duplicateDate}件  5走超=${s.overMaxRecentRaces}頭`);
+  const dumpSamples = (title, arr, fmt) => {
+    if (!arr.length) return;
+    console.log(`[${title}(最大5件)]`);
+    for (const x of arr) console.log(`         - ${fmt(x)}`);
+  };
+  dumpSamples('同日混入サンプル', s.sameDaySamples, x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName} date=${x.date} venue=${x.venue} raceNo=${x.raceNumber} raceName=${x.raceName} source=${x.source} flags=[${(x.flags || []).join(',')}]`);
+  dumpSamples('未来日混入サンプル', s.futureSamples, x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName} date=${x.date} venue=${x.venue} raceNo=${x.raceNumber} raceName=${x.raceName} source=${x.source} flags=[${(x.flags || []).join(',')}]`);
+  dumpSamples('順序乱れサンプル', s.orderBrokenSamples, x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName} dates=[${x.dates.join('→')}]`);
+  dumpSamples('重複日付サンプル', s.duplicateSamples, x => `R${x.raceNo} ${x.horseNo}番 ${x.horseName} date=${x.date} dates=[${x.dates.join('→')}]`);
   console.log(`[source] results-enriched=${s.sourceEnriched}  racebook-only=${s.sourceRacebook}  (合計=${s.sourceEnriched + s.sourceRacebook})`);
   console.log(`[突合]   match率=${pct(s.matchRate)}  no-result-file率=${pct(s.noResultFileRate)}  passingOrder欠損率(matched)=${pct(s.passingOrderMissingRate)}`);
   console.log(`[キー]   headCount存在=${s.headCountKeyFound}  fieldSize存在=${s.fieldSizeKeyFound}`);

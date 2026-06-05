@@ -687,8 +687,8 @@ export const prerender = false;
       sireEls.sort((a, b) => b.left - a.left);
       const sire = sireEls.length > 0 ? sireEls[0].text.trim() : '';
 
-      // 性齢: 位置に頼ると父名要素を誤検出するため、内容パターンで検出
-      // 「牡/牝/セ/騸 + 数字1〜2桁」で始まる要素を列内から探す
+      // 性齢: 位置に頼ると父名要素を誤検出するため、内容パターンで検出。
+      // Pass1（既存互換・無回帰）: 列内・先頭一致「牡/牝/セ/騸 + 半角数字1〜2桁」。
       const SEX_AGE_RE = /^([牡牝セ騸])\s*(\d{1,2})/;
       let sexAgeClean = '';
       for (const e of elements) {
@@ -696,6 +696,23 @@ export const prerender = false;
         const t = e.text.trim();
         const m = t.match(SEX_AGE_RE);
         if (m) { sexAgeClean = m[1] + m[2]; break; }
+      }
+      // Pass2（緩和フォールバック・2026-05-24以降の取得急落対策）:
+      // Pass1 で取れない場合のみ実行。全角数字を半角化し、短い列内要素で「性別+数字」を
+      // 任意位置から拾う。過去走クラス語・丸数字付き行・長い要素（父名/コメント）は除外して誤検出を抑える。
+      // Pass1 が成功した既存正常データには一切影響しない（追加フォールバックのみ）。
+      if (!sexAgeClean) {
+        const toHalf = (s) => s.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+        const SEX_AGE_ANY = /([牡牝セ騸])\s*(\d{1,2})/;
+        for (const e of elements) {
+          if (!inCol(e)) continue;
+          const t = toHalf(e.text.trim());
+          if (!t || t.length > 8) continue;            // 長い要素（父名・コメント）は除外
+          if (/[①-⓿]/.test(t)) continue;     // 丸数字付き＝過去走行
+          if (/(未勝|新馬|勝|オープン|戦)/.test(t)) continue; // レースクラス語除外
+          const m = t.match(SEX_AGE_ANY);
+          if (m) { sexAgeClean = m[1] + m[2]; break; }
+        }
       }
 
       // 重量・騎手

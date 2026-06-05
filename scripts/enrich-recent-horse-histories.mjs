@@ -230,6 +230,13 @@ function matchPastRaceToResult(past, parentName, resultsIndex, dateInfo, venueIn
     return { status: 'AMBIGUOUS', race: null, row: null, normalizedRescue: false, distanceConflict: true };
   }
   const normalizedRescue = cand.rawName !== parentName; // 完全一致でなく正規化で救済
+  // PR-B(§17.y): results 正本(rank)と racebook raw(finish)の不一致は、別馬近走が当該馬へ誤混入した
+  // 誤行とみなし RESULT_MISMATCH として後段で除外する（date単独dedupではない）。
+  // 判定は finish/rank の両方が present のときだけ（比較不能は MATCHED 維持）。
+  // jockey 照合は今回入れない（短縮・表記揺れのため finish 主判定で十分）。
+  if (past.finish != null && cand.row.rank != null && Number(past.finish) !== Number(cand.row.rank)) {
+    return { status: 'RESULT_MISMATCH', race: null, row: null, normalizedRescue, resultRank: cand.row.rank };
+  }
   return { status: 'MATCHED', race: cand.race, row: cand.row, normalizedRescue };
 }
 
@@ -349,6 +356,7 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
   let pastTotal = 0;       // 入力 pastRaces 総数
   let cappedExpected = 0;  // cap後の期待出力数 = Σ min(除外後走数, 5)
   let excludedSameOrFuture = 0; // Phase C-2: 予想日当日/未来日として除外した過去走数
+  let excludedResultMismatch = 0; // PR-B(§17.y): results正本(rank)と raw finish 不一致の誤行除外数
   const allRecent = [];
   for (const race of racebook.races || []) {
     const horsesOut = [];
@@ -359,6 +367,9 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
         const dateInfo = parsePastRaceDate(past.venue, baseDate);
         const venueInfo = normalizeVenue(dateInfo.name);
         const match = matchPastRaceToResult(past, h.name, resultsIndex, dateInfo, venueInfo);
+        // PR-B(§17.y): results 突合で finish と rank が矛盾する行（別馬近走の誤混入）は除外。
+        // date単独dedupではなく results 正本との照合で落とす。results欠損行は除外しない。
+        if (match.status === 'RESULT_MISMATCH') { excludedResultMismatch++; continue; }
         const rr = buildRecentRace(past, h.name, dateInfo, venueInfo, match);
         // Phase C-2 防御: 予想日当日/未来日(rr.date >= baseDate)は「過去走」になり得ないため除外。
         // parsePastRaceDate の >= 化で通常は発生しないが、想定外データに対する後段バックストップ。
@@ -373,19 +384,19 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
     }
     out.races.push({ raceNumber: race.raceNumber, raceName: race.raceClass ?? null, horses: horsesOut });
   }
-  return { json: out, pastTotal, cappedExpected, allRecent, excludedSameOrFuture };
+  return { json: out, pastTotal, cappedExpected, allRecent, excludedSameOrFuture, excludedResultMismatch };
 }
 
 // ---------------------------------------------------------------------------
 // collectSummary
 // ---------------------------------------------------------------------------
-function collectSummary({ json, pastTotal, allRecent, excludedSameOrFuture = 0 }, racebook, resultsIndex) {
+function collectSummary({ json, pastTotal, allRecent, excludedSameOrFuture = 0, excludedResultMismatch = 0 }, racebook, resultsIndex) {
   const races = (racebook.races || []).length;
   const horses = (racebook.races || []).reduce((n, r) => n + (r.horses || []).length, 0);
   const recentOut = allRecent.length;
 
   const s = {
-    races, horses, pastTotal, recentOut, excludedSameOrFuture,
+    races, horses, pastTotal, recentOut, excludedSameOrFuture, excludedResultMismatch,
     matched: 0, noResultFile: 0, outside: 0, nameMiss: 0, ambiguous: 0, noDate: 0,
     yearInferred: 0, unknownVenue: 0, timeFail: 0, headCountMissingMatched: 0, passingOrderMissingMatched: 0,
     resultsLoadCount: resultsIndex.loadCount,
@@ -518,7 +529,7 @@ function printSummary({ rbPath, summary: s, validation, args, write }) {
   console.log(`         results : 動的ロード ${s.resultsLoadCount} ファイル`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  pastRaces=${s.pastTotal}`);
   console.log(`[出力]   recentRaces=${s.recentOut}  (最大5走cap+常時昇順, 入力pastRaces=${s.pastTotal} / cap差 ${s.pastTotal - s.recentOut})`);
-  console.log(`[除外]   同日/未来日除外(Phase C-2)=${s.excludedSameOrFuture}`);
+  console.log(`[除外]   同日/未来日除外(Phase C-2)=${s.excludedSameOrFuture}  results不一致除外(PR-B)=${s.excludedResultMismatch}`);
   console.log(`[突合]   matched=${s.matched} (${pct(s.matchRate)})  no-result-match=${s.noResultMatch} (${pct(s.noResultMatchRate)})`);
   console.log(`         ├ no-result-file=${s.noResultFile}  outside-nankan=${s.outside}  name-miss(result-present-horse-absent)=${s.nameMiss}  ambiguous=${s.ambiguous}`);
   console.log(`[日付]   year-inferred=${s.yearInferred}   no-date=${s.noDate}`);

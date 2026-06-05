@@ -138,7 +138,9 @@ function parsePastRaceDate(venueStr, baseDate) {
   const baseY = +baseDate.slice(0, 4);
   const base = Date.UTC(baseY, +baseDate.slice(5, 7) - 1, +baseDate.slice(8, 10));
   let y = baseY, yearInferred = false;
-  if (Date.UTC(y, mo - 1, da) > base) { y = baseY - 1; yearInferred = true; }
+  // Phase C-2: 予想日と同月日(>=)の過去走表記は前年として推定する。
+  // 予想日当日は出走前で「過去走」になり得ないため、同月日は必ず前年（厳密 > では当年=同日に残ってしまう＝テンカハル型）。
+  if (Date.UTC(y, mo - 1, da) >= base) { y = baseY - 1; yearInferred = true; }
   const date = `${y}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`;
   return { ok: true, name, date, yearInferred };
 }
@@ -316,10 +318,10 @@ function buildRecentRace(past, parentName, dateInfo, venueInfo, match) {
 // 正本 recentHorseHistories は最大5走（地方競馬公式の出馬表に合わせる）。表示側 slice(0,5) は二重安全。
 const MAX_RECENT_RACES = 5;
 
-// 防御的に直近5走へ収める。5走以下はそのまま（既存挙動を維持＝racebook 最大5走なので通常は無変更）。
-// 6走以上が混入したときだけ、日付降順で最新5件を採り、表示契約（古→新）に合わせ昇順へ戻す。
+// 直近5走へ収め、表示契約（古→新昇順）に整える。
+// Phase C-2: 件数に関係なく必ず昇順ソートする（旧実装は length<=5 で早期return＝racebook入力順を保持し
+// 順序乱れが残っていた）。6件以上なら日付降順で最新5件を採ったうえで古→新昇順へ戻す。
 function limitRecentRacesToLatest5(races) {
-  if (races.length <= MAX_RECENT_RACES) return races;
   return [...races]
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
     .slice(0, MAX_RECENT_RACES)
@@ -345,7 +347,8 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
     races: [],
   };
   let pastTotal = 0;       // 入力 pastRaces 総数
-  let cappedExpected = 0;  // cap後の期待出力数 = Σ min(馬ごと入力走数, 5)
+  let cappedExpected = 0;  // cap後の期待出力数 = Σ min(除外後走数, 5)
+  let excludedSameOrFuture = 0; // Phase C-2: 予想日当日/未来日として除外した過去走数
   const allRecent = [];
   for (const race of racebook.races || []) {
     const horsesOut = [];
@@ -357,9 +360,12 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
         const venueInfo = normalizeVenue(dateInfo.name);
         const match = matchPastRaceToResult(past, h.name, resultsIndex, dateInfo, venueInfo);
         const rr = buildRecentRace(past, h.name, dateInfo, venueInfo, match);
+        // Phase C-2 防御: 予想日当日/未来日(rr.date >= baseDate)は「過去走」になり得ないため除外。
+        // parsePastRaceDate の >= 化で通常は発生しないが、想定外データに対する後段バックストップ。
+        if (rr.date && String(rr.date) >= String(baseDate)) { excludedSameOrFuture++; continue; }
         builtRaces.push(rr);
       }
-      // 正本は最大5走に防御 cap。allRecent は cap 後の出力のみを反映する（通常は無変更）。
+      // 正本は最大5走に防御 cap＋常時昇順。cappedExpected は除外後の件数で算定し、件数整合を保つ。
       const recentRaces = limitRecentRacesToLatest5(builtRaces);
       cappedExpected += Math.min(builtRaces.length, MAX_RECENT_RACES);
       for (const rr of recentRaces) allRecent.push(rr);
@@ -367,19 +373,19 @@ function buildRecentHorseHistories(racebook, resultsIndex, baseDate, venue) {
     }
     out.races.push({ raceNumber: race.raceNumber, raceName: race.raceClass ?? null, horses: horsesOut });
   }
-  return { json: out, pastTotal, cappedExpected, allRecent };
+  return { json: out, pastTotal, cappedExpected, allRecent, excludedSameOrFuture };
 }
 
 // ---------------------------------------------------------------------------
 // collectSummary
 // ---------------------------------------------------------------------------
-function collectSummary({ json, pastTotal, allRecent }, racebook, resultsIndex) {
+function collectSummary({ json, pastTotal, allRecent, excludedSameOrFuture = 0 }, racebook, resultsIndex) {
   const races = (racebook.races || []).length;
   const horses = (racebook.races || []).reduce((n, r) => n + (r.horses || []).length, 0);
   const recentOut = allRecent.length;
 
   const s = {
-    races, horses, pastTotal, recentOut,
+    races, horses, pastTotal, recentOut, excludedSameOrFuture,
     matched: 0, noResultFile: 0, outside: 0, nameMiss: 0, ambiguous: 0, noDate: 0,
     yearInferred: 0, unknownVenue: 0, timeFail: 0, headCountMissingMatched: 0, passingOrderMissingMatched: 0,
     resultsLoadCount: resultsIndex.loadCount,
@@ -511,7 +517,8 @@ function printSummary({ rbPath, summary: s, validation, args, write }) {
   console.log(`[入力]   racebook: ${rbPath}`);
   console.log(`         results : 動的ロード ${s.resultsLoadCount} ファイル`);
   console.log(`[規模]   races=${s.races}  horses=${s.horses}  pastRaces=${s.pastTotal}`);
-  console.log(`[出力]   recentRaces=${s.recentOut}  (最大5走cap, 入力pastRaces=${s.pastTotal} / cap差 ${s.pastTotal - s.recentOut})`);
+  console.log(`[出力]   recentRaces=${s.recentOut}  (最大5走cap+常時昇順, 入力pastRaces=${s.pastTotal} / cap差 ${s.pastTotal - s.recentOut})`);
+  console.log(`[除外]   同日/未来日除外(Phase C-2)=${s.excludedSameOrFuture}`);
   console.log(`[突合]   matched=${s.matched} (${pct(s.matchRate)})  no-result-match=${s.noResultMatch} (${pct(s.noResultMatchRate)})`);
   console.log(`         ├ no-result-file=${s.noResultFile}  outside-nankan=${s.outside}  name-miss(result-present-horse-absent)=${s.nameMiss}  ambiguous=${s.ambiguous}`);
   console.log(`[日付]   year-inferred=${s.yearInferred}   no-date=${s.noDate}`);

@@ -279,3 +279,43 @@ PR-JRA-6: 必要なら AK/KI 両方に馬番フォールバック防御を追加
             2026-06-06 TOK 6頭の復元をシミュレーションで確認、通常馬 165頭は無影響。
             AK の JRA 発走時刻未表示は別件として後続監査に分離。
 ```
+
+---
+
+## 14. PR-TIME-1 実装メモ（save-keiba-book 発走時刻補完）
+
+```text
+対象: netlify/functions/save-keiba-book.mjs（1ファイル）
+
+背景:
+- JRA racebook は PDF 解析で発走時刻を取り込めておらず startTime が全レース null
+  （2026-05-31 頃を境にした importer 解析の回帰。4月は startTime 取得できていた）。
+- computer 側は startTime を保持（全12R 完備、例 R11="15:45"）。
+- AK/KI とも import 時に racebook.startTime を参照するため、racebook が空だと両サイトで発走時刻が非表示。
+
+実装:
+- enrichWithComputerIndex() 内の既存 compiRace（raceNumber 一致）を流用。
+- 条件: compiRace && (race.startTime == null || race.startTime === '') && compiRace.startTime
+- 処理: race.startTime = compiRace.startTime（startTime のみ・既存値は上書きしない）
+- raceName / distance / age / assignment / ranking / totalScore / computerIndex / 印 / 買い目 は touch しない
+- ログ: 補完時のみ「[Enrich] 発走時刻補完: R{n} -> {time}」+ 件数サマリ「[Enrich] 発走時刻補完: NR」
+
+検証(read-only シミュレーション):
+- 2026-06-06 TOK: racebook 0/12R → 12/12R 補完、R11=15:45、races/horses 不変、horse データ（name/ci/assignment/ranking/totalScore/marks）不変。
+- 既存 startTime あり(2026-05-24-TOK 12/12R): 補完0・上書き0（既存値を壊さない）。
+- node --check OK。
+
+注記:
+- AK/KI は無変更。shared racebook 再保存（computer 在席時）で両サイトの発走時刻表示が復旧する。
+- 馬齢・featureScores・本命/対抗ロジックは別件として分離（馬齢は computer/histories にも値が無く importer 性齢パース修正が必要）。
+```
+
+---
+
+## 15. 更新履歴（追記）
+
+```text
+2026-06-05: PR-TIME-1 として save-keiba-book.mjs に発走時刻補完（race.startTime 空時のみ computer.startTime で補完）を実装。
+            startTime のみに限定し既存値は上書きしない。2026-06-06 TOK 0→12R 補完・R11=15:45 をシミュレーション確認、
+            既存 startTime ありファイルは上書き0。馬齢・featureScores・本命/対抗ロジックは別件として分離。
+```

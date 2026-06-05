@@ -284,9 +284,20 @@ async function enrichWithComputerIndex(data) {
     const COMPI_THRESHOLD = 45;
     let enriched = 0;
     let nameBackfilled = 0;
+    let startTimeBackfilled = 0;
 
     for (const race of data.races) {
       const compiRace = compiJson?.races?.find(r => r.raceNumber === race.raceNumber);
+
+      // 発走時刻補完: racebook 側に startTime が無いとき、computer 側の startTime で補完する。
+      // JRA racebook の PDF 解析が発走時刻を取り込めていない（全レース null）一方、computer は
+      // startTime を保持しているため、AK/KI が参照する racebook.startTime をここで埋める。
+      // 既存値がある場合・compiRace に startTime が無い場合は何もしない（startTime のみ・上書きしない）。
+      if (compiRace && (race.startTime == null || race.startTime === '') && compiRace.startTime) {
+        race.startTime = compiRace.startTime;
+        startTimeBackfilled++;
+        console.log(`[Enrich] 発走時刻補完: R${race.raceNumber} -> ${compiRace.startTime}`);
+      }
 
       for (const horse of race.horses) {
         // コンピデータがある場合の補完（馬名 + コンピ指数）
@@ -331,6 +342,9 @@ async function enrichWithComputerIndex(data) {
       console.log(`[Enrich] コンピ指数補完: ${enriched}頭`);
       if (nameBackfilled > 0) {
         console.log(`[Enrich] 馬名補完: ${nameBackfilled}頭`);
+      }
+      if (startTimeBackfilled > 0) {
+        console.log(`[Enrich] 発走時刻補完: ${startTimeBackfilled}R`);
       }
     }
 

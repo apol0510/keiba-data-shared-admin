@@ -208,8 +208,10 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 - [x] AK free/premium/HorseMainCard/RaceHorseSection 5走化（slice・summary・RECENT_LABELS）(2026-06-05)
 - [x] KI 3ページ 5走化（slice(0,5)。RECENT_LABELS は既存5要素で対応）(2026-06-05)
 - [x] 2026-06-03 FUN 再生成 validate PASS（maxLen=5・分布{1:1,2:2,3:20,4:99,5:10}）(2026-06-05)
-- [ ] AK/KI 実地表示確認（リーク0・fallback0・CSS）※ commit/merge/deploy 後
+- [x] AK/KI 実地表示確認（リーク0・fallback0・CSS）※ commit/merge/deploy 後 — **Phase A 完了 (2026-06-05)**（§15 参照）
 - 注: featureScores の `recentRaces.slice(0,4)`（AK L57 / KI L112）は **horse.recentRaces 特徴量入力**で Phase A 対象外＝不変。
+
+**→ Phase A は完了扱い (2026-06-05)。詳細は §15。**
 
 ### Phase B: 馬詳細表示
 - [ ] 中央版コンポーネント/参照元 特定
@@ -236,6 +238,32 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 
 ---
 
+## 15. Phase A 完了記録 (2026-06-05)
+
+**Phase A（南関 recentHorseHistories 正本最大5走・表示最大5走）はソース反映まで完了。**
+
+### 反映完了サマリ
+- **PR merge 済み**: admin / AK / KI（実装3リポジトリすべて main 反映）
+- **06-03 FUN shared PUT 成功**: `nankan/recentHorseHistories/2026/06/2026-06-03-FUN.json`
+  - shared commit: `a5c006ab8927dec7462b4e3d6e83de24b7e0bfd2`
+  - validate PASS（maxLen=5・分布 {1:1, 2:2, 3:20, 4:99, 5:10}・recentRaces=511・recentRacesPositive=132・horses=132・races=12）
+- **AK import 成功**: commit `1502c46950130f79fe224728a0bebef47861a545`（変更=当該1ファイルのみ）
+  - path: `astro-site/src/data/recentHorseHistories/nankan/2026/06/2026-06-03-FUN.json`
+- **KI import 成功**: commit `153d947fd79ddae7ecfc9095b9deaa1d52e112f3`（変更=当該1ファイルのみ）
+  - path: 同上
+- **KI 本番で5走表示確認済み**: `https://keiba-intelligence.netlify.app/free-prediction/nankan/2026-06-03-funabashi/`（HTTP 200・title「2026-06-03 船橋 AI予想」・`<span class="recent-tag">5走前</span>` 実描画・fallback なし）
+- **AK は latest-only ルーティングのため 06-03 個別URLは目視不可**（今回の不具合ではなく現行仕様による確認制約）。AK 側にも 06-03 FUN の recentHorseHistories JSON は取込済み、latest ページは HTTP 200 正常。AK の日付指定ルートは後日別タスクとして設計から扱う（本フェーズでは追加しない）。
+
+### 非接続維持の確認
+- featureScores / generateAdvancedMetrics / AI指数 / 印 / 買い目 / horse.recentRaces は**非接続を維持**（AK/KI の import commit は recentHorseHistories の当該1ファイルのみ）。
+- 内部キーリークなし（`recentRacesFromHistoriesNankan` 0）・診断値リークなし（`source-results-enriched` / `source-racebook-only` / `passingOrderMissing` 0）。
+
+### 判定
+**Phase A 完了扱い。** 次は Phase B、または AK 日付指定ルート検討を別タスク化。
+
+---
+
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
+- 2026-06-05: **Phase A 完了記録を追記（§15）**。06-03 FUN shared PUT / AK・KI import 成功、KI 本番5走表示確認、AK latest-only 扱い、非接続維持を記録。

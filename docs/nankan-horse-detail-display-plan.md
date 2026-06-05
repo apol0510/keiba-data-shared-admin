@@ -193,7 +193,7 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 
 - [ ] Phase A: 正本・表示とも最大5走で AK/KI 実地確認・docs 明文化。
 - [ ] Phase B: 馬詳細（プロフィール/通算/条件別/直近10走）の参照元決定・実装・AK/KI 表示確認。
-- [ ] Phase C: データ品質 WARN 実装（予想日同日/順序乱れ等）。
+- [~] Phase C: データ品質検査。**C-1 validator 強化済（同日/未来日=FAIL・順序乱れ/重複=WARN）**。C-2 generator 根治は未着手。
 - [ ] Phase D: admin 自動 dispatch 配線。
 - [ ] 全 Phase で feature/AI 非接続・片側寄せなし・shared 契約明確。
 
@@ -220,8 +220,9 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 - [ ] AK/KI 実装・表示確認
 
 ### Phase C: データ品質
-- [ ] 予想日同日/未来日/順序乱れ WARN 設計
-- [ ] generator/validator 実装
+- [x] read-only 監査（06-02〜06-05 FUN・テンカハル型再現・根因2系統特定）(2026-06-05)（§16 参照）
+- [x] **Phase C-1**: validator に同日/未来日=FAIL・順序乱れ/重複=WARN を追加・実ファイルで検証 (2026-06-05)（§16 参照）
+- [ ] **Phase C-2**: generator 根治（同日/未来日除外・常時昇順ソート・件数整合改修）※未着手
 
 ### Phase D: 自動 dispatch
 - [ ] shared 追加→AK/KI 自動同期 配線設計
@@ -233,7 +234,7 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 
 - 通算成績・条件別成績の集計を **admin 側で生成（正本化）するか、表示側で集計するか**（CLAUDE.md の「admin/shared 中心」原則に従えば admin 生成が原則）。
 - 直近10走を出すなら、racebook pastRaces(最大5) を超える履歴の**取得元**（JRA は auto-fetch、南関は keiba.go.jp robots.txt Disallow に留意）。
-- テンカハル型データ品質（予想日同日・順序乱れ）の検出・是正方針（Phase C）。
+- テンカハル型データ品質（予想日同日・順序乱れ）の検出・是正方針（Phase C）。**→ C-1 で validator 検出は実装済（§16）。C-2 generator 根治が残**。
 - 5走化に伴う generator の最大走数 cap（5）を入れるか（防御）。
 
 ---
@@ -263,7 +264,57 @@ shared 追加後に AK/KI へ自動同期する工程。現状は手動 `workflo
 
 ---
 
+## 16. Phase C データ品質 read-only 監査結果 & C-1 validator 強化 (2026-06-05)
+
+### read-only 監査結果（06-02〜06-05 FUN）
+shared / AK / KI の 06-03 FUN（AK/KI は byte 一致 = 再シリアライズ差のみ）と、比較対象 shared 06-02 / 06-04 / 06-05 FUN を read-only で監査。
+
+| 開催日 | 同日混入 | 未来日 | 順序乱れ | 重複日 | maxLen |
+|---|---|---|---|---|---|
+| 2026-06-02 FUN | 0 | 0 | 3頭 | 0 | 4 |
+| 2026-06-03 FUN | **1**（テンカハル） | 0 | 7頭 | 0 | 5 |
+| 2026-06-04 FUN | **1**（ケイアイメビウス） | 0 | 8頭 | **2件** | 5 |
+| 2026-06-05 FUN | 0 | 0 | 1頭 | 0 | 4 |
+
+- **テンカハル型（予想日同日混入）は 06-03 固有ではなく recentHorseHistories 全体の再発パターン**（4日中2日）。同日エントリは常に `racebook-only` で `racebook-pastrace-suspect` フラグ付き。
+- **順序乱れ（古→新昇順でない）は全4日に存在**。
+- **重複日は 06-04 のみ**（ノーヴヒーロー 2026-03-10×2 / マサノプレジオーソ 2026-05-06×2）。
+- **maxLen は全日 5 以下で Phase A 契約は維持**。
+- ※監査初稿の `missingRank=511 / missingFieldSize=511` は監査スクリプトのキー名誤りによる誤検出（実スキーマは `finish` / `headCount`、`fieldSize` キーは出力禁止設計）。validator には持ち込まない。
+
+### 根因 2 系統（generator）
+1. **同日混入**: `enrich-recent-horse-histories.mjs` `parsePastRaceDate`（L141）が `Date.UTC(...) > base` の**厳密 `>`** で前年シフトを判定。予想日と月日が一致する過去走は前年化されず**当年＝予想日と同日**になる。さらに `rr.date >= baseDate` を除外するフィルタが無いため、当日レース行が「過去走」として残る。
+2. **順序乱れ**: `limitRecentRacesToLatest5`（L322）が `races.length <= 5` で**早期 return（無ソート）**。≤5走時は racebook 入力順をそのまま保持するため、racebook が非昇順だと表示契約（古→新）が崩れる。
+
+### Phase C-1: validator 強化（generator は変更せず、shared PUT 前ゲートを先行）
+`scripts/validate-recent-horse-histories.mjs` に以下を追加（generator 挙動は不変更）。
+
+| 検出項目 | 判定 | 根拠 |
+|---|---|---|
+| `recentRaces.date > raceDate`（未来日） | **FAIL** | 予想日より後のレースが過去走として表示されるのは表示品質違反 |
+| `recentRaces.date === raceDate`（同日＝テンカハル型） | **FAIL** | 同上。既存 `racebook-pastrace-suspect` の率閾値（10%）では 1/511 を検知できないため専用検査を追加 |
+| `recentRaces.length > 5` | **FAIL**（既存 maxLen>5 検査を流用・重複実装せず） | 最大5走契約違反 |
+| 日付順が古→新昇順でない | **WARN** | 表示品質問題だが C-2 generator 根治との兼ね合いでまず WARN |
+| 同一日重複 | **WARN** | 同一日複数出走の可能性ゼロでないためまず WARN。`date+venue+raceNumber` 一致は将来 FAIL 候補 |
+
+- 集計値: `sameDayRecent / futureRecent / orderBroken / duplicateDate / overMaxRecentRaces` を `[日付品質]` 行に出力。各項目の代表例を最大5件出力。
+- 既存 PASS / HOLD / FAIL 設計に準拠。FAIL=exit2 / HOLD=exit3 / PASS=exit0。順序乱れ・重複は非ブロッキング WARN（HOLD 化しない）。
+
+### 検証結果（実ファイル・shared PUT/dispatch なし）
+admin の gitignore 済 `tmp/` にコピーして実行：
+- **06-03 FUN → FAIL**（同日1件 FAIL：テンカハル / 順序乱れ7頭 WARN）
+- **06-04 FUN → FAIL**（同日1件 FAIL：ケイアイメビウス / 順序乱れ8頭 WARN / 重複2件 WARN）
+- **06-02 FUN → PASS**（順序乱れ3頭 WARN のみ・非ブロッキング）
+- **06-05 FUN → PASS**（順序乱れ1頭 WARN のみ）
+- maxLen>5 は全日なし。
+
+### 次工程（Phase C-2・未着手）
+generator 根治（`parsePastRaceDate` 同日判定の `>=` 化／同日・未来日の明示除外フィルタ／`limitRecentRacesToLatest5` の早期 return 撤去で常時昇順ソート）。除外は recentRaces 件数を変えるため `cappedExpected` / 件数整合検査の同時改修が必要。**別タスクとして許可後に着手**。
+
+---
+
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
 - 2026-06-05: **Phase A 完了記録を追記（§15）**。06-03 FUN shared PUT / AK・KI import 成功、KI 本番5走表示確認、AK latest-only 扱い、非接続維持を記録。
+- 2026-06-05: **Phase C read-only 監査結果 & C-1 validator 強化を追記（§16）**。同日/未来日=FAIL・順序乱れ/重複=WARN を validator に追加、根因2系統（parsePastRaceDate 同日判定・limitRecentRacesToLatest5 早期return）を特定、06-03/06-04=FAIL・06-02/06-05=PASS を実ファイルで検証。generator 根治（C-2）は未着手。

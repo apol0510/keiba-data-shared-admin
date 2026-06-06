@@ -49,7 +49,7 @@ const FEATURES = ['speedIndex', 'staminaRating', 'formTrend', 'trackCompatibilit
 
 // ───── 引数 ─────
 function parseArgs(argv) {
-  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, pushFeatureScores: false, confirmPush: null };
+  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, pushFeatureScores: false, confirmPush: null, importSites: false, confirmImport: null };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
     else if (a.startsWith('--date=')) args.date = a.slice('--date='.length);
@@ -58,6 +58,8 @@ function parseArgs(argv) {
     else if (a === '--push-horse-histories') args.pushHorseHistories = true;
     else if (a === '--push-feature-scores') args.pushFeatureScores = true;
     else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
+    else if (a === '--import-sites') args.importSites = true;
+    else if (a.startsWith('--confirm-import=')) args.confirmImport = a.slice('--confirm-import='.length);
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -68,6 +70,50 @@ function usage() {
   console.log('  Phase 1: dry-run のみ（shared PUT / dispatch / AK・KI import は行わない）');
   console.log('  Phase 2: --push-horse-histories --confirm-push=keiba-data-shared で horseHistories のみ shared 保存（create-only）');
   console.log('  Phase 3: --push-feature-scores --confirm-push=keiba-data-shared で featureScores も shared 保存（create-only・既存ありは停止）');
+  console.log('  Phase 4: --import-sites --confirm-import=ak-ki で AK/KI へ workflow_dispatch import（push2種＋confirm-push 必須）');
+}
+
+// ───── AK/KI workflow_dispatch（gh）。token値は出さない。repository_dispatch は使わない ─────
+const IMPORT_TARGETS = ['apol0510/analytics-keiba', 'apol0510/keiba-intelligence'];
+const HH_IMPORT_WF = 'import-horse-histories-on-dispatch.yml';
+const FS_IMPORT_WF = 'import-feature-scores-on-dispatch.yml';
+
+function gh(args) {
+  return spawnSync('gh', args, { cwd: REPO_ROOT, encoding: 'utf-8' });
+}
+
+/** workflow_dispatch 発火 → 直後の最新run id 取得（同workflow限定）→ completed まで短時間poll */
+function dispatchAndWait(repo, workflow, fields, label) {
+  console.log(`\n▶ import: ${label}  (${repo} / ${workflow})`);
+  const fieldArgs = fields.flatMap((f) => ['-f', f]);
+  const run = gh(['workflow', 'run', workflow, '--repo', repo, ...fieldArgs]);
+  if (run.status !== 0) { console.error(`  ❌ workflow run 失敗: ${(run.stderr || '').trim()}`); return { ok: false }; }
+  // 直後の最新run（同workflow）を取得。※同時実行の厳密照合は将来Phaseで createdAt/displayTitle 強化（設計メモ）
+  let runId = null;
+  for (let i = 0; i < 6; i++) {
+    const list = gh(['run', 'list', '--repo', repo, '--workflow', workflow, '--limit', '1', '--json', 'databaseId,status,conclusion']);
+    if (list.status === 0) { try { const a = JSON.parse(list.stdout || '[]'); if (a[0]?.databaseId) { runId = a[0].databaseId; break; } } catch {} }
+    spawnSync('sleep', ['2']);
+  }
+  if (!runId) { console.error('  ❌ run id 取得不可'); return { ok: false }; }
+  console.log(`  run id=${runId} … 完了待ち（最大6分・10秒間隔）`);
+  // poll: 最大36回×10秒 = 6分
+  for (let i = 0; i < 36; i++) {
+    const v = gh(['run', 'view', String(runId), '--repo', repo, '--json', 'status,conclusion']);
+    if (v.status === 0) {
+      try {
+        const j = JSON.parse(v.stdout || '{}');
+        if (j.status === 'completed') {
+          const ok = j.conclusion === 'success';
+          console.log(`  ${ok ? '✅' : '❌'} run ${runId}: ${j.conclusion}`);
+          return { ok, runId, conclusion: j.conclusion };
+        }
+      } catch {}
+    }
+    spawnSync('sleep', ['10']);
+  }
+  console.error(`  ⏳ run ${runId}: pending/in_progress のままタイムアウト（監視は打ち切り・別途確認）`);
+  return { ok: false, runId, conclusion: 'pending' };
 }
 
 // ───── 子プロセス実行（token を渡さない・コマンドは表示するが秘密は含まない）─────
@@ -206,6 +252,17 @@ function main() {
     console.error('❌ --push-feature-scores には --confirm-push=keiba-data-shared が必要です');
     process.exit(2);
   }
+  // Phase 4: AK/KI import ゲート（confirm 必須 ＋ このpipelineで push 成功したものだけを import）
+  if (args.importSites) {
+    if (args.confirmImport !== 'ak-ki') {
+      console.error('❌ --import-sites には --confirm-import=ak-ki が必要です');
+      process.exit(2);
+    }
+    if (!args.pushHorseHistories || !args.pushFeatureScores || args.confirmPush !== 'keiba-data-shared') {
+      console.error('❌ --import-sites には --push-horse-histories と --push-feature-scores（＋--confirm-push=keiba-data-shared）が必要です（push成功したものだけを import する設計）');
+      process.exit(2);
+    }
+  }
 
   console.log('========================================');
   console.log(`JRA feature pipeline (Phase 1: dry-run only)  date=${args.date} venues=${venues.join(',')}`);
@@ -313,6 +370,28 @@ function main() {
     }
   }
 
+  // 5.7 AK/KI import（--import-sites 指定時のみ・workflow_dispatch・repository_dispatch は使わない）
+  //     ゲートで push2種＋confirm が保証済み。hh/featureScores とも push 成功している前提。
+  let importOk = false;
+  if (args.importSites) {
+    if (!hhPushed || !fsPushed) {
+      console.error('\n❌ import の前提（hh push / featureScores push）が未完 → import しない・停止');
+      process.exit(1);
+    }
+    console.log('\n----- AK/KI import（workflow_dispatch・両repo / hh+featureScores の4本）-----');
+    const venuesCsv = venues.join(',');
+    const jobs = [];
+    for (const repo of IMPORT_TARGETS) jobs.push({ repo, wf: HH_IMPORT_WF, fields: [`date=${args.date}`, `venues=${venuesCsv}`], label: `hh ${repo.split('/')[1]}` });
+    for (const repo of IMPORT_TARGETS) jobs.push({ repo, wf: FS_IMPORT_WF, fields: ['category=jra', `date=${args.date}`, `venues=${venuesCsv}`], label: `fs ${repo.split('/')[1]}` });
+    const results = [];
+    for (const j of jobs) results.push({ ...j, ...dispatchAndWait(j.repo, j.wf, j.fields, j.label) });
+    const failed = results.filter((r) => !r.ok);
+    console.log('\n  import 結果:');
+    for (const r of results) console.log(`    ${r.ok ? '✅' : '❌'} ${r.label}: ${r.conclusion ?? 'NG'}${r.runId ? ` (run ${r.runId})` : ''}`);
+    if (failed.length) { console.error(`\n❌ import 失敗/未完: ${failed.length}/${results.length} → 停止（片側成功も隠さず上記に明示）`); process.exit(1); }
+    importOk = true;
+  }
+
   // 6. レポート
   console.log('\n========================================');
   console.log('サマリ');
@@ -324,7 +403,9 @@ function main() {
     console.log('  ⚠️ featureScores 生成失敗の主因候補: shared local に当該 horseHistories が未存在（Phase1制約）。');
     console.log('     → 先に horseHistories を shared push & local pull する必要あり（Phase 2 で統合）。');
   }
-  if (fsPushed) {
+  if (importOk) {
+    console.log('\nℹ️  Phase 4: horseHistories + featureScores を shared 保存（create-only）→ AK/KI へ workflow_dispatch import（4本 success）まで完了。本番表示はNetlifyリビルドで反映。');
+  } else if (fsPushed) {
     console.log('\nℹ️  Phase 3: horseHistories + featureScores を shared 保存（create-only）+ local pull 済。dispatch / AK・KI import は行いません（Phase 4 で統合予定）。');
   } else if (hhPushed) {
     console.log('\nℹ️  Phase 2: horseHistories のみ shared 保存（create-only）+ local pull 済。featureScores は dry-run のみ（shared PUT なし）。dispatch / AK・KI import は行いません。');

@@ -92,6 +92,7 @@ function parseArgs(argv) {
     confirmPush: null,
     dispatch: false,
     confirmDispatch: null,
+    pushOnlyFrom: null, // 救済: JRA公式fetchせず既存tmp dirから create PUT のみ
   };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
@@ -102,6 +103,7 @@ function parseArgs(argv) {
     else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
     else if (a === '--dispatch') args.dispatch = true;
     else if (a.startsWith('--confirm-dispatch=')) args.confirmDispatch = a.slice('--confirm-dispatch='.length);
+    else if (a.startsWith('--push-only-from=')) args.pushOnlyFrom = a.slice('--push-only-from='.length);
   }
   return args;
 }
@@ -445,9 +447,100 @@ function reportVenue(venueData) {
   });
 }
 
+// ───── token preflight（PUT前に shared token の有効性を確認。token値は出さない）─────
+async function preflightKeibaDataSharedToken(token) {
+  const headers = { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'jra-horse-histories' };
+  const userRes = await fetch('https://api.github.com/user', { headers });
+  console.log(`[preflight] /user => ${userRes.status}`);
+  if (userRes.status !== 200) throw new Error(`token preflight 失敗: /user => HTTP ${userRes.status}（401/403はtoken無効/権限不足。token値は表示しません）`);
+  const cRes = await fetch('https://api.github.com/repos/apol0510/keiba-data-shared/contents/jra', { headers });
+  console.log(`[preflight] contents/jra => ${cRes.status}`);
+  if (cRes.status !== 200) throw new Error(`token preflight 失敗: contents/jra => HTTP ${cRes.status}`);
+}
+
+// ───── push-only: 既存tmp dir から outJson 群を読み込み・検証（fetchしない）─────
+function loadPushOnlyHorseHistoriesFromDir(dir) {
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    throw new Error(`--push-only-from のディレクトリが存在しません: ${dir}`);
+  }
+  const FNAME_RE = /^(\d{4}-\d{2}-\d{2})-([A-Z]+)\.json$/;
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json') && FNAME_RE.test(f)).sort();
+  if (files.length === 0) throw new Error(`対象 JSON（YYYY-MM-DD-VENUE.json）が無い: ${dir}`);
+  const summaries = [];
+  for (const fname of files) {
+    const m = fname.match(FNAME_RE);
+    const fnameDate = m[1], fnameVenue = m[2];
+    const fpath = path.join(dir, fname);
+    let outJson;
+    try { outJson = JSON.parse(fs.readFileSync(fpath, 'utf-8')); }
+    catch (e) { throw new Error(`JSON parse 失敗: ${fpath} (${e.message})`); }
+    if (!outJson.date || !outJson.venueCode) throw new Error(`date/venueCode 欠落: ${fpath}`);
+    if (outJson.date !== fnameDate || outJson.venueCode !== fnameVenue) {
+      throw new Error(`ファイル名と内容の不一致: ${fname} vs date=${outJson.date} venueCode=${outJson.venueCode}`);
+    }
+    if (!outJson.horses || typeof outJson.horses !== 'object' || Array.isArray(outJson.horses)) {
+      throw new Error(`horses オブジェクト不正: ${fpath}`);
+    }
+    if (Object.keys(outJson.horses).length === 0) throw new Error(`horses 空: ${fpath}`);
+    summaries.push({ fpath, outJson });
+  }
+  return summaries;
+}
+
+// ───── push-only モード本体（JRA公式fetchを一切しない・create-only）─────
+async function runPushOnly(args) {
+  // ゲート: --push / --confirm-push 必須
+  if (!args.push || args.confirmPush !== CONFIRM_PUSH_REQUIRED) {
+    console.error('❌ --push-only-from には「--push --confirm-push=keiba-data-shared」が必須');
+    process.exit(3);
+  }
+  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+  if (!token) {
+    console.error('❌ GITHUB_TOKEN_KEIBA_DATA_SHARED が未設定（GITHUB_TOKEN フォールバックは不可）');
+    process.exit(3);
+  }
+  // dispatch は push-only では拡張しない（受信側 404/誤発火防止のため非対応）
+  if (args.dispatch) {
+    console.error('❌ --push-only-from と --dispatch の同時指定は非対応（push-only は救済PUT専用）');
+    process.exit(3);
+  }
+
+  console.log(`📦 push-only モード: ${args.pushOnlyFrom}（JRA公式fetchは行いません・create-only）`);
+  const summaries = loadPushOnlyHorseHistoriesFromDir(args.pushOnlyFrom);
+  console.log(`📄 読込: ${summaries.map((s) => `${s.outJson.date}-${s.outJson.venueCode}(${Object.keys(s.outJson.horses).length}頭)`).join(', ')}`);
+
+  // PUT 前 token preflight（今回の401を事前検知）
+  await preflightKeibaDataSharedToken(token);
+
+  console.log('');
+  console.log('📤 keiba-data-shared に create-only PUT 中...');
+  let pushed = 0;
+  for (const { outJson } of summaries) {
+    try {
+      const r = await pushHorseHistoriesToKeibaDataShared(outJson, token, { createOnly: true });
+      console.log(`✅ ${outJson.venue}(${outJson.venueCode}): ${r.action} (horses=${r.horseCount})`);
+      pushed++;
+    } catch (e) {
+      console.error(`❌ ${outJson.venue}(${outJson.venueCode}): ${e.message}`);
+    }
+    await sleep(1500);
+  }
+  console.log('');
+  console.log(`━━━ push-only 完了: ${pushed}/${summaries.length} venue ━━━`);
+  console.log('ℹ️  dispatch は送信しません（push-only は救済PUT専用）。必要なら別途 import workflow を実行。');
+  if (pushed !== summaries.length) process.exit(2);
+}
+
 // ───── main ─────
 async function main() {
   const args = parseArgs(process.argv);
+
+  // push-only 救済モード: JRA公式fetちせず既存tmpから create PUT のみ（--urls 不要）
+  if (args.pushOnlyFrom) {
+    await runPushOnly(args);
+    return;
+  }
+
   if (!args.urls) {
     console.error('Usage: node scripts/jra/auto-fetch-horse-histories.mjs --urls=urls.txt [--venue-code=TOK] [--delay=2500] [--out=PATH]');
     console.error('  push:     --push --confirm-push=keiba-data-shared (要 GITHUB_TOKEN_KEIBA_DATA_SHARED)');
@@ -611,6 +704,8 @@ async function main() {
 
   const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
   console.log('');
+  // PUT 前 token preflight（SETだが無効な token を fetch後・PUT前に検知。有効なら挙動不変）
+  await preflightKeibaDataSharedToken(token);
   console.log('📤 keiba-data-shared に PUT 中...');
   let pushedCount = 0;
   for (const { outJson } of summaries) {
@@ -732,7 +827,8 @@ async function sendRepositoryDispatch(repo, eventType, payload, token) {
  *     failures は incoming で上書き
  *   - failures は今回 venue 分のみを保持 (履歴蓄積ではないので意図通り)
  */
-async function pushHorseHistoriesToKeibaDataShared(outJson, token) {
+async function pushHorseHistoriesToKeibaDataShared(outJson, token, opts = {}) {
+  const createOnly = opts.createOnly === true;
   const OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
   const REPO = 'keiba-data-shared';
   const BRANCH = 'main';
@@ -765,6 +861,11 @@ async function pushHorseHistoriesToKeibaDataShared(outJson, token) {
   } else if (getRes.status !== 404) {
     const text = await getRes.text().catch(() => '');
     throw new Error(`GET failed: HTTP ${getRes.status} ${text}`);
+  }
+
+  // create-only: 既存ありなら停止（push-only救済での誤上書き/merge防止）
+  if (createOnly && sha) {
+    throw new Error(`remote already exists (create-only, 上書きしません): ${filePath}`);
   }
 
   // horses{} を horseId 単位でマージ

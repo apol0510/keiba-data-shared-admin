@@ -36,6 +36,8 @@ const SCHEMA_VERSION = 'nankan-recent-horse-histories-v0';
 const REPO = 'apol0510/keiba-data-shared';
 const BRANCH = 'main';
 const TOKEN_ENV = 'GITHUB_TOKEN_KEIBA_DATA_SHARED';
+// 既存ファイル上書き(update PUT)を許可するための確認文字列。--allow-overwrite と両方揃ったときだけ有効。
+const OVERWRITE_CONFIRM = 'recent-horse-histories-update';
 // 保存先 namespace の許可形（YYYY/MM/YYYY-MM-DD-{VENUE}.json）
 const NAMESPACE_RE = /^nankan\/recentHorseHistories\/(\d{4})\/(\d{2})\/(\d{4})-(\d{2})-(\d{2})-(OOI|KAW|FUN|URA)\.json$/;
 
@@ -47,8 +49,14 @@ Usage:
 Options:
   --file=<path>   保存対象の tmp JSON（admin repo 内 tmp/ 配下のみ）。必須
   --dry-run       全ゲート実行＋保存計画表示のみ・実 PUT しない（既定ON）
-  --execute       実 PUT（create-only）を実行。${TOKEN_ENV} 必須。
+  --execute       実 PUT を実行。${TOKEN_ENV} 必須。
+                  既定は create-only（既存ファイルがあると中止）。
                   --dry-run 同時指定時は dry-run 優先で PUT しない
+  --allow-overwrite
+                  既存ファイルの update PUT を許可する1段目フラグ。
+                  --confirm-overwrite と両方揃ったときだけ既存更新を許可。
+  --confirm-overwrite=${OVERWRITE_CONFIRM}
+                  既存ファイル update の確認文字列（2段目）。完全一致必須。
   --help, -h      このヘルプ
 
 このスクリプトは shared PUT を隔離する。dispatch（repository_dispatch / workflow_dispatch）はしない。
@@ -57,13 +65,15 @@ Options:
 
 // ---------------------------------------------------------------------------
 function parseArgs(argv) {
-  const args = { file: null, dryRun: true, dryRunExplicit: false, execute: false, help: false };
+  const args = { file: null, dryRun: true, dryRunExplicit: false, execute: false, allowOverwrite: false, confirmOverwrite: null, help: false };
   for (const raw of argv) {
     const [k, v] = raw.includes('=') ? raw.split(/=(.*)/s) : [raw, true];
     switch (k) {
       case '--file': args.file = v; break;
       case '--dry-run': args.dryRun = true; args.dryRunExplicit = true; break;
       case '--execute': args.execute = true; break;
+      case '--allow-overwrite': args.allowOverwrite = true; break;
+      case '--confirm-overwrite': args.confirmOverwrite = v; break;
       case '--help': case '-h': args.help = true; break;
       default: console.error(`Unknown argument: ${k}`); process.exit(1);
     }
@@ -145,7 +155,10 @@ async function checkRemoteExists(sharedPath) {
   const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}?ref=${BRANCH}`;
   try {
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'push-recent-horse-histories' } });
-    if (res.status === 200) return { checked: true, exists: true };
+    if (res.status === 200) {
+      const data = await res.json().catch(() => ({}));
+      return { checked: true, exists: true, sha: data.sha || null }; // sha は update PUT 用（token値は出さない）
+    }
     if (res.status === 404) return { checked: true, exists: false };
     const data = await res.json().catch(() => ({}));
     return { checked: true, exists: null, status: res.status, reason: `想定外ステータス ${res.status}${formatGithubError(data)}` };
@@ -154,14 +167,15 @@ async function checkRemoteExists(sharedPath) {
   }
 }
 
-// create-only PUT（sha なし）。201/200 を成功とみなす。
-async function putToShared(sharedPath, rawText, commitMessage, token) {
+// PUT。sha 未指定=create-only（既存があれば GitHub 側が 422）。sha 指定=update。201/200 を成功とみなす。
+async function putToShared(sharedPath, rawText, commitMessage, token, sha = null) {
   const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}`;
   const body = {
     message: commitMessage,
     content: Buffer.from(rawText, 'utf8').toString('base64'),
     branch: BRANCH,
-    // sha は付けない（create-only。既存があれば GitHub 側が 422 を返す）
+    // create-only は sha なし。update は既存 sha を含める（明示確認フラグ揃い時のみ呼ばれる）。
+    ...(sha ? { sha } : {}),
   };
   try {
     const res = await fetch(url, {
@@ -251,22 +265,38 @@ async function main() {
     validatorTail = (v.stdout.trim().split('\n').slice(-6).join('\n'));
   }
 
+  // ---- 上書き(update)許可の2段ガード（両方揃ったときだけ既存更新を許可）----
+  const overwriteRequested = args.allowOverwrite || args.confirmOverwrite != null;
+  const overwriteConfirmed = args.allowOverwrite && args.confirmOverwrite === OVERWRITE_CONFIRM;
+  if (overwriteRequested && !overwriteConfirmed) {
+    warnings.push(`上書き指定が不完全（update には --allow-overwrite と --confirm-overwrite=${OVERWRITE_CONFIRM} の両方が必要）。今回は create-only 扱い。`);
+  }
+
   // ---- 既存ファイル確認 GET（token 有時のみ）----
   let remote = { checked: false, reason: 'パス/内容ゲート不合格のため GET 未実施' };
+  let updateMode = false;   // 既存あり＋上書き確認済み → update PUT
+  let remoteSha = null;     // update PUT 用の既存 sha
   if (errors.length === 0 && NAMESPACE_RE.test(sharedPath)) {
     remote = await checkRemoteExists(sharedPath);
-    if (remote.checked && remote.exists === true) errors.push(`保存先が既に存在します（create-only・上書き禁止）: ${sharedPath}`);
+    if (remote.checked && remote.exists === true) {
+      if (overwriteConfirmed) { updateMode = true; remoteSha = remote.sha || null; }
+      else errors.push(`保存先が既に存在します（create-only・上書きには --allow-overwrite --confirm-overwrite=${OVERWRITE_CONFIRM} が必要）: ${sharedPath}`);
+    }
     else if (remote.checked && remote.exists === null) warnings.push(remote.reason);
     else if (!remote.checked) notes.push(remote.reason);
   }
 
-  // ---- execute 用ゲート（token 必須 / 既存確認の確実性）----
+  // ---- execute 用ゲート（token 必須 / 既存確認の確実性 / update は sha 必須）----
   const token = process.env[TOKEN_ENV];
   let tokenMissingExecute = false;
   if (doExecute) {
     if (!token) tokenMissingExecute = true;
-    else if (errors.length === 0 && (!remote.checked || remote.exists === null)) {
-      errors.push(`execute には保存先の未存在を GET で確定する必要があるが確認できない: ${remote.reason || 'GET 不確定'}`);
+    else if (errors.length === 0) {
+      if (!remote.checked || remote.exists === null) {
+        errors.push(`execute には保存先の存在/sha を GET で確定する必要があるが確認できない: ${remote.reason || 'GET 不確定'}`);
+      } else if (updateMode && !remoteSha) {
+        errors.push(`update には既存ファイルの sha が必要だが GET から取得できなかった`);
+      }
     }
   }
 
@@ -275,7 +305,7 @@ async function main() {
   const commitMessage = m ? `add nankan recentHorseHistories ${m[3]}-${m[4]}-${m[5]} ${m[6]}` : '(保存先 namespace 不一致のため未確定)';
 
   // ============================ 出力 ============================
-  const mode = doExecute ? 'execute' : 'dry-run';
+  const mode = doExecute ? (updateMode ? 'execute-update' : 'execute-create') : 'dry-run';
   console.log(`=== recentHorseHistories push (${mode}) ===`);
   console.log(`[入力]   --file: ${path.relative(ADMIN_ROOT, absFile)}`);
   console.log(`[保存先] repository: ${REPO}`);
@@ -290,7 +320,8 @@ async function main() {
   const vLabel = validatorCode === 0 ? 'PASS' : validatorCode === 3 ? 'HOLD' : validatorCode === 2 ? 'FAIL' : validatorCode == null ? '未実行' : `code ${validatorCode}`;
   console.log(`[validator] ${vLabel}${validatorCode == null ? '（先行ゲート不合格のため未実行）' : ''}`);
   if (validatorTail) for (const l of validatorTail.split('\n')) console.log(`            ${l}`);
-  console.log(`[既存確認] ${remote.checked ? (remote.exists === true ? '既存あり（中止）' : remote.exists === false ? '404（未存在・OK）' : remote.reason) : remote.reason}`);
+  console.log(`[既存確認] ${remote.checked ? (remote.exists === true ? (updateMode ? `既存あり（update 予定・sha取得済み=${remoteSha ? 'yes' : 'no'}）` : '既存あり（create-only のため中止）') : remote.exists === false ? '404（未存在・create）' : remote.reason) : remote.reason}`);
+  console.log(`[上書き] mode=${updateMode ? 'update（既存更新）' : 'create-only'}  allow-overwrite=${args.allowOverwrite}  confirm-overwrite=${args.confirmOverwrite === OVERWRITE_CONFIRM ? '一致' : (args.confirmOverwrite == null ? 'なし' : '不一致')}`);
   console.log(`[shared] clean=${sharedClean}`);
   console.log(`[token]  ${TOKEN_ENV} ${token ? 'あり' : 'なし'}${doExecute ? '（execute 必須）' : '（dry-run では任意）'}`);
   console.log(`[dispatch] repository_dispatch / workflow_dispatch はしない（このスクリプトは dispatch を持たない）`);
@@ -313,14 +344,14 @@ async function main() {
 
   // ---- 全ゲート PASS ----
   if (!doExecute) {
-    console.log(`[PUT]    実 PUT しない（${args.execute && args.dryRunExplicit ? 'dry-run 優先' : 'dry-run'}）`);
-    console.log(`[判定]   PASS（dry-run・保存計画のみ。実 PUT は --execute）`);
+    console.log(`[PUT]    実 PUT しない（${args.execute && args.dryRunExplicit ? 'dry-run 優先' : 'dry-run'}・予定モード=${updateMode ? 'update' : 'create-only'}）`);
+    console.log(`[判定]   PASS（dry-run・保存計画のみ。実 PUT は --execute${updateMode ? ' --allow-overwrite --confirm-overwrite=' + OVERWRITE_CONFIRM : ''}）`);
     process.exit(0);
   }
 
-  // ---- execute: create-only PUT → 保存後 GET 一致確認 ----
-  console.log(`[PUT]    実 PUT 実行（create-only, sha なし）...`);
-  const put = await putToShared(sharedPath, rawText, commitMessage, token);
+  // ---- execute: create-only または update PUT → 保存後 GET 一致確認 ----
+  console.log(`[PUT]    実 PUT 実行（${updateMode ? `update, sha=${remoteSha ? 'あり' : 'なし'}` : 'create-only, sha なし'}）...`);
+  const put = await putToShared(sharedPath, rawText, commitMessage, token, updateMode ? remoteSha : null);
   if (!put.ok) { console.log(`[判定]   PUT 失敗 (status ${put.status}${put.error ? ', ' + put.error : ''}${formatGithubError(put.data)}) → 中止`); process.exit(2); }
   const commitSha = put.data?.commit?.sha;
   const contentPath = put.data?.content?.path;
@@ -333,7 +364,7 @@ async function main() {
   console.log(`[保存後] GET=200  内容一致=${match}  parse可=${parseOk}  sha=${got.sha}`);
   if (!match || !parseOk) { console.log(`[要手動確認] 保存後内容が tmp と一致しない（PUT は成功済み・手動確認必須）`); process.exit(2); }
   console.log(`[dispatch] 発火しない（このスクリプトは dispatch を持たない）`);
-  console.log(`[判定]   EXECUTE 成功（1ファイル create-only PUT 完了・内容一致確認済み）`);
+  console.log(`[判定]   EXECUTE 成功（1ファイル ${updateMode ? 'update' : 'create-only'} PUT 完了・内容一致確認済み）`);
   process.exit(0);
 }
 

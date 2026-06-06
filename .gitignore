@@ -37,3 +37,10 @@ dist
 # ローカル作業用の一時ファイル（デバッグ・JV-Link 加工途中など）
 tmp/
 urls.txt
+
+# Experimental / deferred local tools
+# 保留中の試作ファイル。採否未確定のため誤add防止で git 管理外に固定する（削除はしない）。
+#  - publish-prediction.mjs: 「明示publish分離」案の試作。commitすると Netlify function 化するため採否判断前は track しない。
+#  - enrich-past-races-once.mjs: pastRaces 補完の dry-run 調査ツール（現行pipeline未統合）。
+netlify/functions/publish-prediction.mjs
+scripts/enrich-past-races-once.mjs

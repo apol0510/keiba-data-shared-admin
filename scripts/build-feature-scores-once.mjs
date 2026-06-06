@@ -171,8 +171,10 @@ function normalizeNankan(horse) {
   return out;
 }
 
-/** 中央JRA: horseHistories.history 主 + racebook pastRaces で final3F/paceType 補完 */
-function normalizeJra(horse, hhEntry) {
+/** 中央JRA: horseHistories.history 主 + racebook pastRaces で final3F/paceType 補完
+ *  excludeDate（=対象開催日）と同じ date の履歴は除外する（過去日 backfill の
+ *  当日結果混入による look-ahead leak を防ぐ）。 */
+function normalizeJra(horse, hhEntry, excludeDate) {
   // racebook pastRaces を date キーで引けるように（final3F/paceType の供給源）
   const rbByDate = new Map();
   for (const pr of horse.pastRaces || []) {
@@ -182,6 +184,7 @@ function normalizeJra(horse, hhEntry) {
   const base = hhEntry && Array.isArray(hhEntry.history) ? hhEntry.history : null;
   if (base) {
     for (const h of base) {
+      if (excludeDate && h.date === excludeDate) continue; // 当日行は除外（leak防止）
       const rank = toRank(h.finish);
       const dm = h.distanceMeters != null ? Number(h.distanceMeters) : null;
       const rb = h.date ? rbByDate.get(h.date) : null; // 同日 racebook 過去走で補完
@@ -201,6 +204,7 @@ function normalizeJra(horse, hhEntry) {
   } else {
     // horseHistories に無い馬（外国馬・新規等）→ racebook pastRaces のみで構築
     for (const pr of horse.pastRaces || []) {
+      if (excludeDate && pr.date === excludeDate) continue; // 当日行は除外（leak防止）
       const rank = toRank(pr.finish);
       const dm = pr.distanceMeters != null ? Number(pr.distanceMeters) : null;
       out.push({
@@ -592,7 +596,7 @@ async function main() {
     for (const horse of race.horses || []) {
       horseTotal++;
       const hhEntry = opts.category === 'jra' ? hhByName.get(horse.name) : null;
-      const np = opts.category === 'jra' ? normalizeJra(horse, hhEntry) : normalizeNankan(horse);
+      const np = opts.category === 'jra' ? normalizeJra(horse, hhEntry, opts.date) : normalizeNankan(horse);
       const usableCount = np.filter(r => r.isUsable).length;
       if (usableCount === 0) noHistory++;
 

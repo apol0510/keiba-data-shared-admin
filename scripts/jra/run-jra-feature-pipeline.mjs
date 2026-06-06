@@ -49,13 +49,14 @@ const FEATURES = ['speedIndex', 'staminaRating', 'formTrend', 'trackCompatibilit
 
 // ───── 引数 ─────
 function parseArgs(argv) {
-  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, confirmPush: null };
+  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, pushFeatureScores: false, confirmPush: null };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
     else if (a.startsWith('--date=')) args.date = a.slice('--date='.length);
     else if (a.startsWith('--venues=')) args.venues = a.slice('--venues='.length);
     else if (a.startsWith('--out=')) args.out = a.slice('--out='.length);
     else if (a === '--push-horse-histories') args.pushHorseHistories = true;
+    else if (a === '--push-feature-scores') args.pushFeatureScores = true;
     else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
     else if (a === '--help' || a === '-h') args.help = true;
   }
@@ -66,6 +67,7 @@ function usage() {
   console.log('Usage: node scripts/jra/run-jra-feature-pipeline.mjs --urls=urls.txt --date=YYYY-MM-DD --venues=TOK,HAN [--out=tmp/jra-feature-pipeline]');
   console.log('  Phase 1: dry-run のみ（shared PUT / dispatch / AK・KI import は行わない）');
   console.log('  Phase 2: --push-horse-histories --confirm-push=keiba-data-shared で horseHistories のみ shared 保存（create-only）');
+  console.log('  Phase 3: --push-feature-scores --confirm-push=keiba-data-shared で featureScores も shared 保存（create-only・既存ありは停止）');
 }
 
 // ───── 子プロセス実行（token を渡さない・コマンドは表示するが秘密は含まない）─────
@@ -199,6 +201,11 @@ function main() {
     console.error('❌ --push-horse-histories には --confirm-push=keiba-data-shared が必要です');
     process.exit(2);
   }
+  // Phase 3: featureScores push ゲート（--push-feature-scores には confirm 必須）
+  if (args.pushFeatureScores && args.confirmPush !== 'keiba-data-shared') {
+    console.error('❌ --push-feature-scores には --confirm-push=keiba-data-shared が必要です');
+    process.exit(2);
+  }
 
   console.log('========================================');
   console.log(`JRA feature pipeline (Phase 1: dry-run only)  date=${args.date} venues=${venues.join(',')}`);
@@ -267,18 +274,59 @@ function main() {
     console.log(`  ${r.venue}: ${r.ok ? '✓' : '✗'} records=${r.records ?? '-'} 5項目以上>=90の馬=${r.allHi ?? '-'}` + (r.issues.length ? ` [${r.issues.join(' / ')}]` : ''));
   }
 
+  // 5.5 featureScores push（--push-feature-scores 指定時のみ・create-only は orchestrator が事前GETで担保）
+  let fsPushed = false;
+  if (args.pushFeatureScores) {
+    const fsRunFailNow = fsRun.filter((x) => !x.ok);
+    const fsFatalNow = fsRes.filter((r) => !r.ok);
+    if (fsRunFailNow.length || fsFatalNow.length) {
+      console.error('\n❌ featureScores 生成失敗 or 検査NG があるため push しない → 停止');
+      process.exit(1);
+    }
+    console.log('\n----- featureScores shared push（create-only 事前確認）-----');
+    const [yy, mm] = args.date.split('-');
+    // create-only: build-feature-scores-once.mjs は専用フラグを持たないため、push前に既存確認
+    for (const v of venues) {
+      const sp = path.join(SHARED_ROOT, 'jra', 'featureScores', yy, mm, `${args.date}-${v}.json`);
+      if (fs.existsSync(sp)) {
+        console.error(`❌ shared に featureScores 既存あり（create-only・上書きしません）: ${args.date}-${v} → 停止`);
+        process.exit(1);
+      }
+    }
+    for (const v of venues) {
+      const ok = runCommand(FS_CLI, ['--category', 'jra', '--date', args.date, '--venue', v, '--source', 'local', '--push', '--confirm-push=keiba-data-shared'], `featureScores push ${v}`);
+      if (!ok) { console.error(`\n❌ featureScores push 失敗（${v}）→ 停止`); process.exit(1); }
+    }
+    fsPushed = true;
+    // shared local clone を pull して反映確認
+    console.log('\n----- shared local clone を pull（featureScores 反映確認）-----');
+    const pull = spawnSync('git', ['-C', SHARED_ROOT, 'pull', 'origin', 'main'], { stdio: 'inherit' });
+    if (pull.status !== 0) { console.error('\n❌ shared local pull 失敗 → 停止'); process.exit(1); }
+    for (const v of venues) {
+      const sp = path.join(SHARED_ROOT, 'jra', 'featureScores', yy, mm, `${args.date}-${v}.json`);
+      let recs = '-';
+      if (fs.existsSync(sp)) {
+        try { const j = JSON.parse(fs.readFileSync(sp, 'utf-8')); recs = Object.keys(j.races || {}).reduce((s, rn) => s + Object.keys(j.races[rn].horses || {}).length, 0); } catch { recs = 'parse失敗'; }
+      }
+      console.log(`  shared featureScores ${v}: ${fs.existsSync(sp) ? `存在 ✓ records=${recs}` : '無し ❌'}`);
+      if (!fs.existsSync(sp)) { console.error(`\n❌ shared に ${args.date}-${v} featureScores が無い → 停止`); process.exit(1); }
+    }
+  }
+
   // 6. レポート
   console.log('\n========================================');
   console.log('サマリ');
   console.log('========================================');
   const fsFatal = fsRes.filter((r) => !r.ok);
   console.log(`horseHistories: ${hhFatal.length === 0 ? 'OK' : 'NG'}（${venues.length}会場）${hhPushed ? ' / shared push=済(create-only)+local pull済' : ' / shared push=なし(dry-runのみ)'}`);
-  console.log(`featureScores : ${fsRunFail.length === 0 && fsFatal.length === 0 ? 'OK' : 'NG/未生成'}（生成失敗=${fsRunFail.length} / 検査NG=${fsFatal.length}）`);
+  console.log(`featureScores : ${fsRunFail.length === 0 && fsFatal.length === 0 ? 'OK' : 'NG/未生成'}（生成失敗=${fsRunFail.length} / 検査NG=${fsFatal.length}）${fsPushed ? ' / shared push=済(create-only)+local pull済' : ' / shared push=なし(dry-runのみ)'}`);
   if (fsRunFail.length) {
     console.log('  ⚠️ featureScores 生成失敗の主因候補: shared local に当該 horseHistories が未存在（Phase1制約）。');
     console.log('     → 先に horseHistories を shared push & local pull する必要あり（Phase 2 で統合）。');
   }
-  if (hhPushed) {
+  if (fsPushed) {
+    console.log('\nℹ️  Phase 3: horseHistories + featureScores を shared 保存（create-only）+ local pull 済。dispatch / AK・KI import は行いません（Phase 4 で統合予定）。');
+  } else if (hhPushed) {
     console.log('\nℹ️  Phase 2: horseHistories のみ shared 保存（create-only）+ local pull 済。featureScores は dry-run のみ（shared PUT なし）。dispatch / AK・KI import は行いません。');
   } else {
     console.log('\nℹ️  Phase 1: dry-run のみ。shared PUT / dispatch / AK・KI import / push 用 token 使用は一切ありません（保存なし）。');

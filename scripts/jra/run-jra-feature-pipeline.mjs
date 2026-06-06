@@ -43,17 +43,20 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const HH_CLI = path.join('scripts', 'jra', 'auto-fetch-horse-histories.mjs');
 const FS_CLI = path.join('scripts', 'build-feature-scores-once.mjs');
 const FS_TMP_DIR = path.join('tmp', 'feature-scores'); // build-feature-scores-once.mjs の固定出力先
+const SHARED_ROOT = path.resolve(REPO_ROOT, '..', 'keiba-data-shared'); // shared local clone（featureScores生成器が読む）
 
 const FEATURES = ['speedIndex', 'staminaRating', 'formTrend', 'trackCompatibility', 'distanceFitness', 'jockeyFactor'];
 
 // ───── 引数 ─────
 function parseArgs(argv) {
-  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline') };
+  const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, confirmPush: null };
   for (const a of argv.slice(2)) {
     if (a.startsWith('--urls=')) args.urls = a.slice('--urls='.length);
     else if (a.startsWith('--date=')) args.date = a.slice('--date='.length);
     else if (a.startsWith('--venues=')) args.venues = a.slice('--venues='.length);
     else if (a.startsWith('--out=')) args.out = a.slice('--out='.length);
+    else if (a === '--push-horse-histories') args.pushHorseHistories = true;
+    else if (a.startsWith('--confirm-push=')) args.confirmPush = a.slice('--confirm-push='.length);
     else if (a === '--help' || a === '-h') args.help = true;
   }
   return args;
@@ -62,6 +65,7 @@ function parseArgs(argv) {
 function usage() {
   console.log('Usage: node scripts/jra/run-jra-feature-pipeline.mjs --urls=urls.txt --date=YYYY-MM-DD --venues=TOK,HAN [--out=tmp/jra-feature-pipeline]');
   console.log('  Phase 1: dry-run のみ（shared PUT / dispatch / AK・KI import は行わない）');
+  console.log('  Phase 2: --push-horse-histories --confirm-push=keiba-data-shared で horseHistories のみ shared 保存（create-only）');
 }
 
 // ───── 子プロセス実行（token を渡さない・コマンドは表示するが秘密は含まない）─────
@@ -190,6 +194,12 @@ function main() {
   const venues = args.venues.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
   if (venues.length === 0) { console.error('❌ --venues が空'); process.exit(2); }
 
+  // Phase 2: horseHistories push ゲート（--push-horse-histories には confirm 必須）
+  if (args.pushHorseHistories && args.confirmPush !== 'keiba-data-shared') {
+    console.error('❌ --push-horse-histories には --confirm-push=keiba-data-shared が必要です');
+    process.exit(2);
+  }
+
   console.log('========================================');
   console.log(`JRA feature pipeline (Phase 1: dry-run only)  date=${args.date} venues=${venues.join(',')}`);
   console.log('========================================');
@@ -218,6 +228,28 @@ function main() {
   const hhFatal = hhRes.filter((r) => !r.ok);
   if (hhFatal.length) { console.error('\n❌ horseHistories 検査 NG → featureScores へ進まない'); process.exit(1); }
 
+  // 3.5 horseHistories push（--push-horse-histories 指定時のみ・PR#66 の push-only create-only 経由）
+  let hhPushed = false;
+  if (args.pushHorseHistories) {
+    console.log('\n----- horseHistories shared push（push-only create-only・JRA再fetchなし）-----');
+    const okPush = runCommand(HH_CLI, [`--push-only-from=${hhOutDir}`, '--push', '--confirm-push=keiba-data-shared'], 'horseHistories push-only');
+    if (!okPush) { console.error('\n❌ horseHistories push 失敗 → 停止（featureScores へ進まない）'); process.exit(1); }
+    hhPushed = true;
+
+    // featureScores 生成器は shared local clone の horseHistories を読むため、push後に必ず pull
+    console.log('\n----- shared local clone を pull（featureScores が読む horseHistories を最新化）-----');
+    const pull = spawnSync('git', ['-C', SHARED_ROOT, 'pull', 'origin', 'main'], { stdio: 'inherit' });
+    if (pull.status !== 0) { console.error('\n❌ shared local pull 失敗 → 停止'); process.exit(1); }
+
+    // shared に当該 horseHistories が存在するか確認
+    const [yy, mm] = args.date.split('-');
+    for (const v of venues) {
+      const sp = path.join(SHARED_ROOT, 'jra', 'horseHistories', yy, mm, `${args.date}-${v}.json`);
+      console.log(`  shared horseHistories ${v}: ${fs.existsSync(sp) ? '存在 ✓' : '無し ❌'}`);
+      if (!fs.existsSync(sp)) { console.error(`\n❌ shared に ${args.date}-${v} horseHistories が無い → 停止`); process.exit(1); }
+    }
+  }
+
   // 4. featureScores dry-run 生成（会場ごと・--push を渡さない）
   //    制約: 入力は shared local clone の horseHistories。未存在日は失敗し得る（その旨報告）。
   console.log('\n----- featureScores dry-run（shared local の horseHistories を読む）-----');
@@ -240,13 +272,17 @@ function main() {
   console.log('サマリ');
   console.log('========================================');
   const fsFatal = fsRes.filter((r) => !r.ok);
-  console.log(`horseHistories: ${hhFatal.length === 0 ? 'OK' : 'NG'}（${venues.length}会場）`);
+  console.log(`horseHistories: ${hhFatal.length === 0 ? 'OK' : 'NG'}（${venues.length}会場）${hhPushed ? ' / shared push=済(create-only)+local pull済' : ' / shared push=なし(dry-runのみ)'}`);
   console.log(`featureScores : ${fsRunFail.length === 0 && fsFatal.length === 0 ? 'OK' : 'NG/未生成'}（生成失敗=${fsRunFail.length} / 検査NG=${fsFatal.length}）`);
   if (fsRunFail.length) {
     console.log('  ⚠️ featureScores 生成失敗の主因候補: shared local に当該 horseHistories が未存在（Phase1制約）。');
     console.log('     → 先に horseHistories を shared push & local pull する必要あり（Phase 2 で統合）。');
   }
-  console.log('\nℹ️  Phase 1: dry-run のみ。shared PUT / dispatch / AK・KI import / push 用 token 使用は一切ありません（保存なし）。');
+  if (hhPushed) {
+    console.log('\nℹ️  Phase 2: horseHistories のみ shared 保存（create-only）+ local pull 済。featureScores は dry-run のみ（shared PUT なし）。dispatch / AK・KI import は行いません。');
+  } else {
+    console.log('\nℹ️  Phase 1: dry-run のみ。shared PUT / dispatch / AK・KI import / push 用 token 使用は一切ありません（保存なし）。');
+  }
 
   if (fsRunFail.length || fsFatal.length) process.exit(1);
 }

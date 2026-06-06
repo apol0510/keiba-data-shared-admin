@@ -97,7 +97,13 @@ null / 欠損方針:
 - 南関用の別設計。
 - 古い作業ブランチ整理（`feat/feature-scores-receiver` 等）。
 - `check:prediction-integrity` の「検査対象0件」問題の別監査。
-- **featureScores 高得点集中の緩和**: `scaleFeature` の傾きを 18→12〜14 に弱める（→ § 監査: featureScores 高得点集中の原因（2026-06-06 TOK）参照）。
+- **featureScores 高得点集中の緩和**: `scaleFeature` の傾きを 18→12〜14 に弱める（→ § 監査: featureScores 高得点集中の原因（2026-06-06 TOK）参照）。**※全featureScores値が変わる＝表示回帰必須のため別タスク（半自動pipelineには未統合）**。
+
+### 半自動パイプライン統合（PR #64〜#70・2026-06-06/07）
+JRA予想更新後の horseHistories → featureScores → AK/KI import を 1コマンド化（`scripts/jra/run-jra-feature-pipeline.mjs`）。featureScores 側の関連:
+- `build-feature-scores-once.mjs` を **track化（PR #64）**、**excludeDate 実装（PR #65）**（過去日backfillの look-ahead leak 防止・同日fetchデータには影響ゼロを byte一致で実証）。
+- pipeline では featureScores を **dry-run検査 → create-only事前確認 → `--push-feature-scores`（PR #69）→ AK/KI workflow_dispatch import（PR #70）**。
+- **運用手順の正は [scripts/jra/README.md](../scripts/jra/README.md) の「🔁 JRA featureScores 半自動パイプライン」節**。horseHistories側は [jra-horse-histories-operation.md](jra-horse-histories-operation.md) §15。
 
 ## 監査: featureScores 高得点集中の原因（2026-06-06 TOK・read-only）
 

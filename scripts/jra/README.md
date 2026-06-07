@@ -264,6 +264,14 @@ urls.txt 不在 ／ urls.txt の日付が `--date` と不一致 ／ venuesと取
 ### 禁止事項
 - shared JSON 手編集禁止 ／ AK・KI 片側寄せ修正禁止 ／ AI指数・印・買い目を触らない ／ featureScores生成値を手編集しない ／ token値を表示しない ／ `git add .`・`git add -A`・`git clean` 禁止 ／ untracked 保護ファイルを巻き込まない。
 
+### 検証記録: 2026-06-07 dry-run（TOK,HAN）
+半自動pipeline の実運用テスト（dry-run）を実施し、想定どおり動作することを確認した。
+- 条件: `--date=2026-06-07 --venues=TOK,HAN`（東京R1=jyo05 / 阪神R1=jyo09 の公式URL）。**push/import/dispatch なし**。
+- horseHistories dry-run: 成功（TOK/HAN failures=0・**当日(6/7)混入0・未来日混入0**）。
+- featureScores dry-run: 成功（engine=jra-v1・**50固定0・NaN0・undefined0・全頭同値なし**・TOK=182/HAN=175 records）。`git status` clean。
+- 既存反映確認: 6/7 の hh・featureScores は **keiba-data-shared / AK / KI の3層すべてに既存**（前セッションで反映済み）。
+- 結論: **本実行(push/import)はスキップ**（既反映のため不要）。pipeline は **未反映日なら1コマンドで push→import／既反映日なら create-only で安全停止** という設計どおりに動くことを確認。**push→import のフル経路検証は、次回の未反映JRA開催日**で行う。
+
 ---
 
 ## 関連ファイル

@@ -26,6 +26,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { resolveKeibaDataSharedToken } from './lib/github-token-resolver.mjs';
 
 // ============================================================================
 // CLI 引数（enrich-past-races-once.mjs と同一作法）
@@ -75,18 +76,32 @@ const PUT_BRANCH = 'main';
 // PUT を許可する唯一のパス形（featureScores 配下のみ）。これ以外は構造的に PUT 不能。
 const PUT_ALLOW = /^(jra|nankan)\/featureScores\/\d{4}\/\d{2}\/\d{4}-\d{2}-\d{2}-[A-Z]+\.json$/;
 
-// --push 指定時の二段階確認 / token を「処理開始前」に検証（horseHistories 作法に準拠）
+// --push 指定時の二段階確認（token の可否は resolver に委譲。env未設定でも gh auth fallback が使えるため
+// ここでは env 存在チェックで止めない。実際の token 解決・検証は main() の push 直前で行う）
 if (opts.push) {
   if (opts.confirmPush !== CONFIRM_PUSH_REQUIRED) {
     console.error(`❌ --push 指定だが --confirm-push=${CONFIRM_PUSH_REQUIRED} が未指定 or 値不一致`);
     console.error(`   実pushには「--push --confirm-push=${CONFIRM_PUSH_REQUIRED}」が必要（二段階確認）`);
     process.exit(2);
   }
-  if (!process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED) {
-    console.error('❌ --push 指定だが GITHUB_TOKEN_KEIBA_DATA_SHARED が未設定');
-    console.error('   GITHUB_TOKEN へのフォールバックは安全上の理由で許可しない（専用 token 必須）');
+}
+
+// shared push 用 token（resolver で解決して保持。GET/PUT はこれを参照する。token値は表示しない）
+// ※ 無印 GITHUB_TOKEN への暗黙フォールバックは使わない（env専用 token or gh auth token のみ）
+let sharedToken = null;
+async function resolveSharedTokenOrExit() {
+  const resolved = await resolveKeibaDataSharedToken();
+  if (!resolved.ok) {
+    const e = resolved.checks.env, g = resolved.checks.gh;
+    console.error('❌ keiba-data-shared への有効な token がありません（env 無効/未設定・gh auth fallback も不可）');
+    console.error(`   env: present=${e.present} /user=${e.userStatus} contents/jra=${e.contentsStatus}`);
+    console.error(`   gh : available=${g.available} /user=${g.userStatus} contents/jra=${g.contentsStatus}`);
+    console.error('   解消: GITHUB_TOKEN_KEIBA_DATA_SHARED を有効な値で再設定するか、`gh auth login` を行う（token値は表示しません）');
     process.exit(2);
   }
+  console.log(`[Token] keiba-data-shared: ${resolved.message}`);
+  sharedToken = resolved.token;
+  return sharedToken;
 }
 
 // ============================================================================
@@ -484,7 +499,8 @@ function assertPutPath(rel) {
 
 /** keiba-data-shared の Contents API GET（既存 sha / 内容取得）。read only */
 async function ghGetContents(rel) {
-  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+  const token = sharedToken;
+  if (!token) throw new Error('shared token 未解決（resolveSharedTokenOrExit を push 前に呼ぶこと）');
   const url = `https://api.github.com/repos/${PUT_OWNER}/${PUT_REPO}/contents/${rel}?ref=${PUT_BRANCH}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } });
   if (res.status === 404) return { exists: false, sha: null, json: null };
@@ -498,7 +514,8 @@ async function ghGetContents(rel) {
 /** featureScores JSON を PUT。assertPutPath を必ず通す。dispatch は呼ばない。 */
 async function ghPutContents(rel, obj, sha) {
   assertPutPath(rel); // 二重ガード
-  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
+  const token = sharedToken;
+  if (!token) throw new Error('shared token 未解決（resolveSharedTokenOrExit を push 前に呼ぶこと）');
   const url = `https://api.github.com/repos/${PUT_OWNER}/${PUT_REPO}/contents/${rel}`;
   const payload = {
     message: `chore(featureScores): ${opts.category} ${opts.date}-${opts.venue} (${ENGINE})`,
@@ -718,6 +735,9 @@ async function main() {
     console.log('\n（--push 未指定 = dry-run。shared 書き込み・GitHub PUT・dispatch は一切行っていません）\n');
     return;
   }
+
+  // push 用 token を解決（env → gh auth fallback、検証込み）。GET/PUT 前に必須
+  await resolveSharedTokenOrExit();
 
   // PUT ゲート：engine混在 / fixed50,100 が NG なら PUT しない
   console.log('\n----- shared 保存（--push）-----');

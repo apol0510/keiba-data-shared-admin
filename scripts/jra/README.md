@@ -86,6 +86,19 @@ curl -s -o /dev/null -w "contents/jra => %{http_code}\n" -H "Authorization: Bear
 - 判定：`/user` と `contents/jra` が **両方 200**、かつ必要な token が **SET**（`--dispatch` するなら KI/AK 両方必須）。
 - **401 / 403 / UNSET が一つでもあれば本番反映しない**。
 
+### 自動化版：`check-keiba-env.mjs`（手動チェックの代替）
+上記 (a)〜(c) の手動確認は、以下の単独診断スクリプトで一括実行できる（**token 値は表示しない**・read-only GET のみ・dispatch/PUT 一切なし）。
+```bash
+source ~/.zshrc
+node scripts/check-keiba-env.mjs
+```
+- 確認内容：3 token の SET/UNSET、shared の `/user`・`repo`・`contents/jra`、AK/KI の `/user`・`repo`（token SET 時のみ。UNSET は `SKIPPED`）、`gh auth status`。
+- 出力する readiness：`READY_FOR_DRY_RUN` / `READY_FOR_SHARED_PUSH` / `READY_FOR_AK_IMPORT` / `READY_FOR_KI_IMPORT` / `READY_FOR_AK_KI_IMPORT`。
+  - `MAYBE` = token は UNSET だが `gh auth` は OK（`workflow_dispatch` は実発火しないと完全確認できないため）。
+- exit code：`0`=全OK / `1`=dry-run可だが import/push 一部不可・MAYBE / `2`=shared push 不可 / `3`=GitHub API 到達不可・重大エラー。
+- 使い方：`READY_FOR_DRY_RUN` / `READY_FOR_SHARED_PUSH` / `READY_FOR_AK_KI_IMPORT` を確認してから、
+  `run-jra-feature-pipeline.mjs` の dry-run / push / import に進む。`NO` / `BLOCKED` があれば本番反映しない。
+
 ### fallback の注意（今はコード変更しない・別タスク）
 - `auto-fetch-jra-official.mjs` は `GITHUB_TOKEN_KEIBA_DATA_SHARED || GITHUB_TOKEN` の **fallback** を持つ。shared token 未ロード時に **意図しない `GITHUB_TOKEN` を拾って 401** になり得る。
 - `netlify/lib/dispatch.mjs` も dispatch token の fallback（`... || GITHUB_TOKEN_KEIBA_DATA_SHARED`）を持つため、dispatch 専用 token 未設定時に **不適切な token で dispatch が 403/失敗**することがある。

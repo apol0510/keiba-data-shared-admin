@@ -28,6 +28,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { resolveKeibaDataSharedToken } from './lib/github-token-resolver.mjs';
 
 const OWNER = 'apol0510';
 const GH_API = 'https://api.github.com';
@@ -76,25 +77,28 @@ async function main() {
   // 重大エラー検知用フラグ
   let fatalApi = false; // GitHub API 自体に到達不可（reachable=false）
 
-  // ───── [github api: shared] ─────
+  // ───── [github api: shared] (resolver: env → gh auth fallback) ─────
   console.log('[github api: shared]');
-  let sharedUserStatus = null;
-  let sharedRepoStatus = null;
-  let sharedContentsStatus = null;
-  if (isSet('GITHUB_TOKEN_KEIBA_DATA_SHARED')) {
-    const tok = TOKENS.GITHUB_TOKEN_KEIBA_DATA_SHARED;
-    const u = await ghGet('/user', tok);
-    const r = await ghGet(`/repos/${OWNER}/keiba-data-shared`, tok);
-    const c = await ghGet(`/repos/${OWNER}/keiba-data-shared/contents/jra`, tok);
-    sharedUserStatus = u.status;
-    sharedRepoStatus = r.status;
-    sharedContentsStatus = c.status;
-    if (!u.reachable || !r.reachable || !c.reachable) fatalApi = true;
-    console.log(`/user: ${u.reachable ? u.status : 'UNREACHABLE'} ${u.reachable ? okStr(u.status) : 'NG'}`);
-    console.log(`keiba-data-shared repo: ${r.reachable ? r.status : 'UNREACHABLE'} ${r.reachable ? okStr(r.status) : 'NG'}`);
-    console.log(`keiba-data-shared contents/jra: ${c.reachable ? c.status : 'UNREACHABLE'} ${c.reachable ? okStr(c.status) : 'NG'}`);
+  const shared = await resolveKeibaDataSharedToken(); // token 値は使わない（表示しない）
+  const envChk = shared.checks.env;
+  const ghChk = shared.checks.gh;
+  const statusStr = (s) => (s === null ? 'SKIPPED' : s === 0 ? 'UNREACHABLE' : `${s} ${okStr(s)}`);
+  if (envChk.present) {
+    console.log(`env token /user: ${statusStr(envChk.userStatus)}`);
+    console.log(`env token contents/jra: ${statusStr(envChk.contentsStatus)}`);
   } else {
-    console.log('SKIPPED token UNSET (GITHUB_TOKEN_KEIBA_DATA_SHARED)');
+    console.log('env token: UNSET (GITHUB_TOKEN_KEIBA_DATA_SHARED)');
+  }
+  if (ghChk.available) {
+    console.log(`gh auth fallback /user: ${statusStr(ghChk.userStatus)}`);
+    console.log(`gh auth fallback contents/jra: ${statusStr(ghChk.contentsStatus)}`);
+  }
+  if (shared.ok && shared.source === 'gh-auth') {
+    console.log('note: env token is invalid, but gh auth fallback can access keiba-data-shared.');
+  }
+  // GitHub API 到達不可（network）を重大エラーとして検知
+  if ((envChk.present && envChk.userStatus === 0) || (ghChk.available && ghChk.userStatus === 0)) {
+    fatalApi = true;
   }
   console.log('');
 
@@ -155,12 +159,12 @@ async function main() {
   // READY_FOR_DRY_RUN: token不要 → 常に YES
   const readyDryRun = 'YES';
 
-  // READY_FOR_SHARED_PUSH: shared token SET かつ /user=200 かつ contents/jra=200
-  const sharedPushReady =
-    isSet('GITHUB_TOKEN_KEIBA_DATA_SHARED') &&
-    sharedUserStatus === 200 &&
-    sharedContentsStatus === 200;
+  // READY_FOR_SHARED_PUSH: resolver が env または gh auth fallback で 200 を取れたら YES
+  const sharedPushReady = shared.ok;
   const readySharedPush = sharedPushReady ? 'YES' : 'NO';
+  const sharedAuthSource =
+    shared.source === 'env' ? 'env token' :
+    shared.source === 'gh-auth' ? 'gh-auth fallback' : 'none';
 
   // READY_FOR_AK_IMPORT / READY_FOR_KI_IMPORT:
   //   YES   = token SET かつ repo API 200
@@ -183,6 +187,7 @@ async function main() {
   console.log('[pipeline readiness]');
   console.log(`READY_FOR_DRY_RUN: ${readyDryRun}`);
   console.log(`READY_FOR_SHARED_PUSH: ${readySharedPush}`);
+  if (sharedPushReady) console.log(`  auth source: ${sharedAuthSource}`);
   console.log(`READY_FOR_AK_IMPORT: ${readyAk}`);
   console.log(`READY_FOR_KI_IMPORT: ${readyKi}`);
   console.log(`READY_FOR_AK_KI_IMPORT: ${readyAkKi}`);

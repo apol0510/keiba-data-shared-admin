@@ -23,6 +23,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { dispatchToTargets } from '../../netlify/lib/dispatch.mjs';
 import { validateShared } from '../../src/lib/jra/validator.mjs';
+import { resolveKeibaDataSharedToken } from '../lib/github-token-resolver.mjs';
 
 const OWNER = process.env.GITHUB_REPO_OWNER || 'apol0510';
 const REPO = 'keiba-data-shared';
@@ -184,10 +185,21 @@ async function main() {
     return;
   }
 
-  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED || process.env.GITHUB_TOKEN;
-  if (!dryRun && !token) {
-    console.error('❌ GITHUB_TOKEN_KEIBA_DATA_SHARED env var not set');
-    process.exit(1);
+  // dry-run は token 不要（現仕様維持）。非 dry-run のときだけ resolver で解決する。
+  // ※ 無印 GITHUB_TOKEN への暗黙フォールバックは廃止（誤token掴みの 401/403 防止）
+  let token = null;
+  if (!dryRun) {
+    const resolvedShared = await resolveKeibaDataSharedToken();
+    if (!resolvedShared.ok) {
+      const e = resolvedShared.checks.env, g = resolvedShared.checks.gh;
+      console.error('❌ keiba-data-shared への有効な token がありません（env 無効/未設定・gh auth fallback も不可）');
+      console.error(`   env: present=${e.present} /user=${e.userStatus} contents/jra=${e.contentsStatus}`);
+      console.error(`   gh : available=${g.available} /user=${g.userStatus} contents/jra=${g.contentsStatus}`);
+      console.error('   解消: GITHUB_TOKEN_KEIBA_DATA_SHARED を有効な値で再設定するか、`gh auth login` を行う（token値は表示しません）');
+      process.exit(1);
+    }
+    console.log(`[Token] keiba-data-shared: ${resolvedShared.message}`);
+    token = resolvedShared.token;
   }
 
   if (!fs.existsSync(inDir)) {

@@ -99,6 +99,15 @@ node scripts/check-keiba-env.mjs
 - 使い方：`READY_FOR_DRY_RUN` / `READY_FOR_SHARED_PUSH` / `READY_FOR_AK_KI_IMPORT` を確認してから、
   `run-jra-feature-pipeline.mjs` の dry-run / push / import に進む。`NO` / `BLOCKED` があれば本番反映しない。
 
+### gh auth fallback（env token 失効時の救済・ローカル限定）
+`GITHUB_TOKEN_KEIBA_DATA_SHARED` が **SET でも 401** の場合でも、ローカルの `gh auth`（`repo` scope）が
+keiba-data-shared にアクセスできれば、**`gh auth token` を fallback として自動採用**する。
+- 共通 resolver：`scripts/lib/github-token-resolver.mjs`（解決順：env が `/user`・`contents/jra` とも 200 → env 採用 ／ env 無効・未設定 → gh auth token を検証 → 両 200 なら gh-auth 採用 ／ どちらも不可なら BLOCKED）。
+- `check-keiba-env.mjs` は env 401 でも gh auth が通れば `READY_FOR_SHARED_PUSH: YES` / `auth source: gh-auth fallback` を表示する（`env token is invalid, but gh auth fallback can access keiba-data-shared.` を明記）。
+- `auto-fetch-horse-histories.mjs` の `--push`（および `--push-only-from`）は、この resolver で token を解決して PUT する。採用元は `[Token] keiba-data-shared: ...` の1行でログに出る（**token 値は表示しない**）。
+- **CI / Netlify では gh auth fallback を前提にしない**（`gh` 不在・別認証のため）。本番は従来どおり `GITHUB_TOKEN_KEIBA_DATA_SHARED` を正とする。
+- 第1弾の適用範囲は **診断 + horseHistories push のみ**。result 系・featureScores・pipeline 統合・netlify は対象外（別タスク）。
+
 ### fallback の注意（今はコード変更しない・別タスク）
 - `auto-fetch-jra-official.mjs` は `GITHUB_TOKEN_KEIBA_DATA_SHARED || GITHUB_TOKEN` の **fallback** を持つ。shared token 未ロード時に **意図しない `GITHUB_TOKEN` を拾って 401** になり得る。
 - `netlify/lib/dispatch.mjs` も dispatch token の fallback（`... || GITHUB_TOKEN_KEIBA_DATA_SHARED`）を持つため、dispatch 専用 token 未設定時に **不適切な token で dispatch が 403/失敗**することがある。

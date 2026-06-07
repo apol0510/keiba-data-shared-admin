@@ -52,6 +52,7 @@ import * as cheerio from 'cheerio';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { resolveKeibaDataSharedToken } from '../lib/github-token-resolver.mjs';
 
 // ───── 設定 ─────
 const DEFAULT_DELAY_MS = 2500;
@@ -458,6 +459,21 @@ async function preflightKeibaDataSharedToken(token) {
   if (cRes.status !== 200) throw new Error(`token preflight 失敗: contents/jra => HTTP ${cRes.status}`);
 }
 
+// ───── shared token 解決（env → gh auth fallback）。token値は出さない。失敗時は exit(3) ─────
+async function resolveSharedTokenOrExit() {
+  const resolved = await resolveKeibaDataSharedToken();
+  if (!resolved.ok) {
+    const e = resolved.checks.env, g = resolved.checks.gh;
+    console.error('❌ keiba-data-shared への有効な token がありません（env 無効/未設定・gh auth fallback も不可）');
+    console.error(`   env: present=${e.present} /user=${e.userStatus} contents/jra=${e.contentsStatus}`);
+    console.error(`   gh : available=${g.available} /user=${g.userStatus} contents/jra=${g.contentsStatus}`);
+    console.error('   解消: GITHUB_TOKEN_KEIBA_DATA_SHARED を有効な値で再設定するか、`gh auth login` を行う（token値は表示しません）');
+    process.exit(3);
+  }
+  console.log(`[Token] keiba-data-shared: ${resolved.message}`);
+  return resolved.token;
+}
+
 // ───── push-only: 既存tmp dir から outJson 群を読み込み・検証（fetchしない）─────
 function loadPushOnlyHorseHistoriesFromDir(dir) {
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
@@ -494,11 +510,6 @@ async function runPushOnly(args) {
     console.error('❌ --push-only-from には「--push --confirm-push=keiba-data-shared」が必須');
     process.exit(3);
   }
-  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
-  if (!token) {
-    console.error('❌ GITHUB_TOKEN_KEIBA_DATA_SHARED が未設定（GITHUB_TOKEN フォールバックは不可）');
-    process.exit(3);
-  }
   // dispatch は push-only では拡張しない（受信側 404/誤発火防止のため非対応）
   if (args.dispatch) {
     console.error('❌ --push-only-from と --dispatch の同時指定は非対応（push-only は救済PUT専用）');
@@ -509,8 +520,8 @@ async function runPushOnly(args) {
   const summaries = loadPushOnlyHorseHistoriesFromDir(args.pushOnlyFrom);
   console.log(`📄 読込: ${summaries.map((s) => `${s.outJson.date}-${s.outJson.venueCode}(${Object.keys(s.outJson.horses).length}頭)`).join(', ')}`);
 
-  // PUT 前 token preflight（今回の401を事前検知）
-  await preflightKeibaDataSharedToken(token);
+  // token 解決（env → gh auth fallback）。検証込みなので別途 preflight は不要
+  const token = await resolveSharedTokenOrExit();
 
   console.log('');
   console.log('📤 keiba-data-shared に create-only PUT 中...');
@@ -599,14 +610,9 @@ async function main() {
       console.error(`   指定された値: ${JSON.stringify(args.confirmPush)}`);
       process.exit(3);
     }
-    // GITHUB_TOKEN フォールバックは禁止 (専用 token のみ)
-    const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
-    if (!token) {
-      console.error('❌ --push 指定だが GITHUB_TOKEN_KEIBA_DATA_SHARED が未設定');
-      console.error('   GITHUB_TOKEN へのフォールバックは安全上の理由で削除しました');
-      console.error('   実pushには「GITHUB_TOKEN_KEIBA_DATA_SHARED=ghp_xxx」が必須');
-      process.exit(3);
-    }
+    // token を fetch 開始前に解決（env → gh auth fallback）。無効なら 9分 fetch 前に停止
+    // 無印 GITHUB_TOKEN への暗黙フォールバックはしない（resolver は env 専用 or gh auth のみ）
+    await resolveSharedTokenOrExit();
   }
 
   if (args.dispatch) {
@@ -702,10 +708,9 @@ async function main() {
     return;
   }
 
-  const token = process.env.GITHUB_TOKEN_KEIBA_DATA_SHARED;
   console.log('');
-  // PUT 前 token preflight（SETだが無効な token を fetch後・PUT前に検知。有効なら挙動不変）
-  await preflightKeibaDataSharedToken(token);
+  // PUT 前に token 再解決（env → gh auth fallback、検証込み。SETだが無効な token を PUT前に検知）
+  const token = await resolveSharedTokenOrExit();
   console.log('📤 keiba-data-shared に PUT 中...');
   let pushedCount = 0;
   for (const { outJson } of summaries) {

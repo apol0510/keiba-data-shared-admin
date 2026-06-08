@@ -14,7 +14,8 @@
  *
  * 使い方:
  *   node scripts/jra/run-jra-feature-pipeline.mjs \
- *     --urls=urls.txt --date=2026-06-07 --venues=TOK,HAN [--out=tmp/jra-feature-pipeline]
+ *     --urls=urls.txt --date=2026-06-07 [--venues=TOK,HAN] [--out=tmp/jra-feature-pipeline]
+ *     ※ --venues は省略可。省略時は urls.txt のJRA公式URL(CNAME)から開催場を自動判定する。
  *
  * フロー:
  *   1. urls.txt 確認
@@ -47,6 +48,41 @@ const SHARED_ROOT = path.resolve(REPO_ROOT, '..', 'keiba-data-shared'); // share
 
 const FEATURES = ['speedIndex', 'staminaRating', 'formTrend', 'trackCompatibility', 'distanceFitness', 'jockeyFactor'];
 
+// ───── JRA 場番号 → 3文字コード / 名称（venue-codes と整合）─────
+const JYO_CODE = {
+  '01': { code: 'SAP', name: '札幌' },
+  '02': { code: 'HKD', name: '函館' },
+  '03': { code: 'FKS', name: '福島' },
+  '04': { code: 'NII', name: '新潟' },
+  '05': { code: 'TOK', name: '東京' },
+  '06': { code: 'NAK', name: '中山' },
+  '07': { code: 'CHU', name: '中京' },
+  '08': { code: 'KYO', name: '京都' },
+  '09': { code: 'HAN', name: '阪神' },
+  '10': { code: 'KOK', name: '小倉' },
+};
+// CNAME=pw01(sde|dde) + dateType(2桁) + jyo(2桁) ... の jyo を抽出（accessD/accessS 両対応）
+// 例: pw01dde0105... → dateType=01 jyo=05 → TOK ／ pw01sde0109... → jyo=09 → HAN
+const CNAME_JYO_RE = /CNAME=pw01(?:sde|dde)\d{2}(\d{2})/i;
+
+// urls.txt のJRA公式URL群から開催場（3文字コード）を自動判定。順序維持・重複除去。
+// 不明場番号や0件は呼び出し側でエラー停止する。
+function inferVenuesFromUrls(lines) {
+  const codes = [];
+  const names = [];
+  for (const line of lines) {
+    const m = String(line).match(CNAME_JYO_RE);
+    if (!m) continue; // CNAME 形式でない行はスキップ（検出は他行に委ねる）
+    const jyo = m[1];
+    const entry = JYO_CODE[jyo];
+    if (!entry) {
+      throw new Error(`未知のJRA場番号 "${jyo}" を検出しました（URL: ${line}）。対応表(01〜10)を確認してください。`);
+    }
+    if (!codes.includes(entry.code)) { codes.push(entry.code); names.push(entry.name); }
+  }
+  return { codes, names };
+}
+
 // ───── 引数 ─────
 function parseArgs(argv) {
   const args = { urls: null, date: null, venues: null, out: path.join('tmp', 'jra-feature-pipeline'), pushHorseHistories: false, pushFeatureScores: false, confirmPush: null, importSites: false, confirmImport: null };
@@ -66,7 +102,8 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.log('Usage: node scripts/jra/run-jra-feature-pipeline.mjs --urls=urls.txt --date=YYYY-MM-DD --venues=TOK,HAN [--out=tmp/jra-feature-pipeline]');
+  console.log('Usage: node scripts/jra/run-jra-feature-pipeline.mjs --urls=urls.txt --date=YYYY-MM-DD [--venues=TOK,HAN] [--out=tmp/jra-feature-pipeline]');
+  console.log('  --venues は省略可。省略時は urls.txt のJRA公式URLから開催場を自動判定する。');
   console.log('  Phase 1: dry-run のみ（shared PUT / dispatch / AK・KI import は行わない）');
   console.log('  Phase 2: --push-horse-histories --confirm-push=keiba-data-shared で horseHistories のみ shared 保存（create-only）');
   console.log('  Phase 3: --push-feature-scores --confirm-push=keiba-data-shared で featureScores も shared 保存（create-only・既存ありは停止）');
@@ -137,7 +174,7 @@ function validateArgs(args) {
   const errs = [];
   if (!args.urls) errs.push('--urls=<path> が必須');
   if (!args.date || !/^\d{4}-\d{2}-\d{2}$/.test(args.date)) errs.push('--date=YYYY-MM-DD が必須');
-  if (!args.venues) errs.push('--venues=TOK,HAN が必須');
+  // --venues は任意。未指定時は urls.txt から自動判定する（main 側で解決）。
   return errs;
 }
 
@@ -239,8 +276,31 @@ function main() {
   const errs = validateArgs(args);
   if (errs.length) { errs.forEach((e) => console.error(`❌ ${e}`)); usage(); process.exit(2); }
 
-  const venues = args.venues.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
-  if (venues.length === 0) { console.error('❌ --venues が空'); process.exit(2); }
+  // venues 解決: --venues 指定時はそれを優先、未指定時は urls.txt から自動判定
+  let venues;
+  if (args.venues) {
+    venues = args.venues.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    if (venues.length === 0) { console.error('❌ --venues が空'); process.exit(2); }
+    console.log(`🏟 venues: provided => ${venues.join(',')}`);
+  } else {
+    const uvForVenue = validateUrlsFile(args.urls, args.date);
+    if (!uvForVenue.ok) { console.error(`❌ ${uvForVenue.reason}`); process.exit(2); }
+    let detected;
+    try {
+      detected = inferVenuesFromUrls(uvForVenue.lines);
+    } catch (e) {
+      console.error(`❌ ${e.message}`);
+      process.exit(2);
+    }
+    if (detected.codes.length === 0) {
+      console.error('❌ --venues 未指定で、urls.txt から開催場を判定できませんでした。');
+      console.error('   URLがJRA公式 accessD/accessS の1R URLか確認してください。');
+      console.error('   例: ...CNAME=pw01dde0105202603020120260607/43');
+      process.exit(2);
+    }
+    venues = detected.codes;
+    console.log(`🏟 venues: auto-detected from urls.txt => ${venues.join(',')}（${detected.names.join(',')}）`);
+  }
 
   // Phase 2: horseHistories push ゲート（--push-horse-histories には confirm 必須）
   if (args.pushHorseHistories && args.confirmPush !== 'keiba-data-shared') {

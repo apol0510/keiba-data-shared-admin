@@ -14,7 +14,8 @@
  *   南関     = engine "nankan-v1"（racebook pastRaces のみ。horseHistories 不使用）。
  *
  * 相対スコア化（50.0/100.0 固定値を出さないための方式）:
- *   各特徴量の raw 値をレース内の有資格馬で z-score 化し、value = clamp(round(56 + 18*z), 12, 96)。
+ *   各特徴量の raw 値をレース内の有資格馬で z-score 化し、value = clamp(round(56 + slope*z), 12, 96)。
+ *   slope は category 依存（JRA=14 / 南関=18）。JRA はフルゲートで最上位が 96 に張り付くため緩和。
  *   - 中心は 56（50 を避ける）。両端 12/96 は外れ値のみ。絶対既定値 50/100 は出さない。
  *   - 有資格馬が分散0（全頭同値）→ 識別不能として value=null/insufficient + uniform 警告。
  *   - basisRaces < 2（jockeyFactor を除く）→ value=null / confidence="insufficient"。
@@ -65,6 +66,11 @@ if (!['jra', 'nankan'].includes(opts.category)) {
   process.exit(2);
 }
 const ENGINE = opts.category === 'jra' ? 'jra-v1' : 'nankan-v1';
+// z-score → value の傾き。JRA はフルゲートで最上位が天井(96)に張り付くため 14 に緩和。
+// 南関は問題が確認されていないため現行 18 を維持（scaleFeature を一律変更しない）。
+// 中心56・clamp 12〜96・50/100予約値ガード・null/insufficient 判定は category 不変。
+// engine 名は変更しない（AK/KI importFeatureScores.js が json.engine を検証するため）。
+const SLOPE = opts.category === 'jra' ? 14 : 18;
 
 // ============================================================================
 // PUT 安全制約（shared 保存）
@@ -435,7 +441,7 @@ function rawDistanceFitnessJra(np, curDm) {
 const FEATURES = ['speedIndex', 'staminaRating', 'formTrend', 'trackCompatibility', 'distanceFitness', 'jockeyFactor'];
 const MIN_BASIS = 2; // jockeyFactor を除く
 
-function scaleFeature(raws, key, uniformFlags, raceNumber, minBasis = MIN_BASIS) {
+function scaleFeature(raws, key, uniformFlags, raceNumber, minBasis = MIN_BASIS, slope = 18) {
   // raws: [{ horseNumber, raw, basis }]
   const exempt = key === 'jockeyFactor';
   const qualifying = raws.filter(r => r.raw != null && (exempt || r.basis >= minBasis));
@@ -464,7 +470,7 @@ function scaleFeature(raws, key, uniformFlags, raceNumber, minBasis = MIN_BASIS)
   const scored = [];
   for (const r of qualifying) {
     const z = sd > 0 ? (r.raw - mean) / sd : 0;
-    let value = Math.max(12, Math.min(96, Math.round(56 + 18 * z)));
+    let value = Math.max(12, Math.min(96, Math.round(56 + slope * z)));
     // 50/100 を予約値として出力域から除外（万一出たら相対化バグの検知シグナルになる）。
     // 50 は z-score が偶然この整数に丸まることがあるため 1 ずらす。100 は clamp 96 で原理的に出ない。
     if (value === 50) value = 49;
@@ -663,7 +669,7 @@ async function main() {
     // 特徴量ごとに相対化
     const scaled = {};
     const minBasis = ENGINE === 'jra-v1' ? 1 : MIN_BASIS; // jra: usable>=1 で出す / nankan: 現行(2)維持
-    for (const f of FEATURES) scaled[f] = scaleFeature(rawByFeature[f], f, uniformFlags, rNo, minBasis);
+    for (const f of FEATURES) scaled[f] = scaleFeature(rawByFeature[f], f, uniformFlags, rNo, minBasis, SLOPE);
 
     // horse block に featureScores を書き戻し
     for (const hn of Object.keys(horseBlocks)) {

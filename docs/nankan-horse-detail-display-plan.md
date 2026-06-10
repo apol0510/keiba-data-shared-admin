@@ -1007,6 +1007,99 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ---
 
+## 25. Phase B-1 / KI 側 設計（read-only・PR-E2a）(2026-06-11)
+
+§23（暫定スコープ）・§24（AK 設計）を踏まえた **keiba-intelligence（KI）側の設計**を docs で固定する。
+**AK §24 と同一のデータ契約**を前提とし、**KI 固有の SSR / included_files / Netlify Functions 同梱の注意**を明記する。
+**read-only 設計のみ。KI 実装ファイル・Netlify設定・workflow・shared・AK は変更しない。** 実装（PR-E2b/E2c）は
+**entries 運用再開の判断とセット**で別途行う（§25.9）。KI は read-only 参照のみで確認した。
+
+### 25.1 KI 現在地
+- **KI は AK と違い SSR がある**: 南関 `prediction/nankan/index.astro`・`free-prediction/nankan/index.astro` は
+  **`prerender = false`（SSR・Netlify Functions）**、`free-prediction/nankan/[slug].astro` は **`prerender = true`（static）**。
+  → **SSR ページは Netlify Functions 同梱（included_files）の注意がある**（§25.4）。AK のように prerender=true 前提で進めない。
+- **entries は未取込**（`src/data/entries` 無し）。**entries import workflow も無し**。
+- 雛形: `loadRecentHorseHistoriesNankan.js` / `injectRecentHorseHistoriesNankan.js` /
+  `getDisplayRecentRacesForNankan.js`（南関過去走）、`loadHorseHistoriesJra.js`（JRA詳細UI）、
+  `import-recent-horse-histories-nankan-on-dispatch.yml`（import workflow 雛形）。
+- **included_files の前例あり**: `astro-site/netlify.toml` は現状
+  `["src/data/horseHistories/**", "src/data/featureScores/**", "src/data/recentHorseHistories/**"]`
+  （recentHorseHistories は PR-2／#31 で追加済）。**runtime-fs 読み込みデータは included_files 登録が前提**という前例が確立している。
+
+### 25.2 KI で既に表示済みの項目（重複回避の基準）
+- **南関の基本プロフィール**（性齢/父/騎手/斤量/調教師 等。jockey/trainer は `dhc-jockey-trainer` ブロックで表示済・§22）。
+- **直近走**: `getDisplayRecentRacesForNankan(horse)` 経由で recentHorseHistories（最大5走・新→古 reverse）or racebook。
+- **JRA horseHistories 表示**（`prediction/jra/index.astro` の `<details class="dhc-history-details">` 内・`.dhc-profile-grid`）。
+- **featureScores 表示（6項目）とは別責務**（`generateAdvancedMetrics` に entries を渡さない）。
+- → **既出項目と重複しない**こと。entries で新規に増やせるのは **母父/馬主/生産者/毛色/bestTime と 通算/条件別成績**。
+
+### 25.3 entries import 配線案（AK §24.3 と同一契約・recentHorseHistories と同型）
+- **保存先案**: `astro-site/src/data/entries/nankan/YYYY/MM/YYYY-MM-DD-{VENUE}.json`
+  （KI の `src/data/{種別}/nankan/...` 実構成＝recentHorseHistories と同じに合わせる）。
+- **loader 案**: `loadEntriesNankan.js`（読込）。**inject 案**: `injectEntriesNankan.js`（horse へ別フィールド注入）。
+- **注入フィールド案**（AK と同名・同契約）:
+  - `horse.entriesProfile`（bms / owner / breeder / coat / bestTime）
+  - `horse.entriesRecord`（record.total / left / right / venue / distance）
+  - 必要なら `horse.entriesRecentRaces`（最大5走）
+- **`recentRacesFromHistoriesNankan` とは混ぜない**。**recentHorseHistories とは責務を分ける**（別ローダー・別注入フィールド）。
+
+### 25.4 SSR / included_files 注意（KI 固有・最重要）
+- KI の SSR ページ（prerender=false）でローダーが **`readFileSync`（実行時 fs 読込）**する場合、
+  **`src/data/entries/**` を `netlify.toml` の `included_files` に追加しないと、本番 Netlify Functions bundle に同梱されず読めない**。
+- **JRA `horseHistories` / `recentHorseHistories` の included_files 対応が前例**（recentHorseHistories は PR-2／#31 で追加）。
+  **entries も同様に `src/data/entries/**` を included_files に追加**する必要がある。
+- **included_files 漏れがあると、本番 SSR で entries が黙って読めずフォールバック**する（PR-2 と同型の落とし穴）。
+- `[slug].astro`（prerender=true）はビルド時読込で機能するが、**SSR 2 ページは included_files が必須**。
+- → **AK のように prerender=true 前提で進めない**。PR-E2b で included_files 追加と本番 SSR 実機確認を行う。
+
+### 25.5 join key 案（AK §24.4 と同一）
+- **主キー = `date + venue + raceNumber + horseNumber`**。**`horseName` は照合・警告用の従キー**。
+- **`horseName` 単独 join は禁止**（同名馬対策）。
+- **entries は同一開催・同一日・同一会場の出馬表由来であることを前提**。**別日・別会場なら join しない**。
+
+### 25.6 entries がある日にだけ表示する項目（AK §24.5 と同一）
+- **`entriesProfile`**: bms（母父）/ owner（馬主）/ breeder（生産者）/ coat（毛色）/ bestTime。
+- **`entriesRecord`**: total / left / right / venue / distance（各 `{wins, seconds, thirds, unplaced}`）。
+- **`entriesRecentRaces`**: 最大5走。
+  - **ただし recentHorseHistories / racebook と二重表示しない設計が必要**（直近走の供給源を一本化・§25.9）。
+
+### 25.7 JRA UI 流用方針（AK §24.6 と同一）
+- **JRA の詳細UI（`.dhc-profile-grid` 等）構造は参考にしてよい**。
+- **ただし JRA の `history[]` 集計ロジックは流用しない**。**entries.record は事前集計済**なので **record を直接マップ**する。
+- **条件別カテゴリは南関向け**: 左回り（record.left）/ 右回り（record.right）/ 同会場（record.venue）/ 同距離（record.distance）。
+  **「芝/ダート」分割は南関では主目的にしない**。
+
+### 25.8 表示名・禁止表現（AK §24.7 と同一）
+- **表示名**: 「プロフィール」「通算成績」「条件別成績」「直近5走」「出馬表由来データ」。
+- **禁止表現**: 「全履歴」「JRA同等」「直近10走」「horseHistories完全対応」「全馬常時表示」。
+- **entries が無い日は非表示または「データ不足」**。**空枠・推測値を出さない**。
+
+### 25.9 実装前に必要な判断
+1. **entries 運用再開の是非**（最重要・entries は最新日に無い＝§23.2）。
+2. **entries import workflow を作るか**。
+3. **KI SSR で `src/data/entries` をどう同梱するか**（included_files 追加・本番 SSR 実機確認＝§25.4）。
+4. **`entries.recentRaces` と recentHorseHistories の優先順位**（直近走の二重表示回避）。
+5. **AK/KI で同一フィールド名・同一契約にすること**（片寄せ・独自集計禁止）。
+6. **PR-E2b/E2c へ進む前に、entries が最新日に供給される運用があるか判断**すること。
+
+### 25.10 PR 分割案
+| PR | 内容 | 対象 |
+|---|---|---|
+| **PR-E2a** | **KI docs-only 設計（本節）** | admin docs |
+| PR-E2b | KI entries import 配線のみ（`src/data/entries/nankan` 取込＋**included_files 追加**＋workflow） | keiba-intelligence 単独 |
+| PR-E2c | KI entries がある日の条件付き表示 | keiba-intelligence 単独 |
+| PR-E1b/E1c | AK import / 表示（**entries 運用再開後**） | analytics-keiba 単独 |
+
+- PR-E2b/E2c は **entries 運用再開が決まってから**着手（でないと最新日に効かない）。
+
+### 25.11 禁止事項
+- KI 実装ファイルを**変更しない** / Netlify設定を**変更しない** / workflow を**変更しない**。
+- shared データ / AK を**変更しない**。
+- `featureScores` / AI指数 / 印 / 買い目 / 穴馬抽出 / `dark-horse.mjs` に**触らない**。
+- JRA 表示を**変更しない**。`nankan/recentHorseHistories` の既存仕様を**壊さない**。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1038,6 +1131,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
+- 2026-06-11: **Phase B-1 / KI 側 設計を追記（§25・PR-E2a）**。KI の entries 設計を read-only で docs 固定（AK §24 と同一データ契約）。**KI 固有の SSR / included_files 注意を明記**: 南関 prediction/free SSR(prerender=false)＋[slug] static(true)。entries を SSR で読むには **`src/data/entries/**` を netlify.toml `included_files` に追加が必要**（recentHorseHistories は PR-2/#31 で追加済＝前例）・漏れると本番SSRで黙ってフォールバック・AK の prerender=true 前提で進めない。配線案（保存先 `src/data/entries/nankan/...`・loader `loadEntriesNankan.js`・inject `injectEntriesNankan.js`・注入 `entriesProfile`/`entriesRecord`/`entriesRecentRaces`・recentRacesFromHistoriesNankan と混ぜない）。join key＝AK同一（`date+venue+raceNumber+horseNumber` 主・horseName 従・単独join禁止・別日別会場はjoinしない）。entries限定表示（bms/owner/breeder/coat/bestTime・record・recent5）。JRA UI は構造のみ流用・集計流用せず record 直接マップ・条件別は左右/会場/距離。表示名/禁止表現は AK同一。実装前判断（entries運用再開・import workflow・KI SSR 同梱方法・直近走一本化・AK/KI同一契約）。PR分割 E2a(docs)→E2b(import+included_files)→E2c(表示)、E2b/E2c は entries運用再開後。**docs-only・1ファイル。KI実装/Netlify設定/workflow/shared/AK/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA表示/recentHorseHistories 変更なし**。
 - 2026-06-11: **Phase B-1 / AK 側 設計を追記（§24・PR-E1a）**。AK の entries 設計を read-only で docs 固定。AK は prerender=true SSG（included_files 問題なし）・entries 未取込・recentHorseHistories 配線が雛形。配線案（保存先 `src/data/entries/nankan/...`・loader `loadEntriesNankan.js`・inject `injectEntriesNankan.js`・注入フィールド `entriesProfile`/`entriesRecord`/`entriesRecentRaces`・recentRacesFromHistoriesNankan と混ぜない）。join key＝`date+venue+raceNumber+horseNumber` 主・horseName 従（単独join禁止・別日別会場はjoinしない）。entries限定表示（bms/owner/breeder/coat/bestTime・record total/left/right/venue/distance・recent5）。JRA UI は構造のみ流用・集計ロジックは流用せず record を直接マップ・条件別は左右/会場/距離（芝ダ分割しない）。表示名（プロフィール/通算成績/条件別成績/直近5走/出馬表由来データ）・禁止表現（全履歴/JRA同等/直近10走/horseHistories完全対応/全馬常時）・entries無し日は非表示orデータ不足・空枠/推測値なし。実装前判断（entries運用再開の是非・import workflow・直近走の供給源一本化・AK/KI同一契約）。PR分割 E1a(docs)→E1b(import)→E1c(表示)、E1b/E1c は entries運用再開後。**docs-only・1ファイル。AK実装/UI/shared/workflow/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA表示/recentHorseHistories 変更なし**。
 - 2026-06-11: **Phase B-1 暫定表示スコープを追記（§23・PR-E0）**。全履歴 `history[]` 路線は `uma_info` 要許諾で保留中（[nankan-horse-histories-detail-contract.md] §12.10）のため、**既存データでできる範囲の南関馬詳細表示スコープを docs 固定**。表示可能＝基本プロフィール（性齢/父/騎手/斤量/調教師・最新日常時・AK表示済）／entries がある日限定の血統拡張（母父/馬主/生産者/毛色/bestTime）・通算成績（record.total）・条件別成績（record.left/right/venue/distance）／直近走（recentHorseHistories 最大5走 or racebook pastRaces 3〜4走）。表示不可＝全履歴/6走前以降/JRA式全履歴再集計/母名/生年月日/最新日の安定 entries 通算条件別（**entries は 2026-04-07 停止・最新日に無い**）。**カバレッジ制約＝entries 7ファイル・recentHorseHistories backfill 限定・最新日に確実に在るのは racebook/predictions のみ・AK/KI は entries 未取込**。禁止表現（「全履歴」「JRA同等」「直近10走」「horseHistories完全対応」「通算/条件別が全馬常時」と表記しない）。フォールバック（entries 無し日=基本プロフィールのみ・空枠/推測値を出さない・現行表示維持）。entries 運用再開（entries-manager 手作業コピペ）が実用表示の前提・自動化は uma_info 許諾なしにしない。PR分割 PR-E0(docs)→E1(AK)→E2(KI)。**docs-only・1ファイル・実装/取得/スクレイプ/generator/dry-run/scripts/shared/AK/KI/entries-manager.astro/save-entries.mjs 変更なし**。
 - 2026-06-09: **Phase D クローズ記録を追記**。D-1 設計／D-2 単発 opt-in dispatch script（`9e57acd`・2026-06-01 FUN テスト済）をもって Phase D をクローズ。一括 dispatch / updates 配列 / AK・KI workflow 改修は不採用、バックフィルは逐次運用維持、dispatch デフォルト OFF・opt-in のみを明記。追加実装なし・docs のみ。

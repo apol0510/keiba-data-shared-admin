@@ -15,6 +15,14 @@
 
 ---
 
+> **別契約への注記（2026-06-10 追記）**: 本契約の `nankan/recentHorseHistories/` は**最大5走の過去走表示用**である。
+> 中央JRA 相当の**全履歴・通算成績・条件別成績・直近10走**を南関で持つための新設データは、別パス
+> **`nankan/horseHistories/`** として [nankan-horse-histories-detail-contract.md](nankan-horse-histories-detail-contract.md)
+> （PR-D 系列）で別契約として設計する。**両者を混同しない**（別ディレクトリ・別 generator/validator/dispatch・別ローダー・別注入フィールド）。
+> 本契約の generator / validator / dispatch / whitelist（22項目）は新設側で**壊さない**。
+
+---
+
 ## 1. 契約の目的
 
 - 南関の過去走データを、**表示側ではなく admin/shared 側で正本化**する。

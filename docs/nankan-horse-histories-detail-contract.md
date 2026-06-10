@@ -243,6 +243,87 @@ JRA同等の全履歴を南関で得る取得元を確定するまで、**genera
 
 ---
 
+## 12. PR-D1: 取得元可否 read-only 調査結果 (2026-06-10)
+
+§6 の取得元候補について read-only 調査（shared 既存データの精査＋公式サイトの公開ページ最小確認のみ）を実施した記録。
+**実取得・スクレイプ・generator/dry-run スクリプト作成・shared 変更・AK/KI 変更は一切行っていない。**
+
+### 12.1 取得元候補 4 分類（結論）
+
+| # | 取得元 | 分類 | 要点 |
+|---|---|---|---|
+| **A** | **`nankan/entries` 復活** | **要確認・最有力** | データは理想的だが**生成元コードが現環境に無く出自不明**。再稼働可否は未確定 |
+| **B** | **nankankeiba.com 直接取得** | **技術的には可能だが採用は要確認** | 馬データページ実在。著作権明示・robots不在・許諾未確認のため**現時点で取得しない** |
+| **C** | **keiba.go.jp（NAR公式）** | **不可（方針維持）** | robots Disallow ＋ 契約 §12。自動取得対象外を維持 |
+| **D** | **shared results/archive 自前集約** | **母数不足で正本不可** | 2026のみ・南関外/2025以前欠落。補助どまり |
+
+### 12.2 A: `nankan/entries`（最有力・ただし出自不明）
+
+shared `nankan/entries/` に、**JRA 詳細表示にほぼ十分なデータ**が既に存在することを確認した。
+
+- **`record` が通算成績＋条件別成績を構造化済**:
+  `total` / `left`(左回り) / `right`(右回り) / `venue`(同場) / `distance`(同距離) × `{wins, seconds, thirds, unplaced}`。
+  → 勝率/連対率/3着内率、左右・場・距離別成績が**そのまま算出可能**。
+- **profile が豊富**: `sire`(父) / `bms`(母父) / `owner`(馬主) / `breeder`(生産者) / `coat`(毛色) / `gender` / `age` /
+  `weight` / `jockey` / `trainer` ＋各 affiliation / `bestTime`。
+- **`recentRaces` も保持**（5走・リッチ: order/finish/date/trackCondition/headCount/venue/distance/popularity/
+  bodyWeight/jockey/time/passingOrder/last3f/margin/opponentName）。
+- **ただし 2026-04-07 で停止**（全 7 ファイル・2026-03-30〜04-07・FUN/KAW のみ）。
+- **生成元コードは admin/姉妹 repo に見当たらず**、shared への commit（"📋 出走表データ追加"）から**外部ツール/別環境で生成**されたと判明。
+  **出自・生成ツールは現時点で不明**（マコさん確認事項）。
+- → entries は**最有力候補だが、生成元不明のため再稼働可否は未確定**。
+
+### 12.3 B: nankankeiba.com 直接取得（技術的可能・採用は要確認）
+
+公開トップ／総合案内ページの**最小確認のみ**（データページのスクレイプはしていない）で次を確認:
+
+- **馬データ詳細ページが実在**: データバンク `/uma_search/search.do`・`/uma_detail_search/search.do`、
+  出馬表 `/syousai/{id}.do`、過去競走検索 `/race_detail_search/search.do`。
+- **著作権表記 "copyright(C)nankankeiba.com all rights reserved." が明示**。
+- **robots.txt は 404**（不在）。利用規約は `/info/` 配下に存在するが、転載・複製・データ利用・自動取得・商用利用の
+  可否の**明示文言は未抽出**（規約本文の精査が未了）。
+- **判断**: **robots.txt 不在を「許可」と扱わない**。著作権・利用規約・取得負荷（礼儀的アクセス間隔）を確認し、
+  **許諾が取れるまで取得しない**。entries の出自が本サイトなら、A の再稼働も実質この規約確認に帰着する。
+
+### 12.4 C: keiba.go.jp（不可・方針維持）
+
+robots.txt で非 Googlebot に `Crawl-delay: 10`、`/KeibaWeb/`・`/KeibaWebSP/` の DataRoom / DataDownload /
+TodayRaceInfo 等の動的データページを **Disallow**。馬の競走成績はこの動的ページ群に属する公算が大。
+契約 §12（[nankan-recent-horse-histories-contract.md]）の「keiba.go.jp の robots Disallow パスを自動取得しない」を維持。
+→ **自動取得対象外**。
+
+### 12.5 D: shared results/archive 自前集約（母数不足）
+
+- `nankan/results/`（2026 のみ）＋ `nankan/archive/archiveResults.json`（集約 1 ファイル）を date 横断集約すれば、
+  各馬の 2026 内出走を時系列に再構成は可能。
+- だが **2025 以前・南関外・取消等で母数が欠落**し、**生涯通算成績の正確性を担保できない**。直近10走も2026開始以降に出走が偏る馬で不足。
+- → **単独の正本にはできない**（補助どまり）。
+
+### 12.6 スキーマ判断事項（PR-D2 以降で確定）
+
+南関 horseHistories の保存形を二択として残す（§5.4 の延長）:
+- **(a) JRA 式**: 生 `history[]` を保存し、通算/条件別は**表示側集計**（AK/KI 既存ロジック流用）。ただし全履歴の取得元が要る。
+- **(b) entries 式**: 集約済 `record`（通算+左右/場/距離別）を保存。直接的だが JRA 表示集計と形が異なり、条件別カテゴリも
+  JRA(芝/ダ) と entries(左右/場/距離) で差がある（南関はダート主で芝/ダ分割は実質不要）。
+- どちらを採るかは **取得元確定後（PR-D2 以降）に判断**。本 PR では確定しない。
+
+### 12.7 PR-D2 へ進む条件（未充足）
+
+PR-D2（dry-run 設計）の**取得部分**に進むには、次のいずれかが必要:
+1. **entries 生成元の再確認**（生成ツールの所在・再稼働可否の確定）、または
+2. **nankankeiba.com の規約・許諾・取得負荷条件のクリアランス**（取得してよいと確認）。
+
+- 現状はいずれも**未充足**（entries 出自不明 / nankankeiba.com 規約未精査）。C は不可、D は母数不足で正本不可。
+- → **取得元が確定するまで generator / dry-run スクリプトには進まない**。進めてよいのは docs 設計（スキーマ二択 a/b の検討）まで。
+
+### 12.8 本 PR（PR-D1）で実施していないこと
+- 実取得 / スクレイプ / generator 作成 / dry-run スクリプト作成 / scripts 変更 / shared データ変更 / AK・KI 変更はなし。
+- featureScores / generateAdvancedMetrics / AI指数 / 印 / 買い目 / 穴馬抽出 / `dark-horse.mjs` 非接触。
+- JRA `horseHistories` 非変更。`nankan/recentHorseHistories`（5走）非変更。`nankan/entries`（既存 shared データ）非変更（read-only 参照のみ）。
+
+---
+
 ## 11. 更新履歴
 
 - 2026-06-10: 初版作成（PR-D0）。南関版 horseHistories 詳細データの取得・保存契約 v0 ドラフト。目的（プロフィール/通算/条件別/直近10走）、recentHorseHistories との責務分離、JRA 参照モデル（生 history[] 保存・集計は表示側）、保存パス案 `nankan/horseHistories/`、v0 スキーマ案、取得元候補と制約（keiba.go.jp 不可方針 / nankankeiba.com 規約要確認 / entries 復活候補 / results 自前集約候補）、段階分割（PR-D0〜D7）、禁止事項、回帰確認を記録。**docs-only・取得なし・スクレイプなし・実装なし**。
+- 2026-06-10: **PR-D1 取得元可否 read-only 調査結果を追記（§12）**。取得元4分類（A: nankan/entries 復活＝要確認・最有力 / B: nankankeiba.com 直接＝技術的可能だが採用要確認 / C: keiba.go.jp＝不可方針維持 / D: results・archive 自前集約＝母数不足で正本不可）。entries は `record`（通算+左右/場/距離別を構造化済）・profile（父/母父/馬主/生産者/毛色等）・recentRaces 5走を持つ最有力候補だが、**2026-04-07 で停止し生成元コードが現環境に無く出自不明**＝再稼働可否未確定。nankankeiba.com は馬データページ（uma_search/syousai/race_detail_search）実在・著作権 "all rights reserved" 明示・robots.txt 404 だが**不在を許可扱いしない**・規約本文未精査。スキーマ二択（(a)JRA式 生history保存・表示側集計／(b)entries式 集約record保存）は PR-D2 以降で判断。**PR-D2 進行条件＝entries生成元の再確認 or nankankeiba.com 規約・許諾・負荷クリアランス（現状いずれも未充足）**。取得元確定まで generator/dry-run に進まない。**docs-only・実取得なし・スクレイプなし・generator/dry-run作成なし。shared/AK/KI/scripts 不変更**。

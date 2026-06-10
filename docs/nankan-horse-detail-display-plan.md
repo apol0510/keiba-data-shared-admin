@@ -1100,6 +1100,94 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ---
 
+## 26. Phase B-1 / entries 運用再開 runbook・可否整理（read-only・PR-E3a）(2026-06-11)
+
+§24（AK 設計）/§25（KI 設計）の実装（PR-E1b/E1c・E2b/E2c）は **entries が最新日に供給される運用**が前提
+（entries は 2026-04-07 で停止・最新日に無い＝§23.2）。本節は **entries-manager 手作業コピペ運用を再開する場合の
+手順・負荷・リスク・AK/KI 反映条件**を read-only で整理し、**運用再開の価値を判断できる状態**にする。
+**docs-only・実保存なし・実取得なし・AK/KI 実装に進まない。** entries-manager.astro / save-entries.mjs は read-only 参照のみ。
+
+### 26.1 entries-manager 現在地
+- **`src/pages/admin/entries-manager.astro` は現存・動作構造あり**。
+- **入力方式＝公式出馬表テキストの手作業コピペ＋ブラウザ内パース**（**自動取得・スクレイプではない**）。
+- Step 構成:
+  - **Step 1**: 開催日（date 入力）＋ 競馬場（dropdown・南関は大井/川崎/船橋/浦和）。
+  - **Step 2**: 出走表テキスト貼付（textarea・複数レース対応）＋「🔍 自動解析」（`parseEntries`）。
+  - **Step 3**: 「🚀 保存してGit Push」（`saveToGit`）。
+  - **Step 4**: プレビュー / JSON 確認。
+- **raceNumber** はテキスト内の「第N競走」から parse（手指定不要）。**date / venue は UI で指定**。
+- **クライアント側に token は露出しない**（保存は server 側）。
+
+### 26.2 save-entries の保存仕様
+- **POST 先**: `/.netlify/functions/save-entries`。
+- **POST 形式**: `raceDate` / `venue` / `venueCode` / `category` / `data`(parsedResult)。
+- **保存先**: `nankan/entries/YYYY/MM/YYYY-MM-DD-{OOI|KAW|FUN|URA}.json`。
+- **token**: `GITHUB_TOKEN_KEIBA_DATA_SHARED`（**server 側で使用**）。
+- **`repository_dispatch` は無い** → **保存しても AK/KI へは自動反映されない**。
+
+### 26.3 保存データ構造
+- **top-level**: `version` / `createdAt` / `lastUpdated` / `date` / `venue` / `venueCode` / `category` / `totalRaces` / `races`。
+- **horse keys**: `postPosition` / `number` / `name` / `gender` / `age` / `coat` / `weight` / `jockey` / `jockeyAffiliation` /
+  `trainer` / `trainerAffiliation` / `owner` / `breeder` / `sire` / `bms` / `record` / `bestTime` / `recentRaces`。
+- **record**: `total` / `left` / `right` / `venue` / `distance`（各 `{wins, seconds, thirds, unplaced}`）。
+- **recentRaces**: 最大5走。
+- **ない項目**: `mother`（母名）/ `birthdate`（生年月日）/ `horseId` / `uma_info` ID / **全履歴 `history[]`**。
+
+### 26.4 手作業運用手順案
+1. 対象開催日の**出馬表確定後**に作業する。
+2. `/admin/entries-manager` を開く。
+3. **開催日と競馬場**を指定する。
+4. **南関公式の該当日・該当会場の出馬表**を開く。
+5. 各レースの出走表テキストをコピーする。
+6. textarea に貼り付ける（複数レースまとめて可）。
+7. 「🔍 自動解析」を実行する。
+8. プレビュー / JSON で確認する（race 数・頭数・record/recentRaces 充足）。
+9. 「🚀 保存してGit Push」する。
+10. shared `nankan/entries/...` に保存されたことを確認する（HTTP 201/200）。
+11. **ただしこの時点では AK/KI には出ない**（dispatch 無し・import 未実装）。
+
+### 26.5 1日あたりの作業負荷
+- 南関は通常 **1日1場**。
+- **1会場あたり通常12レース**。**12レース分の出馬表テキスト収集が必要**。
+- textarea は複数レース対応だが、**元テキスト収集は人手**。
+- **実質負荷は1会場あたり数十分程度**と見積もる。
+- **2場/3場なら負荷は比例増**。
+- **毎開催日作業が必要**。**運用が止まると再び最新日に entries が欠ける**（2026-04-07 停止の再来）。
+
+### 26.6 規約・運用リスク
+- **公式表示テキストの転記・保存・再利用は、手作業でも規約論点が残る**。
+- nankankeiba.com 利用規約精査（[nankan-horse-histories-detail-contract.md] §12.10）で、
+  **個人・家庭利用を超える利用は要許諾**と整理済み。
+- **shared 保存・AK/KI 表示・有料サービス内利用は、再配布・二次利用に該当する可能性**がある。
+- 貼り付けミス / date・venue 間違い / raceNumber parse ミス → **プレビュー確認は必須**。
+- **entries 保存だけでは AK/KI 反映されない**。AK/KI 反映には **PR-E1b/E2b/E1c/E2c が別途必要**。
+
+### 26.7 AK/KI 実装へ進む条件
+- **entries 運用再開を事業判断として決める**。
+- **規約リスクを許容するか判断する**。
+- **最新日 entries を最低1日分作成できること**。
+- **shared に `nankan/entries` が保存されること**。
+- **AK/KI import 配線を作る価値があること**（継続運用の見込み）。
+- **保存後の AK/KI import 方式を決めること**: `workflow_dispatch` / `repository_dispatch` / 手動 import のいずれか。
+
+### 26.8 実装フェーズの分岐
+- **entries 運用を再開する場合**:
+  - PR-E1b: AK entries import 配線。
+  - PR-E2b: KI entries import 配線 ＋ included_files（`src/data/entries/**`・§25.4）。
+  - PR-E1c: AK 条件付き表示。
+  - PR-E2c: KI 条件付き表示。
+- **entries 運用を再開しない場合**:
+  - 実装は保留。現行表示維持。**全履歴路線は uma_info 許諾待ち**（§12.10）。
+
+### 26.9 禁止事項
+- `entries-manager.astro` を**変更しない** / `save-entries.mjs` を**変更しない**。
+- **実際に保存しない** / shared データを**変更しない** / AK・KI を**変更しない**。
+- workflow / scripts を**変更しない** / generator・dry-run スクリプトを**作らない**。
+- `uma_info` を**取得しない** / keiba.go.jp DataRoom を**取得しない**。
+- `featureScores` / AI指数 / 印 / 買い目 / 穴馬抽出 / `dark-horse.mjs` に**触らない**。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1131,6 +1219,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 ## 14. 更新履歴
 
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。
+- 2026-06-11: **Phase B-1 / entries 運用再開 runbook・可否整理を追記（§26・PR-E3a）**。AK/KI 実装（PR-E1b/c・E2b/c）の前提＝entries が最新日に供給される運用、を判断可能にする read-only 整理。entries-manager 現在地（現存・手作業コピペ＋ブラウザ内パース・Step1開催日/競馬場→Step2貼付/自動解析→Step3保存Git Push→Step4プレビュー・raceNumberは第N競走parse・token非露出）。save-entries 仕様（POST `/.netlify/functions/save-entries`・raceDate/venue/venueCode/category/data・保存先 `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json`・token GITHUB_TOKEN_KEIBA_DATA_SHARED server側・**repository_dispatch 無し＝AK/KI 自動反映されない**）。保存データ構造（top/horse keys/record total・left・right・venue・distance/recentRaces 最大5走・**mother/birthdate/horseId/uma_info ID/全履歴 history[] は無い**）。手作業手順（出馬表確定後→admin→日付/会場→公式出馬表コピー→貼付→自動解析→確認→保存→shared確認・**この時点でAK/KIには出ない**）。作業負荷（南関1日1場・1会場12レース・テキスト収集人手・実質数十分・毎開催日・止まると最新日欠落）。規約リスク（手作業でも転記/保存/再利用の論点・要許諾相当・再配布/二次利用の可能性・プレビュー必須・entries保存だけでは未反映）。AK/KI実装条件（運用再開の事業判断・規約許容・最新日1日分作成・shared保存・import価値・継続見込み・import方式 workflow_dispatch/repository_dispatch/手動 のいずれか）。実装分岐（再開する→E1b/E2b/E1c/E2c・しない→保留/現行維持/全履歴は uma_info 許諾待ち）。**docs-only・1ファイル・read-only整理。entries-manager.astro/save-entries.mjs/shared/AK/KI/workflow/scripts/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし・実保存/実取得なし**。
 - 2026-06-11: **Phase B-1 / KI 側 設計を追記（§25・PR-E2a）**。KI の entries 設計を read-only で docs 固定（AK §24 と同一データ契約）。**KI 固有の SSR / included_files 注意を明記**: 南関 prediction/free SSR(prerender=false)＋[slug] static(true)。entries を SSR で読むには **`src/data/entries/**` を netlify.toml `included_files` に追加が必要**（recentHorseHistories は PR-2/#31 で追加済＝前例）・漏れると本番SSRで黙ってフォールバック・AK の prerender=true 前提で進めない。配線案（保存先 `src/data/entries/nankan/...`・loader `loadEntriesNankan.js`・inject `injectEntriesNankan.js`・注入 `entriesProfile`/`entriesRecord`/`entriesRecentRaces`・recentRacesFromHistoriesNankan と混ぜない）。join key＝AK同一（`date+venue+raceNumber+horseNumber` 主・horseName 従・単独join禁止・別日別会場はjoinしない）。entries限定表示（bms/owner/breeder/coat/bestTime・record・recent5）。JRA UI は構造のみ流用・集計流用せず record 直接マップ・条件別は左右/会場/距離。表示名/禁止表現は AK同一。実装前判断（entries運用再開・import workflow・KI SSR 同梱方法・直近走一本化・AK/KI同一契約）。PR分割 E2a(docs)→E2b(import+included_files)→E2c(表示)、E2b/E2c は entries運用再開後。**docs-only・1ファイル。KI実装/Netlify設定/workflow/shared/AK/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA表示/recentHorseHistories 変更なし**。
 - 2026-06-11: **Phase B-1 / AK 側 設計を追記（§24・PR-E1a）**。AK の entries 設計を read-only で docs 固定。AK は prerender=true SSG（included_files 問題なし）・entries 未取込・recentHorseHistories 配線が雛形。配線案（保存先 `src/data/entries/nankan/...`・loader `loadEntriesNankan.js`・inject `injectEntriesNankan.js`・注入フィールド `entriesProfile`/`entriesRecord`/`entriesRecentRaces`・recentRacesFromHistoriesNankan と混ぜない）。join key＝`date+venue+raceNumber+horseNumber` 主・horseName 従（単独join禁止・別日別会場はjoinしない）。entries限定表示（bms/owner/breeder/coat/bestTime・record total/left/right/venue/distance・recent5）。JRA UI は構造のみ流用・集計ロジックは流用せず record を直接マップ・条件別は左右/会場/距離（芝ダ分割しない）。表示名（プロフィール/通算成績/条件別成績/直近5走/出馬表由来データ）・禁止表現（全履歴/JRA同等/直近10走/horseHistories完全対応/全馬常時）・entries無し日は非表示orデータ不足・空枠/推測値なし。実装前判断（entries運用再開の是非・import workflow・直近走の供給源一本化・AK/KI同一契約）。PR分割 E1a(docs)→E1b(import)→E1c(表示)、E1b/E1c は entries運用再開後。**docs-only・1ファイル。AK実装/UI/shared/workflow/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA表示/recentHorseHistories 変更なし**。
 - 2026-06-11: **Phase B-1 暫定表示スコープを追記（§23・PR-E0）**。全履歴 `history[]` 路線は `uma_info` 要許諾で保留中（[nankan-horse-histories-detail-contract.md] §12.10）のため、**既存データでできる範囲の南関馬詳細表示スコープを docs 固定**。表示可能＝基本プロフィール（性齢/父/騎手/斤量/調教師・最新日常時・AK表示済）／entries がある日限定の血統拡張（母父/馬主/生産者/毛色/bestTime）・通算成績（record.total）・条件別成績（record.left/right/venue/distance）／直近走（recentHorseHistories 最大5走 or racebook pastRaces 3〜4走）。表示不可＝全履歴/6走前以降/JRA式全履歴再集計/母名/生年月日/最新日の安定 entries 通算条件別（**entries は 2026-04-07 停止・最新日に無い**）。**カバレッジ制約＝entries 7ファイル・recentHorseHistories backfill 限定・最新日に確実に在るのは racebook/predictions のみ・AK/KI は entries 未取込**。禁止表現（「全履歴」「JRA同等」「直近10走」「horseHistories完全対応」「通算/条件別が全馬常時」と表記しない）。フォールバック（entries 無し日=基本プロフィールのみ・空枠/推測値を出さない・現行表示維持）。entries 運用再開（entries-manager 手作業コピペ）が実用表示の前提・自動化は uma_info 許諾なしにしない。PR分割 PR-E0(docs)→E1(AK)→E2(KI)。**docs-only・1ファイル・実装/取得/スクレイプ/generator/dry-run/scripts/shared/AK/KI/entries-manager.astro/save-entries.mjs 変更なし**。

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 南関 entries 全レース集約 dry-run（PR-F3b）
+ * 南関 entries 全レース集約 dry-run ＋ opt-in 保存（PR-F3b / PR-F3c）
  *
- * 1 venue = 全レース入り parsedResult を作るための **集約 dry-run**。
+ * 1 venue = 全レース入り parsedResult を作るための **集約**。既定は dry-run（保存なし）。
  * docs/nankan-horse-detail-display-plan.md §29「1会場=全レース集約契約」に準拠する。
  *
  * 入力（どちらか）:
@@ -15,19 +15,31 @@
  *   各 race URL を低負荷で順次取得 → Shift_JIS→UTF-8 → 既存 mapper で parsedResult(totalRaces=1) →
  *   venue 単位 parsedResult に集約 → F2 validator 検証 → dry-run summary。
  *
- * 厳守（このスクリプトは dry-run 専用・保存系を一切持たない）:
- *   - **保存しない / shared PUT しない / token を読まない / repository_dispatch しない**。
- *     opt-in 保存は PR-F3c（別スクリプト/別PR）。本ファイルに save 経路は存在しない。
+ * opt-in 保存（PR-F3c・二段）:
+ *   - **既定は dry-run（保存しない）**。`--push`（=`--save`）で保存「計画」を作る。
+ *   - **`--push` だけでは token を読まない・GitHub GET/PUT しない**（計画/no-op）。
+ *     実 shared PUT は **`--push --execute`** の二段目でのみ。
+ *   - 保存対象は **full venue JSON のみ**（`totalRaces>1` / `races.length>1` /
+ *     `sourceMeta.races.length===races.length`）。**R01-only / partial / `--max` 取得は保存しない**。
+ *   - 保存先は既存と同一: `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json`（1 venue = 1 JSON）。
+ *   - **既存ファイルは create-only が既定**。`--force` のときだけ update（既存 SHA を使う）。
+ *     既存が R01-only（totalRaces=1）なら、full venue で置換するため `--force` 必須・summary に明示。
+ *   - **record 0埋めは保存しない**（mapper は null・本スクリプトでも二重ガード）。
+ *   - **repository_dispatch しない**（AK/KI import は F4）。**token 値は出さない**。
+ *   - 既存 single race 保存スクリプト（dry-run-fetch-entries-page.mjs）は変更しない（self-contained）。
+ *
+ * 厳守:
  *   - 対象は出馬表（syousai/uma_shosai）と program のみ。
  *     **uma_info（馬単体・全履歴）/ keiba.go.jp DataRoom は対象外＝拒否**。
  *   - 明示 URL / program 列挙のみ。サイト全体をクロールしない・リンクを辿らない。
  *   - featureScores / AI指数 / 印 / 買い目 / 穴馬 に接続しない。
  *
- * 終了コード: validator/集約 error → 1 / 引数不正・スコープ外 → 2 / 取得失敗 → 3 / OK → 0。
+ * 終了コード: validator/集約/保存ガード error → 1 / 引数不正・スコープ外 → 2 / 取得失敗 → 3 / OK → 0。
  */
 
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { execSync } from 'node:child_process';
 import { convertNankanEntriesHtmlToParsed } from '../../src/lib/nankan/entries-html-to-parsed.mjs';
 import { validateNankanEntriesData, summarizeNankanEntriesData } from '../../src/lib/nankan/entries-schema-validator.mjs';
 import { NANKAN_VENUE_NAME_BY_CODE } from '../../src/lib/nankan/entries-parser.mjs';
@@ -40,6 +52,17 @@ const FETCH_INTERVAL_MS = 1200; // 低負荷のため race 取得間に挟む小
 // jyo2（program/race ID の 9-10 桁目）→ venueCode の最良努力クロスチェック。
 // venueCode の正は `--venue`。この map は不一致時に warning を出すためだけに使う。
 const JYO2_TO_VENUE = { '20': 'OOI', '21': 'KAW', '19': 'FUN', '18': 'URA' };
+
+// ---- shared 保存（GitHub Contents API・save-entries.mjs / F3 single race と同一契約）----
+// 既存 single race スクリプトのファイルは変更せず、契約値だけ self-contained に複製する。
+const TOKEN_ENV = 'GITHUB_TOKEN_KEIBA_DATA_SHARED';
+const REPO = `${process.env.GITHUB_REPO_OWNER || 'apol0510'}/keiba-data-shared`;
+const BRANCH = 'main';
+// 期待 sourceMeta（auto / uma_shosai・record 未取得）。保存条件として照合する（F3 と同一）。
+const EXPECT_SOURCE = Object.freeze({
+  sourceType: 'auto', sourcePageType: 'uma_shosai',
+  recordSourced: false, missingRecordReason: 'uma_shosai_no_record', recordCoverage: '0%'
+});
 
 function parseArgs(argv) {
   const args = {};
@@ -127,15 +150,136 @@ function writeFileSafe(outPath, content) {
   writeFileSync(outPath, content, 'utf-8');
 }
 
+// ---- shared 保存ヘルパー（token 値は絶対に出さない・F3 single race と同一契約）----
+
+// 保存先 shared path（save-entries.mjs / F3 と同一規約）。
+export function deriveSharedPath(date, venueCode) {
+  const year = date.slice(0, 4);
+  const month = date.slice(5, 7);
+  return `nankan/entries/${year}/${month}/${date}-${venueCode}.json`;
+}
+
+// token 取得: env 優先、無ければ gh auth token フォールバック。**値は返すだけでログに出さない**。
+function getToken() {
+  const env = process.env[TOKEN_ENV] || process.env.GITHUB_TOKEN;
+  if (env && env.trim()) return { token: env.trim(), source: 'env' };
+  try {
+    const out = execSync('gh auth token', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (out) return { token: out, source: 'gh-auth' };
+  } catch { /* gh 未ログイン等 */ }
+  return { token: null, source: 'none' };
+}
+
+// GitHub API エラーから安全な診断のみ（token/body/base64 は含めない）。
+function formatGithubError(data) {
+  const parts = [];
+  if (data && typeof data.message === 'string') parts.push(`message: ${data.message}`);
+  if (data && typeof data.documentation_url === 'string') parts.push(`doc: ${data.documentation_url}`);
+  return parts.length ? ` / ${parts.join(' / ')}` : '';
+}
+
+// 既存ファイル確認 GET（read-only）。SHA と、既存の totalRaces / sourcePageType（R01-only 判定用）を返す。token 値は出さない。
+async function checkRemoteExists(sharedPath, token) {
+  if (!token) return { checked: false, reason: `${TOKEN_ENV} 未設定/gh 未ログインのため既存確認できず` };
+  const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}?ref=${BRANCH}`;
+  try {
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': UA } });
+    if (res.status === 200) {
+      const d = await res.json().catch(() => ({}));
+      let remoteTotalRaces = null, remoteSourcePageType = null;
+      try {
+        if (d.content && d.encoding === 'base64') {
+          const j = JSON.parse(Buffer.from(d.content, 'base64').toString('utf-8'));
+          remoteTotalRaces = (typeof j.totalRaces === 'number') ? j.totalRaces : (Array.isArray(j.races) ? j.races.length : null);
+          remoteSourcePageType = j.sourceMeta?.sourcePageType ?? null;
+        }
+      } catch { /* 既存が JSON でない等は判定不可として握りつぶす */ }
+      return { checked: true, exists: true, sha: d.sha || null, remoteTotalRaces, remoteSourcePageType };
+    }
+    if (res.status === 404) return { checked: true, exists: false };
+    const d = await res.json().catch(() => ({}));
+    return { checked: true, exists: null, status: res.status, reason: `想定外 ${res.status}${formatGithubError(d)}` };
+  } catch (e) { return { checked: false, reason: `GET 失敗: ${e.message}` }; }
+}
+
+// 実 PUT（--execute 時のみ呼ぶ）。create / update（force+sha）。token 値は出さない。
+async function putToShared(sharedPath, jsonStr, token, sha, venue, totalRaces, date) {
+  const url = `https://api.github.com/repos/${REPO}/contents/${sharedPath}`;
+  const message = `📋 出走表データ追加(auto/uma_shosai): ${venue} ${totalRaces}レース ${date}`;
+  const body = { message, content: Buffer.from(jsonStr, 'utf-8').toString('base64'), branch: BRANCH };
+  if (sha) body.sha = sha;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': UA, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, status: res.status, reason: formatGithubError(d) };
+  return { ok: true, status: res.status, contentSha: d.content?.sha || null, htmlUrl: d.content?.html_url || null };
+}
+
+// 集約 parsedResult の保存ガード（**full venue のみ**・R01-only/partial 不可）。reasons[] に不適合理由。
+export function evaluateAggregateSaveGuards(parsed, v) {
+  const reasons = [];
+  if (!v.ok) reasons.push(`validator error ${v.errors.length}件（schema PASS でない）`);
+
+  const sm = parsed.sourceMeta || {};
+  for (const [k, expected] of Object.entries(EXPECT_SOURCE)) {
+    if (sm[k] !== expected) reasons.push(`sourceMeta.${k}=${JSON.stringify(sm[k])} 期待 ${JSON.stringify(expected)}`);
+  }
+
+  if (!parsed.date) reasons.push('date が無い');
+  if (!parsed.venueCode || !NANKAN_CODES.includes(parsed.venueCode)) reasons.push('venueCode 不正');
+
+  const races = Array.isArray(parsed.races) ? parsed.races : [];
+  if (parsed.totalRaces !== races.length) reasons.push(`totalRaces(${parsed.totalRaces}) != races.length(${races.length})`);
+  // full venue 限定（R01-only / partial は保存しない）
+  if (!(parsed.totalRaces > 1)) reasons.push(`totalRaces=${parsed.totalRaces}（full venue=複数レースのみ保存・R01-only/partial 不可）`);
+  if (!(races.length > 1)) reasons.push(`races.length=${races.length}（複数レースのみ保存）`);
+  if (!Array.isArray(sm.races) || sm.races.length !== races.length) {
+    reasons.push(`sourceMeta.races.length(${Array.isArray(sm.races) ? sm.races.length : 'n/a'}) != races.length(${races.length})`);
+  }
+
+  // raceNumber 昇順 & 重複なし（厳密増加）
+  const rns = races.map(r => r.raceNumber);
+  if (!rns.every(n => typeof n === 'number')) reasons.push('raceNumber に数値でないものがある');
+  for (let i = 1; i < rns.length; i++) {
+    if (!(rns[i] > rns[i - 1])) { reasons.push(`raceNumber が昇順/一意でない: ${rns.join(',')}`); break; }
+  }
+
+  // horses 空 race なし
+  if (races.some(r => !Array.isArray(r.horses) || r.horses.length === 0)) reasons.push('horses が空の race がある');
+
+  // record 0埋め（present かつ全0）は絶対に保存しない（mapper は null のはずだが二重ガード）
+  const horses = races.flatMap(r => r.horses || []);
+  const zeroFilled = horses.some(h => {
+    const t = h?.record?.total;
+    return t && (t.wins + t.seconds + t.thirds + t.unplaced) === 0
+      && ['left', 'right', 'venue', 'distance'].every(k => {
+        const r = h.record[k]; return r && (r.wins + r.seconds + r.thirds + r.unplaced) === 0;
+      });
+  });
+  if (zeroFilled) reasons.push('record 0埋めが含まれる（0埋め保存は禁止）');
+
+  return { ok: reasons.length === 0, reasons };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || args.h) {
-    L('使い方（dry-run 専用・保存なし）:');
+    L('使い方（既定 dry-run・保存なし）:');
     L('  --program-url="https://www.nankankeiba.com/program/{14桁}.do" --venue=OOI [--out=tmp/...json]');
     L('  --urls=tmp/urls.txt --venue=OOI [--date=YYYY-MM-DD] [--out=tmp/...json]');
-    L('  （--max=N で先頭 N レースだけ取得する軽量確認も可）');
+    L('  （--max=N で先頭 N レースだけ取得する軽量確認も可・保存は不可）');
+    L('  保存（opt-in・二段・full venue のみ）:');
+    L('    --push（保存計画/no-op・token 不使用） / --push --execute（実 PUT） / --force（既存上書き=R01-only 置換）');
     process.exit(0);
   }
+
+  // 保存モード（既定: 保存なし dry-run）。--push/--save で保存候補・--execute で実 PUT・--force で上書き。
+  const saveMode = !!(args.push || args.save);
+  const doExecute = !!args.execute;
+  const allowForce = !!args.force;
 
   const programUrl = args['program-url'] ? String(args['program-url']) : null;
   const urlsFile = args.urls ? String(args.urls) : null;
@@ -233,7 +377,13 @@ async function main() {
   const limited = max < raceUrls.length;
 
   L('────────────────────────────────────────');
-  L('[DRY_RUN] 集約 dry-run（保存なし・shared PUT なし・dispatch なし・token 不読み込み）');
+  if (!saveMode) {
+    L('[DRY_RUN] 集約 dry-run（保存なし・shared PUT なし・dispatch なし・token 不読み込み）');
+  } else if (!doExecute) {
+    L('[SAVE-PLAN] --push（保存計画/no-op・token 不使用・GET/PUT なし）。実 PUT は --push --execute');
+  } else {
+    L('[SAVE-EXECUTE] --push --execute（集約後に実 shared PUT を試行）。dispatch なし・save-entries 非呼出');
+  }
   L(`  mode        : ${programMode ? 'program-url' : 'urls'}`);
   if (programMode) L(`  program     : ${programUrl}`);
   L(`  date        : ${date}`);
@@ -366,10 +516,67 @@ async function main() {
     L(`  （warning 先頭8件）`);
     v.warnings.slice(0, 8).forEach((e) => L(`     - [warn]  ${e}`));
   }
-  L('  保存          : しない（PR-F3c で opt-in 実装予定）');
 
   if (outErr) process.exit(1);
-  process.exit(v.ok ? 0 : 1);
+  if (!saveMode) {
+    L('  保存          : しない（既定 dry-run。保存は --push / --push --execute）');
+    process.exit(v.ok ? 0 : 1);
+  }
+
+  // ---- opt-in 保存（二段: --push 計画 / --push --execute 実 PUT・full venue のみ）----
+  L('────────────────────────────────────────');
+  L('  ── 保存ガード（full venue のみ・二段 opt-in）──');
+
+  // --max 取得（partial）は full venue でないので保存不可
+  if (limited) {
+    L(`  → 保存しません（--max=${max} の partial 取得。full venue のみ保存可）`);
+    process.exit(1);
+  }
+
+  const guard = evaluateAggregateSaveGuards(aggregated, v);
+  const sharedPath = (aggregated.date && aggregated.venueCode) ? deriveSharedPath(aggregated.date, aggregated.venueCode) : null;
+  const jsonStr = JSON.stringify(aggregated, null, 2);
+
+  L(`  shared path : ${sharedPath || '(date/venueCode 不足で算出不可)'}`);
+  L(`  full venue  : totalRaces=${aggregated.totalRaces} / races=${aggregated.races.length} / sourceMeta.races=${aggregated.sourceMeta.races.length}（${aggregated.totalRaces > 1 ? 'OK' : 'NG（R01-only/partial は保存不可）'}）`);
+  L(`  bytes       : ${Buffer.byteLength(jsonStr, 'utf-8')}`);
+  L(`  guard       : ${guard.ok ? '✅ PASS' : `❌ ${guard.reasons.length}件`}`);
+  if (!guard.ok) { guard.reasons.forEach((r) => L(`     - ${r}`)); L('  → 保存しません（ガード不適合）'); process.exit(1); }
+  if (!sharedPath) { L('  → 保存しません（path 算出不可）'); process.exit(1); }
+
+  // --push 計画（no-op）: token を読まず GitHub にも触れない。ここで停止。
+  if (!doExecute) {
+    L('  [SAVE-PLAN] --push（保存計画のみ）。token 不使用・GitHub GET/PUT なし。');
+    L('  → 実 PUT は --push --execute。既存確認/置換判定（R01-only なら --force 必須）は --execute 時に実施。');
+    process.exit(0);
+  }
+
+  // --push --execute: token を取得し、既存確認 → create/update。token 値は出さない。
+  L('  [SAVE-EXECUTE] --push --execute（実 shared PUT）/ dispatch なし・save-entries 非呼出');
+  const { token, source: tokenSource } = getToken();
+  L(`  token       : ${token ? `あり(${tokenSource})` : 'なし'}`);
+  if (!token) { L('  → 保存しません（token 未設定/gh 未ログイン）。実 PUT には token が必要。'); process.exit(1); }
+
+  const remote = await checkRemoteExists(sharedPath, token);
+  if (remote.checked && remote.exists === true) {
+    L(`  既存ファイル : あり（sha 取得: ${remote.sha ? 'yes' : 'no'} / 既存 totalRaces: ${remote.remoteTotalRaces ?? '?'} / sourcePageType: ${remote.remoteSourcePageType ?? '?'}）`);
+    if (remote.remoteTotalRaces === 1) {
+      L('  ⚠ 既存は R01-only（totalRaces=1）。full venue JSON で置換するには --force が必須。');
+    }
+    if (!allowForce) { L('  → 保存しません（既存あり・create-only。上書き/置換は --force）'); process.exit(1); }
+    L('  上書き      : --force 指定あり（update 予定）');
+  } else if (remote.checked && remote.exists === false) {
+    L('  既存ファイル : なし（新規 create 予定）');
+  } else {
+    L(`  既存ファイル : 未確認（${remote.reason || '不明'}）。安全側で保存しません。`);
+    process.exit(1);
+  }
+
+  const put = await putToShared(sharedPath, jsonStr, token, allowForce ? remote.sha : null, aggregated.venue, aggregated.totalRaces, aggregated.date);
+  if (!put.ok) { L(`  PUT         : ❌ status ${put.status}${put.reason || ''}`); process.exit(1); }
+  L(`  PUT         : ✅ status ${put.status} / content sha ${put.contentSha || '-'}`);
+  L(`  url         : ${put.htmlUrl || '-'}`);
+  process.exit(0);
 }
 
 // 直接実行時のみ main を起動（import 時は関数だけ使えるようにする）

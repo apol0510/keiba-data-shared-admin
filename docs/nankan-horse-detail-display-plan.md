@@ -887,6 +887,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ### 23.6 フォールバック方針
 - **entries が無い日**: 基本プロフィールのみ表示。通算成績・条件別成績・血統拡張は**表示しない**（「データ不足」または非表示）。
+- **entries はあるが record が無い場合（自動取得由来等）**: profile / recentRaces は表示し、**通算成績・条件別成績は非表示または「データ未取得」**。**「0戦」「成績なし」と表示しない**（record optional 方針・§28.5）。
 - **recentHorseHistories が無い日**: racebook `pastRaces` 3〜4走にフォールバック。
 - **entries も recentHorseHistories も無い日**: **既存の現行表示を維持**。**空枠を出さない・推測値を出さない**。
 
@@ -1252,14 +1253,16 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
   - **PR-F1b**: 出馬表ページ取得 dry-run（案b＝**HTML→parsedResult 直接マッピング**）。`src/lib/nankan/entries-html-to-parsed.mjs`（cheerio・純粋・fetch/fs なし）＋`scripts/nankan/dry-run-fetch-entries-page.mjs`（1URL・Shift_JIS→UTF-8・F2検証・stdout/tmp・sharedガード）。
     - 取得元: `syousai/{raceID}.do` → 302 → `uma_shosai/{raceID}.do`（出馬表・**静的HTML・JS不要・Shift_JIS**）。ID=`YYYYMMDD+jyo2+kai2+nichi2+R2`。**uma_info（馬単体・全履歴）は対象外・拒否**。
     - 取得項目: raceName/距離/馬場/向き/発走/頭数・number/name/性齢/毛色/騎手(所属)/斤量/調教師(所属)/父/母父・**recentRaces 最大5（着順/日付/会場/距離/人気/馬体重/騎手/タイム/上り3F/通過順/着差/勝ち馬）= coverage 100%**。
-    - **未取得: `record`（着別 total/left/right/venue/distance）は uma_shosai に無い**（会場別/条件別の勝率・平均で別形式）。F1b は record を 0 埋め（validator は **error にせず継続**・**record coverage 0% を明示**）。着別 record の正本は番組表/成績ビュー由来＝別ステップ。
+    - **未取得: `record`（着別 total/left/right/venue/distance）は uma_shosai に無い**（会場別/条件別の勝率・平均で別形式）。F1b は record を 0 埋め（validator は **error にせず継続**・**record coverage 0% を明示**）。**補完源 read-only 調査の結論と record optional 方針は §28 を参照**。
 - **PR-F2**: entries schema validator（自動/手作業の出力同一性を検証）。
   - 実装: `src/lib/nankan/entries-schema-validator.mjs`（純粋・`validateNankanEntriesData(data,options)` / `summarizeNankanEntriesData(data)` を export・取得/保存/fs なし）。
   - 検証: top-level 必須キー・`category==='nankan'`・`totalRaces===races.length`・venueCode∈OOI/KAW/FUN/URA・venue名整合・1 JSON=1 venue／race(raceNumber数値・horses非空・headCount整合)／horse(number・name・record・recentRaces≤5)／record(total/left/right/venue/distance × wins/seconds/thirds/unplaced 数値・NaN不可)／recentRaces(order・finish|finishStatus・date等)。**error→保存停止(exit 1)・warning→継続**。
   - 利用: dry-run script（PR-F1a）の簡易 check を本 validator に置換。read-only CLI `scripts/nankan/validate-entries-json.mjs` で既存 JSON を検証可。shared 実例7件は **schema OK**（warning のみ）を確認済み。
-- **PR-F3**: opt-in shared 保存（dry-run → schema PASS 時のみ・opt-in）。
+- **PR-F2a**: **record optional 方針 docs 固定（本 PR・§28）**。record 補完源 read-only 調査の結論＋自動取得 entries の record 扱いを docs に確定（docs-only）。
+- **PR-F2b**: validator を **record optional / 0埋め禁止**へ修正（§28.4・実装は別 PR）。
+- **PR-F3**: opt-in shared 保存（dry-run → schema PASS 時のみ・opt-in・**record 有無のメタ情報を保存・§28.4**）。
 - **PR-F4**: AK/KI import（KI は included_files に `src/data/entries/**` 追加）。
-- **PR-F5**: 条件付き表示（取得方法非依存・§23.4 禁止表現を守る）。
+- **PR-F5**: 条件付き表示（取得方法非依存・**record がある場合のみ通算/条件別を表示・§28.5**・§23.4 禁止表現を守る）。
 
 ### 27.7 維持する禁止事項（本 PR-F0）
 - 今回は **実装しない / 実取得しない / 保存しない**。
@@ -1269,6 +1272,58 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 - **`featureScores` / AI指数 / 印 / 買い目 / 穴馬 / `dark-horse.mjs` に触らない**。
 - **keiba.go.jp DataRoom を取得しない** / **`uma_info` の全履歴取得には進まない**。
 - **git 履歴を書き換えない**。
+
+---
+
+## 28. record optional 方針（PR-F2a・docs-only）(2026-06-11)
+
+自動取得 entries（出馬表ページ由来）の `record`（着別 5分割）について、**案(2)＝record を optional 扱い**にする方針を docs に固定する。本節は方針の docs 固定のみで、**実装なし・実取得なし・保存なし・shared/AK/KI/workflow/scripts 変更なし**。
+
+### 28.1 record 補完源 read-only 調査の結論
+同一レースID（`2026061020040301` / programID `20260610200403`）を基準に、各候補ページを最小・低負荷で read-only 確認した結論:
+
+- **`uma_shosai/{raceID}.do`（出馬表）**: profile + recentRaces（最大5）は**あり**。**record 着別 5分割（total/left/right/venue/distance × wins/seconds/thirds/unplaced）は無い**。当ページの成績欄（`cs-ord1`着順(距離別)/`cs-ord2`着順(場別)/`cs-recCond`馬場状態別/`cs-recJky1`騎手別 等）は **平均着順・勝率（％）で別形式**、`1着/2着/3着` 表記は賞金・番組ポイント・予想印チェックボックスのUI。
+- **`program/{14桁}.do`（番組）**: 馬番/馬名/騎手中心の軽量版。record・recentRaces とも**無し**。
+- **`result/{16桁}.do`（成績・払戻金）**: レース結果中心。検出した `N-N-N-N` は**通過順**で着別ではない。着別 record **無し**。
+- **`repay`系**: result（成績・払戻金）に内包＝別取得不要。着別 record **無し**。
+- **`uma_info/{horseID}.do`（馬単体）**: 着別/条件別の候補だが**今回スコープ外**（馬単体・全履歴方向）。**取得しない**。
+- **keiba.go.jp DataRoom**: **対象外**。取得しない。
+
+→ **着別 record の補完源は出馬表系（uma_shosai/program/result/repay）に存在しない**。公開ページで残る候補は uma_info（対象外）のみ。
+
+### 28.2 採用方針（案2＝record optional）
+- 自動取得 entries は **profile + recentRaces を中心**とする。
+- **record は optional**。取れない場合がある前提で設計する。
+- **record 0埋め保存は禁止**（0-0-0-0 を「実績」として保存しない）。
+- record が無い場合は **「未取得」を明示**する（後述 §28.4 のメタ情報）。
+- **record が無い entries を「0戦」と解釈しない**。
+- **record 欠落でも parsedResult schema としては受け入れる**設計に変更する（§28.4 の validator 改訂で対応）。
+- record が **ある**場合（手作業由来等）は従来どおり使う。
+
+### 28.3 手作業 fallback との関係
+- 手作業 `entries-manager` 由来は **record を持つ場合がある**（貼り付け元テキストに 全/左/右/場/距 着別がある）。
+- record ありデータは **record 表示（通算/条件別）に使える**。
+- **自動取得版と手作業版で record coverage が異なることを許容**する。
+- ただし **取得方法に関わらず JSON の基本構造（parsedResult schema）は維持**する。
+- **`sourceMeta` または coverage 情報で record 有無を判定できる**ようにする（取得方法・recordCoverage・missingRecordReason 等）。
+
+### 28.4 validator / F3 方針
+- **F2 validator は今後、record 欠落を error ではなく warning/optional とする方向**（PR-F2b で実装）。
+  - 具体: record キー欠落／record が `null`／`recordSourced:false` 等を **error にしない**。
+  - ただし **record が存在して 0埋め（全フィールド 0）だけが入っている状態は、error または禁止扱い**にする（虚偽の「0戦」を防ぐ）。「未取得」は null/省略で表し、0埋めしない。
+- **record が無い場合でも保存候補にはできる**（F3 opt-in 保存の対象になりうる）。
+- **F3 opt-in 保存**では、`recordCoverage` / `sourceType`（auto/manual）/ `missingRecordReason`（例: `uma_shosai_no_record`）等の**メタ情報を残す設計**にする。0埋め record では保存しない。
+
+### 28.5 AK/KI 表示方針
+- **profile / recentRaces** は自動取得 entries から**表示可**。
+- **record がある場合のみ**、通算成績・条件別成績を表示する。
+- **record が無い場合**、通算成績・条件別成績は **非表示** または **「データ未取得」** とする。
+- **「0戦」「成績なし」と表示しない**。
+- **「全履歴」「JRA同等」「条件別成績が常時出る」と表記しない**（§23.4 と整合）。
+
+### 28.6 本 PR（PR-F2a）でやらないこと
+- validator の実装変更（PR-F2b）／shared 保存（PR-F3）／AK・KI 実装（PR-F4/F5）には進まない。
+- 実取得・保存・scripts/validator/entries-manager.astro/save-entries.mjs の変更なし。
 
 ---
 
@@ -1302,6 +1357,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ## 14. 更新履歴
 
+- 2026-06-11: **PR-F2a：record optional 方針を docs 固定（§28 新設・§27.6・§23.6 更新）**。record 補完源 read-only 調査の結論＝**着別 5分割 record（total/left/right/venue/distance × wins/seconds/thirds/unplaced）は出馬表系（uma_shosai/program/result/repay）に無い**（uma_shosai は profile+recentRaces のみ・成績欄は平均着順/勝率で別形式／program は軽量版／result は通過順で着別でない／uma_info はスコープ外／keiba.go.jp DataRoom 対象外）。採用＝**案(2) record optional**: 自動取得 entries は profile+recentRaces 中心・record は optional・**0埋め保存禁止**・record 無しは「未取得」明示（null/省略・0戦と解釈しない）・record 欠落でも parsedResult schema は受容。手作業 entries-manager 由来は record を持つ場合があり従来どおり使用、自動/手作業で record coverage 差を許容、`sourceMeta`/coverage で record 有無を判定。validator は今後 record 欠落を error でなく warning/optional へ（**0埋めだけは error/禁止**・PR-F2b）。F3 opt-in 保存は recordCoverage/sourceType/missingRecordReason 等メタを保存。AK/KI は **record がある場合のみ通算/条件別を表示**・無い場合は非表示or「データ未取得」・「0戦」「成績なし」「全履歴」「JRA同等」と表記しない。PR分割更新（F2a docs→F2b validator→F3保存→F4 import→F5 表示）。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/scripts/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。
 - 2026-06-11: **PR-F0a：「1日1会場」前提の誤記を「複数会場対応／初回dry-runは1会場単位」へ補正（§27.3・§27.3.1新設・§27.6・§26.5）**。南関は **1日1〜複数場開催がある**（例 6/29 大井・船橋の2場）ため、「1日1会場のみ」「複数指定はエラー」は設計前提として誤り。修正＝初回 dry-run は1会場単位でよいが**設計は1日複数会場（OOI/KAW/FUN/URA）対応**／1会場概ね12レース・複数会場時は会場数に比例／**1実行=1venue を基本単位**にしつつ同一 date 複数 venue を順次処理できる構造／会場ごとに独立して fetch/parse/schema検証/output・1会場失敗時も他会場可否を summary 出力／CLI `--venue=OOI` 単一基本＋将来 `--venues=OOI,FUN` 複数指定を塞がない・`--url` 可／**venue ごとに parsedResult を作り 1日複数 venue を1JSONに混ぜない**（§27.3.1 に venue 別保存パス `YYYY-MM-DD-{OOI|FUN|KAW|URA}.json` を明記）。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/scripts/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。
 - 2026-06-11: **entries 供給方針を「自動取得 first / 手作業 fallback」へ変更（§27 新設・§23/§26 更新・PR-F0）**。entries を最新日に継続供給するため、**第一候補＝自動取得・fallback＝entries-manager 手作業コピペ**の両対応とする。出力 JSON schema は自動/手作業で同一・保存先は既存 `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json`・AK/KI は取得方法を意識しない。**自動取得の対象は出馬表ページ系に限定**（uma_info 全履歴取得には進まない／keiba.go.jp DataRoom 取得しない）。安全設計＝保存なし dry-run first・初回1会場単位／設計は1日複数会場対応・対象URL/件数ログ・token非露出・アクセス間隔・retry過剰にしない・失敗時途中停止・schema不一致なら保存しない・featureScores/AI/印/買い目/穴馬に非接続。手作業 fallback は同じ save-entries.mjs・同じ shared path・出力JSON同一・差分は source/meta に記録可だが UI 非使用。停止寄り表現（要許諾/規約違反リスク/不可寄り/許諾確認まで保留/手作業運用が前提/規約リスク/自動取得しない）を中立・実務寄りへ置換。PR分割 PR-F0(docs・今回)→F1(dry-run parser)→F2(schema validator)→F3(opt-in保存)→F4(AK/KI import)→F5(条件付き表示)。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。本変更は未merge PR #94（断定緩和）を統合し #94 は close。
 - 2026-06-05: 初版作成。Phase A〜D 整理、read-only 監査結果（recentHorseHistories vs JRA horseHistories、AK/KI 表示箇所、feature 非接続）を反映。

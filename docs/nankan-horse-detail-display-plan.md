@@ -1261,7 +1261,10 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 - **PR-F2a**: **record optional 方針 docs 固定（本 PR・§28）**。record 補完源 read-only 調査の結論＋自動取得 entries の record 扱いを docs に確定（docs-only）。
 - **PR-F2b**: validator を **record optional / 0埋め禁止**へ修正（§28.4・**実装済**）。`entries-schema-validator.mjs`＝record 欠落/null は **warning（error にしない）**・record 構造は従来チェック（NaN/部分欠損は error）・**0埋め＋未取得コンテキスト（`sourceMeta.recordSourced===false` or `missingRecordReason`）は error**・0埋め＋sourceMeta無しは warning（0戦の新馬等）。`sourceMeta`（optional）は `sourceType`/`sourcePageType`/`recordSourced`/`recordCoverage`/`missingRecordReason` を summary に反映。`entries-html-to-parsed.mjs`＝record を **0埋めせず null** にし `sourceMeta`（auto/uma_shosai/recordSourced:false/missingRecordReason:`uma_shosai_no_record`）を付与。shared 実例7件は引き続き **schema OK**。
 - **PR-F3**: opt-in shared 保存（dry-run → schema PASS 時のみ・opt-in・**record 有無のメタ情報を保存・§28.4**・**実装済**）。`dry-run-fetch-entries-page.mjs` を拡張。**既定は保存なし dry-run**／`--push`＝保存計画（no-op・実 PUT しない）／**`--push --execute`＝実 shared PUT（二段 opt-in）**。保存先 `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json`（**1 venue=1 JSON**・GitHub Contents API・save-entries.mjs と同一規約・token=`GITHUB_TOKEN_KEIBA_DATA_SHARED`＋gh auth fallback・**token 値は出さない**）。**保存ガード**＝validator schema PASS（error 0）／`sourceMeta`(auto/uma_shosai/recordSourced:false/missingRecordReason/recordCoverage:0%)一致／date・venue・venueCode・totalRaces===races.length・horses 非空／**record 0埋め含むなら拒否**。**既存ファイルは create-only**（上書きは `--force`・既存 SHA 確認）。**`repository_dispatch` しない**（AK/KI import は F4）。`sourceMeta`/coverage を保存 JSON に残す。
-- **PR-F4**: AK/KI import（KI は included_files に `src/data/entries/**` 追加）。
+- **PR-F3a**: **1会場=全レース集約契約 docs 固定（本 PR・§29）**。F3 単発保存は 1 URL=1 race（R01のみ）。実運用は **1 venue=全レース入り JSON** にするための集約契約・CLI 方針・結合/検証・失敗時方針・R01-only の扱いを docs 固定（docs-only）。
+- **PR-F3b**: aggregator dry-run 実装（`--program-url`／`--urls`・全 race fetch・parsedResult 結合・validator・**既定保存なし**・§29）。
+- **PR-F3c**: aggregator opt-in 保存（既存 F3 保存ガード流用・**full venue JSON のみ保存**・R01-only 置換は `--force`・§29）。
+- **PR-F4**: AK/KI import（KI は included_files に `src/data/entries/**` 追加・**auto/uma_shosai かつ totalRaces=1 は import スキップ候補**・§29.7）。
 - **PR-F5**: 条件付き表示（取得方法非依存・**record がある場合のみ通算/条件別を表示・§28.5**・§23.4 禁止表現を守る）。
 
 ### 27.7 維持する禁止事項（本 PR-F0）
@@ -1327,6 +1330,69 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ---
 
+## 29. 1会場=全レース集約契約（PR-F3a・docs-only）(2026-06-11)
+
+F3 単発保存は **1 URL = 1 race（R01のみ）**の保存確認まで完了（`nankan/entries/2026/06/2026-06-10-OOI.json`＝totalRaces=1）。実運用では **1 venue = 全レース入り JSON** にするため、集約の契約・CLI 方針・結合/検証・失敗時方針・R01-only ファイルの扱いを docs に固定する。本節は方針固定のみ＝**実装なし・実取得なし・保存なし・shared/AK/KI/workflow 変更なし**。
+
+### 29.1 1会場=全レースの基本契約
+- `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json` は原則 **1 venue = 全レース入り JSON**。
+- **1 race だけの JSON は実運用 import 対象外**（R01-only は §29.7）。
+- **`totalRaces = races.length`**。
+- **`races` は raceNumber 昇順**。
+- **1日複数 venue は venue ごとに別 JSON**。**1日複数 venue を1JSONに混ぜない**（§27.3.1）。
+
+### 29.2 全レースURL取得方針
+- **`program/{14桁}.do`** に当該会場の `syousai`/`uma_shosai` の R01〜R12（前後）リンクが揃う（read-only 調査で R01〜R12 の12件確認）。
+- 初回 aggregator 実装は **`--program-url` を推奨**。
+- **`--urls=tmp/urls.txt`**（明示 URL リスト）は **fallback として許容**。
+- **`--date --venue` 単独自動解決は初期実装に入れない**。
+  - 理由: raceID = `YYYYMMDD + jyo2 + kai2 + nichi2 + R2` で、**kai2/nichi2 は date+venue だけでは確定できない**（開催スケジュール依存）。jyo2 は venue から導出可。
+- **`--program-id=<14桁>` は将来候補**。program URL / programID は **kai2/nichi2 を含むため安定**。
+
+### 29.3 取得単位
+- `--program-url` を **1回取得**して race URL を**列挙**する。
+- 各 race URL を**順次取得**（**低負荷・アクセス間隔・停止可能**）。
+- **クロールではなく program 内リンクの列挙**（自動巡回しない）。
+- **`uma_info` は取得しない**／**keiba.go.jp DataRoom は取得しない**。
+
+### 29.4 parsedResult 結合契約
+- 各 race HTML → 既存 mapper（`entries-html-to-parsed.mjs`）→ parsedResult（`totalRaces=1, races[0]`）。
+- venue 集約時:
+  - **`date` / `venue` / `venueCode` / `category` の一致を必須**（不一致は **error**）。
+  - `races[0]` を **raceNumber 昇順に結合**。
+  - **raceNumber 重複は error**。
+  - **horses 空の race は error**。
+  - **`totalRaces = races.length`**。
+  - **program 内の race URL 数と取得成功 race 数が一致しないと error**（取りこぼし検出）。
+- `createdAt` / `lastUpdated` は **venue 単位で再設定**。
+
+### 29.5 sourceMeta 設計
+- **top-level `sourceMeta` を venue 単位**で持つ:
+  - `sourceType = "auto"` / `sourcePageType = "uma_shosai"` / `recordSourced = false` / `recordCoverage = "0%"` / `missingRecordReason = "uma_shosai_no_record"`
+- **`sourceMeta.races[]` に race 単位の来歴**を持たせる（採用候補）:
+  - `raceNumber` / `sourceUrl` / `finalUrl` / `status` / `bytes` / `warningsCount` / `recentRacesCoverage`
+- **`races[]` 本体に余分な取得メタを混ぜない**。**AK/KI 互換のため、来歴は `sourceMeta` 側に寄せる**。
+
+### 29.6 失敗時方針
+- **1 race でも fetch / parse / validator 失敗なら venue 全体を保存しない**（**部分保存しない**）。
+- **`--allow-partial` は初期実装に入れない**。
+- summary に **失敗 race（raceNumber・理由）** を出す。
+- **validator error が1件でもあれば保存しない**。
+
+### 29.7 R01-only 保存済みファイルの扱い
+- `nankan/entries/2026/06/2026-06-10-OOI.json` は **F3 単発確認用の R01-only ファイル**。
+- **F4 import 対象外**。**F4 前に full venue JSON で置換が必要**（置換は **`--force`**）。
+- **R01-only 判定**:
+  - `sourceMeta.sourcePageType === "uma_shosai"` かつ `totalRaces === 1` かつ `races.length === 1`
+- **AK/KI import 側でも、auto/uma_shosai かつ `totalRaces === 1` の entries は import スキップ候補**として扱う方針を記録（F4 スコープ）。
+- 本 PR（F3a）では **R01-only ファイルを上書き・置換しない**（docs 固定のみ）。
+
+### 29.8 本 PR（PR-F3a）でやらないこと
+- aggregator 実装（PR-F3b）／集約 opt-in 保存（PR-F3c）／AK・KI 実装（F4/F5）には進まない。
+- 実取得・shared 保存・`--push --execute`・R01-only 上書き・dispatch・scripts/save-entries.mjs/entries-manager.astro 変更なし。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1357,6 +1423,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 
 ## 14. 更新履歴
 
+- 2026-06-11: **PR-F3a：1会場=全レース集約契約を docs 固定（§29 新設・§27.6 更新）**。F3 単発保存は 1 URL=1 race（R01のみ・`2026-06-10-OOI.json` totalRaces=1）。実運用は **1 venue=全レース入り JSON**（totalRaces=races.length・raceNumber昇順・1日複数venueは別JSON）。全レースURLは **`program/{14桁}.do`** から取得可（R01〜R12 リンク確認）。CLI＝**`--program-url` 推奨／`--urls` fallback／`--date --venue` 単独自動解決は入れない**（raceID の kai2/nichi2 が date+venue だけでは確定不可・jyo2 は venue 由来）。結合契約＝date/venue/venueCode/category 一致必須・races[0] を raceNumber 昇順結合・重複/horses空/取りこぼし(program URL数≠成功数)は error。sourceMeta は venue 単位（auto/uma_shosai/recordSourced:false/recordCoverage:0%/missingRecordReason）＋ **`sourceMeta.races[]`** に race 来歴（raceNumber/sourceUrl/finalUrl/status/bytes/warningsCount/recentRacesCoverage）・races[] 本体に取得メタを混ぜない。失敗時＝1 race でも失敗なら **venue 全体保存しない**（部分保存・`--allow-partial` 入れない）。**R01-only（uma_shosai かつ totalRaces=1）は F4 import 対象外**・full venue で `--force` 置換が必要・AK/KI import 側も totalRaces=1 auto/uma_shosai は import スキップ候補。PR分割 F3a(docs)→F3b(aggregator dry-run)→F3c(集約 opt-in保存)→F4(import)→F5(表示)。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/scripts/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし。R01-only ファイル上書きなし**。
 - 2026-06-11: **PR-F2a：record optional 方針を docs 固定（§28 新設・§27.6・§23.6 更新）**。record 補完源 read-only 調査の結論＝**着別 5分割 record（total/left/right/venue/distance × wins/seconds/thirds/unplaced）は出馬表系（uma_shosai/program/result/repay）に無い**（uma_shosai は profile+recentRaces のみ・成績欄は平均着順/勝率で別形式／program は軽量版／result は通過順で着別でない／uma_info はスコープ外／keiba.go.jp DataRoom 対象外）。採用＝**案(2) record optional**: 自動取得 entries は profile+recentRaces 中心・record は optional・**0埋め保存禁止**・record 無しは「未取得」明示（null/省略・0戦と解釈しない）・record 欠落でも parsedResult schema は受容。手作業 entries-manager 由来は record を持つ場合があり従来どおり使用、自動/手作業で record coverage 差を許容、`sourceMeta`/coverage で record 有無を判定。validator は今後 record 欠落を error でなく warning/optional へ（**0埋めだけは error/禁止**・PR-F2b）。F3 opt-in 保存は recordCoverage/sourceType/missingRecordReason 等メタを保存。AK/KI は **record がある場合のみ通算/条件別を表示**・無い場合は非表示or「データ未取得」・「0戦」「成績なし」「全履歴」「JRA同等」と表記しない。PR分割更新（F2a docs→F2b validator→F3保存→F4 import→F5 表示）。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/scripts/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。
 - 2026-06-11: **PR-F0a：「1日1会場」前提の誤記を「複数会場対応／初回dry-runは1会場単位」へ補正（§27.3・§27.3.1新設・§27.6・§26.5）**。南関は **1日1〜複数場開催がある**（例 6/29 大井・船橋の2場）ため、「1日1会場のみ」「複数指定はエラー」は設計前提として誤り。修正＝初回 dry-run は1会場単位でよいが**設計は1日複数会場（OOI/KAW/FUN/URA）対応**／1会場概ね12レース・複数会場時は会場数に比例／**1実行=1venue を基本単位**にしつつ同一 date 複数 venue を順次処理できる構造／会場ごとに独立して fetch/parse/schema検証/output・1会場失敗時も他会場可否を summary 出力／CLI `--venue=OOI` 単一基本＋将来 `--venues=OOI,FUN` 複数指定を塞がない・`--url` 可／**venue ごとに parsedResult を作り 1日複数 venue を1JSONに混ぜない**（§27.3.1 に venue 別保存パス `YYYY-MM-DD-{OOI|FUN|KAW|URA}.json` を明記）。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/scripts/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。
 - 2026-06-11: **entries 供給方針を「自動取得 first / 手作業 fallback」へ変更（§27 新設・§23/§26 更新・PR-F0）**。entries を最新日に継続供給するため、**第一候補＝自動取得・fallback＝entries-manager 手作業コピペ**の両対応とする。出力 JSON schema は自動/手作業で同一・保存先は既存 `nankan/entries/YYYY/MM/YYYY-MM-DD-{VENUE}.json`・AK/KI は取得方法を意識しない。**自動取得の対象は出馬表ページ系に限定**（uma_info 全履歴取得には進まない／keiba.go.jp DataRoom 取得しない）。安全設計＝保存なし dry-run first・初回1会場単位／設計は1日複数会場対応・対象URL/件数ログ・token非露出・アクセス間隔・retry過剰にしない・失敗時途中停止・schema不一致なら保存しない・featureScores/AI/印/買い目/穴馬に非接続。手作業 fallback は同じ save-entries.mjs・同じ shared path・出力JSON同一・差分は source/meta に記録可だが UI 非使用。停止寄り表現（要許諾/規約違反リスク/不可寄り/許諾確認まで保留/手作業運用が前提/規約リスク/自動取得しない）を中立・実務寄りへ置換。PR分割 PR-F0(docs・今回)→F1(dry-run parser)→F2(schema validator)→F3(opt-in保存)→F4(AK/KI import)→F5(条件付き表示)。**docs-only・実装/実取得/保存なし。shared/AK/KI/workflow/entries-manager.astro/save-entries.mjs/JRA horseHistories/recentHorseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。本変更は未merge PR #94（断定緩和）を統合し #94 は close。

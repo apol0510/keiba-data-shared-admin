@@ -1489,6 +1489,84 @@ validator error 0）** へ置換済み（shared commit `ef584e7`・**repository_
 
 ---
 
+## 31. AK/KI 自動 import 接続方針（dispatch / workflow / included_files）（PR-F4d-1・docs-only）(2026-06-11)
+
+F4b（AK）・F4c（KI）で import script + 実 import（`2026-06-10-OOI`）が両 repo に入った。
+F4d は **shared full venue entries 保存 → AK/KI へ自動 import** を接続する系列。
+本節（F4d-1）は **docs-only**（event_type / payload / workflow / included_files / PR分割 を固定。実装・workflow 追加・dispatch 送信を含まない）。
+
+前提（実績）: AK main `b2be7ca` / KI main `c340516` に
+`astro-site/src/data/entries/nankan/2026/06/2026-06-10-OOI.json`（totalRaces=12・horses=156・record 全 null・validator error 0）取込済。**repository_dispatch 未実施・workflow 未追加・KI included_files 未変更**。
+
+### 31.1 dispatch event_type
+- **event_type = `entries-nankan-updated`** に固定。
+- 理由: 既存 `recent-horse-histories-nankan-updated` の命名規則（`<kind>-nankan-updated`）に合わせる。
+- **`nankan-entries-updated` は命名規則外のため非推奨**（採用しない）。
+- JRA 系 event（`horse-histories-updated` 等）は **絶対に流用しない**（南関 entries 専用で固定）。
+
+### 31.2 dispatch payload 方針
+既存 recentHorseHistories nankan と同じく **単一 date / venues を基本**。
+```json
+{ "date": "2026-06-10", "venues": ["OOI"], "category": "nankan", "kind": "entries", "source": "nankan-entries" }
+```
+- `date` 必須 / `venues` 必須（単一日・単一または複数 venue）。
+- `updates` 配列は初期実装で **使わない**。複数日一括も初期実装で **使わない**。
+- `sourcePath` は初期実装で **不要**（path は受信側で date/venue から導出）。
+- `category` / `kind` は取り違え防止のため付与可。
+
+### 31.3 AK/KI 受信 workflow 方針
+- AK/KI とも新規 `.github/workflows/import-entries-nankan-on-dispatch.yml`。
+- 既存 `import-recent-horse-histories-nankan-on-dispatch.yml`（AK/KI byte 一致）を **テンプレート**にする。
+- トリガ: `repository_dispatch: types: [entries-nankan-updated]` ＋ `workflow_dispatch`（date/venues inputs）。
+- 実行: `npm run import:entries:nankan -- --date X --venues Y`（F4b/F4c で追加済）。
+- **`git add` 対象は entries のみに限定**（workflow の cwd=astro-site なら `src/data/entries/nankan/**`）。
+  recentHorseHistories / featureScores / horseHistories / predictions には触らない。
+- **専用 concurrency group**（例 `archive-entries-nankan-update`）で既存 workflow と混線させない。
+- AK/KI workflow は **byte 一致を維持**（recentHorseHistories と同じ運用）。
+
+### 31.4 admin dispatch script 方針
+- 新規 `scripts/dispatch-entries-nankan.mjs`。
+- 既存 `scripts/dispatch-recent-horse-histories-nankan.mjs` を **テンプレート**にする。
+- **既定 dry-run**。実送信は **二段 opt-in**: `--dispatch` ＋ `--confirm-dispatch=entries-nankan-updated`（完全一致）。
+- 送信先は AK/KI の 2 repo（`netlify/lib/dispatch.mjs` 思想）。**token 値は表示しない**。
+- **実送信はユーザー明示許可時のみ**（dispatch 専用 token はマコさん端末前提 → 実送信はマコさん手動）。
+- **F4d-1 では script を実装しない**（方針固定のみ）。F3c aggregator（`dry-run-aggregate-entries.mjs`）には dispatch を入れない（保存と送信は分離）。
+
+### 31.5 KI included_files 方針
+- 現状 KI `astro-site/netlify.toml` の included_files:
+  `["src/data/horseHistories/**", "src/data/featureScores/**", "src/data/recentHorseHistories/**"]`。
+- **`src/data/entries/**` は未登録**。
+- **import だけなら included_files は不要**（data は repo に入る）。
+  **KI SSR が entries を表示で読むときに初めて必要**。
+- **推奨: F4d では included_files を変更しない。F5（表示接続）PR で `src/data/entries/**` を追加する**。
+- **本節（F4d docs）に「F5 で `src/data/entries/**` 追加が必須」と明記**し、F5 での入れ忘れ事故を防ぐ。
+- AK は `netlify.toml` に included_files を持たない（Function bundle 同梱方式でない）＝ **AK 側に included_files 変更は不要**。
+
+### 31.6 F4d PR 分割
+- **F4d-1**（本 PR・docs-only）: event_type / payload / workflow / included_files / PR分割 の方針固定。
+- **F4d-2**: AK に entries import workflow を追加（workflow_dispatch 先行可・dispatch 送信はしない）。
+- **F4d-3**: KI に entries import workflow を追加（included_files はまだ変更しない）。
+- **F4d-4**: admin に entries dispatch script を追加（既定 dry-run・二段 opt-in・実送信しない）。
+- **F4d-5**: 明示許可後に `entries-nankan-updated` を **1回だけ**送信し AK/KI import を確認。
+- **F5**: 表示分岐。KI included_files に `src/data/entries/**` を追加するのはここで実施。
+
+### 31.7 F4d の安全ガード
+- workflow_dispatch inputs は **date / venues 必須**（無ければ失敗）。
+- full venue 判定（`totalRaces>1` / `totalRaces===races.length` / R01-only skip）は
+  **`importEntriesNankan.js` の guard に委譲**（workflow で重複実装しない）。
+- workflow の **`git add` 対象を entries/nankan のみに限定**。
+- dispatch payload は **単一 date / venues を基本**（updates 配列・複数日一括なし）。
+- repository_dispatch は **workflow 準備後**に、別 script から **opt-in（二段確認）で送信**。
+
+### 31.8 本 PR（PR-F4d-1）でやらないこと（触らない領域）
+- workflow 追加 / dispatch 送信 / dispatch script 実装 / included_files 変更 / 表示分岐（F5）。
+- UI/CSS・featureScores・AI指数・印・買い目・穴馬・dark-horse.mjs・predictions。
+- 既存 import script（horseHistories / recentHorseHistories）・既存 workflow。
+- save-entries.mjs・entries-manager.astro・scripts/nankan/dry-run-aggregate-entries.mjs。
+- AK・KI・shared repo 変更なし。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1519,6 +1597,7 @@ validator error 0）** へ置換済み（shared commit `ef584e7`・**repository_
 
 ## 14. 更新履歴
 
+- 2026-06-11: **PR-F4d-1：南関 entries 自動 import 接続方針を docs 固定（§31 新設）**。F4b(AK)/F4c(KI) で import script + 実 import（`2026-06-10-OOI`・AK `b2be7ca`/KI `c340516`）まで完了したのを受け、shared→AK/KI 自動 import の接続方針を固定。**dispatch event_type = `entries-nankan-updated`**（既存 `recent-horse-histories-nankan-updated` の命名規則準拠・`nankan-entries-updated` は非推奨・JRA event 流用禁止）。payload＝単一 date/venues 基本（`{date, venues, category, kind, source}`・updates 配列/複数日一括/sourcePath なし）。AK/KI 受信 workflow＝新規 `import-entries-nankan-on-dispatch.yml`（既存 recentHorseHistories workflow をテンプレ・`types:[entries-nankan-updated]`+workflow_dispatch・`npm run import:entries:nankan`・**git add は entries/nankan のみ**・専用 concurrency group・AK/KI byte 一致維持）。admin dispatch script＝新規 `scripts/dispatch-entries-nankan.mjs`（既存 dispatch-recent-horse-histories-nankan を テンプレ・**既定 dry-run**・`--dispatch`+`--confirm-dispatch=entries-nankan-updated` 二段 opt-in・AK/KI 2 repo・token 非表示・**実送信はマコさん手動**・F4d-1 では未実装）。**KI included_files＝現状 entries 未登録・import だけなら不要・KI SSR 表示で読む時に `src/data/entries/**` 追加が必要→F5 で実施（F4d では変更しない・F5 忘れ事故防止のため docs 明記）**。AK は included_files 不使用で変更不要。PR分割 F4d-1(docs)→F4d-2(AK workflow)→F4d-3(KI workflow)→F4d-4(admin dispatch script)→F4d-5(明示許可後 1回だけ送信)→F5(表示・KI included_files)。安全ガード＝workflow_dispatch inputs date/venues 必須・full venue 判定/R01-only skip は importEntriesNankan.js guard に委譲・git add entries/nankan 限定・dispatch payload 単一 date/venues・dispatch は workflow 準備後 opt-in。**docs-only・実装/workflow 追加/dispatch 送信/included_files 変更なし。shared/AK/KI/workflow/save-entries.mjs/entries-manager.astro/dry-run-aggregate-entries.mjs/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/predictions/既存 import script・workflow 変更なし**。
 - 2026-06-11: **PR-F4a：AK/KI import 契約を docs 固定（§30 新設・§27.6 更新）**。F3 系列で生成・保存できる **南関 full venue entries JSON** の取り込み契約。前提実績＝`2026-06-10-OOI.json` は R01-only→**full venue(totalRaces=12・156頭・record 全 null・validator error 0)** へ置換済（shared `ef584e7`・**dispatch 未実施**）。import 対象条件＝`category=nankan`／sourceType=auto または手作業でも schema OK／`totalRaces===races.length`／`totalRaces>1`／`races.length>1`／raceNumber 昇順／horses 空 race なし／validator error 0。スキップ条件＝`totalRaces===1`／`races.length===1`／`sourcePageType=uma_shosai` かつ `totalRaces===1`／`sourceMeta.races.length!==races.length`／validator error／record 0埋め／partial・`--max` 由来／date・venue・venueCode 不一致。**R01-only は今後も import 対象外・import 側にも防御的 skip**（前日 R01 を当日取込する事故の二重防御）。AK/KI 責務＝shared から取得・各 repo 配置ルールで保存・**horseHistories/recentHorseHistories/predictions/featureScores と混同しない**・entries は出馬表由来・**AI指数/印/買い目/穴馬 非接続**。record null＝auto/uma_shosai は `recordSourced=false`・**record は null が正・0戦扱いしない**・通算/条件別は record がある場合のみ表示・null は非表示or「データ未取得」・**「0戦」「成績なし」「全履歴取得済み」「JRA同等」と表示しない**。**F4 は import まで・表示分岐は F5・F4 で UI/CSS/買い目に触らない**。dispatch＝本 PR では送らない・接続方法は別PR（最初は手動/単発 dispatch→自動化は後段）。PR分割 F4a(docs)→F4b(AK import)→F4c(KI import)→F4d(dispatch/import 接続)→F5(表示)。**docs-only・実装/shared 保存/dispatch/AK・KI 変更/workflow 変更なし。scripts/nankan/dry-run-aggregate-entries.mjs・save-entries.mjs・entries-manager.astro・JRA horseHistories・recentHorseHistories・featureScores・AI・印・買い目・穴馬・dark-horse.mjs 変更なし**。
 - 2026-06-11: **PR-F3c：南関 entries 全レース集約の opt-in 保存を実装（§29.10 追記）**。`scripts/nankan/dry-run-aggregate-entries.mjs` に **二段 opt-in 保存**（`--push`＝計画/token 不使用・GET/PUT なし、`--push --execute`＝実 PUT）を追加。保存対象は **full venue JSON のみ**（`totalRaces>1` / `races.length>1` / `sourceMeta.races.length===races.length`・raceNumber 昇順一意・horses 空なし・record 0埋めなし・schema PASS）。**R01-only / partial / `--max` は保存不可**。既存ファイルは create-only・`--force` 時のみ update（R01-only→full venue 置換は `--force` 必須・既存 totalRaces を明示）。保存 helper は **既存 single race `dry-run-fetch-entries-page.mjs` を変更せず self-contained に複製**（契約値 F3 同一）。**token 値非表示・repository_dispatch なし**。確認: full dry-run（大井12レース・schema OK・exit0）/ `--push` 計画（guard PASS・token 不使用）/ negative（totalRaces=1・partial・shared `--out`・dup・0埋め・sourceMeta不一致＝全 NG/exit1）。**`--push --execute` は本 PR で未実行**。**shared 保存なし／実 PUT なし／dispatch なし／AK・KI・workflow・save-entries.mjs・entries-manager.astro・JRA horseHistories・featureScores・AI・印・買い目・穴馬・dark-horse.mjs 変更なし／R01-only 上書きなし**。
 - 2026-06-11: **PR-F3b：南関 entries 全レース集約 dry-run を実装（§29.9 追記）**。新規 `scripts/nankan/dry-run-aggregate-entries.mjs`。`--program-url`（program/{14桁}.do から R01〜R12 列挙）／`--urls` fallback／全 race を低負荷で順次取得 → 既存 mapper で parsedResult(totalRaces=1) → **venue 単位 parsedResult に集約**（date/jyo2 混在・raceNumber 重複・program URL数≠成功数・1 race 失敗は error／`--allow-partial` なし）→ 既存 validator 検証。`races[]` 本体に取得メタを混ぜず **`sourceMeta.races[]`** に race 来歴を集約。**既定保存なし／token 不読み込み／shared PUT なし／repository_dispatch なし**（save 経路を持たない・新規スクリプトで F3 単発保存経路と分離）。opt-in 保存は PR-F3c。実 dry-run＝大井 `20260610200403` で **totalRaces=12・156頭・record 全 null・recent 100%・schema OK（error0/warn173）・exit0**。**shared/AK/KI/workflow/save-entries.mjs/entries-manager.astro/JRA horseHistories/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし。R01-only ファイル上書きなし・`--push --execute` なし**。

@@ -1248,6 +1248,11 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
 ### 27.6 今後の PR 分割（F系）
 - **PR-F0**: docs 方針変更（**本 PR**）。
 - **PR-F1**: 保存なし dry-run parser（出馬表ページ系・**初回1会場単位／複数会場対応設計**・venue ごとに1JSON・ログのみ）。
+  - **PR-F1a**: テキスト→parsedResult（`src/lib/nankan/entries-parser.mjs`＋`scripts/nankan/dry-run-parse-entries.mjs`）。
+  - **PR-F1b**: 出馬表ページ取得 dry-run（案b＝**HTML→parsedResult 直接マッピング**）。`src/lib/nankan/entries-html-to-parsed.mjs`（cheerio・純粋・fetch/fs なし）＋`scripts/nankan/dry-run-fetch-entries-page.mjs`（1URL・Shift_JIS→UTF-8・F2検証・stdout/tmp・sharedガード）。
+    - 取得元: `syousai/{raceID}.do` → 302 → `uma_shosai/{raceID}.do`（出馬表・**静的HTML・JS不要・Shift_JIS**）。ID=`YYYYMMDD+jyo2+kai2+nichi2+R2`。**uma_info（馬単体・全履歴）は対象外・拒否**。
+    - 取得項目: raceName/距離/馬場/向き/発走/頭数・number/name/性齢/毛色/騎手(所属)/斤量/調教師(所属)/父/母父・**recentRaces 最大5（着順/日付/会場/距離/人気/馬体重/騎手/タイム/上り3F/通過順/着差/勝ち馬）= coverage 100%**。
+    - **未取得: `record`（着別 total/left/right/venue/distance）は uma_shosai に無い**（会場別/条件別の勝率・平均で別形式）。F1b は record を 0 埋め（validator は **error にせず継続**・**record coverage 0% を明示**）。着別 record の正本は番組表/成績ビュー由来＝別ステップ。
 - **PR-F2**: entries schema validator（自動/手作業の出力同一性を検証）。
   - 実装: `src/lib/nankan/entries-schema-validator.mjs`（純粋・`validateNankanEntriesData(data,options)` / `summarizeNankanEntriesData(data)` を export・取得/保存/fs なし）。
   - 検証: top-level 必須キー・`category==='nankan'`・`totalRaces===races.length`・venueCode∈OOI/KAW/FUN/URA・venue名整合・1 JSON=1 venue／race(raceNumber数値・horses非空・headCount整合)／horse(number・name・record・recentRaces≤5)／record(total/left/right/venue/distance × wins/seconds/thirds/unplaced 数値・NaN不可)／recentRaces(order・finish|finishStatus・date等)。**error→保存停止(exit 1)・warning→継続**。

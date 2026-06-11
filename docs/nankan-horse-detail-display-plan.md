@@ -1591,6 +1591,72 @@ F4d-1〜F4d-4 で配線（admin docs §31 / AK workflow #70 / KI workflow #34 / 
 
 ---
 
+## 32. entries 表示接続契約（PR-F5a・docs-only）(2026-06-12)
+
+F4d で shared→AK/KI entries import の自動配線が成立した（§31.9）。F5 は entries を AK/KI の**表示**に接続する系列。
+本節（F5a）は **docs-only**（表示接続契約・mapper 仕様・record null ルール・PR分割を固定。実装・included_files 変更・表示接続を含まない）。
+
+前提（実績）: AK `8cddbfc` / KI `fec74f9` に `astro-site/src/data/entries/nankan/2026/06/2026-06-10-OOI.json`
+（totalRaces=12・horses=156・record 全 null・recentRaces あり・AK/KI byte 一致）取込済。
+
+### 32.1 F5 初期方針（位置づけ＝馬詳細専用）
+- entries `recentRaces` は **「馬詳細」専用データ**として扱う（馬名クリック / 詳細展開 / 詳細モーダル等の馬詳細領域で表示）。
+- **既存 recentHorseHistories の全馬 fallback には初期段階では使わない**（既存の南関近走表示・予想カードは現行維持）。
+- entries が**存在する馬のみ**表示。entries が無い場合は**現行表示を維持**。
+- 採用理由: 既存南関近走表示を壊さない / entries を recentHorseHistories・horseHistories と同等扱いしない / record null による「0戦」誤表示回避 / 初回 F5 の影響範囲を小さくする / AK・KI で説明の食い違いを避ける。
+
+### 32.2 データ由来ラベル
+- 表示ラベルは **「出馬表由来の近走」** など、由来が誤解されない文言にする。
+- **「全履歴」「JRA同等」「完全な過去走」等の表現は禁止**。
+- recentHorseHistories / horseHistories と**同等扱いしない**（別系統と明示）。
+
+### 32.3 record null ルール
+- `record=null` は**正常値**。
+- 通算 / 条件別成績は **表示しない**。
+- **「0戦」「成績なし」「全履歴取得済み」「JRA同等」表示禁止**（§23.4 / §28.5 / §30.6）。
+- record を **0 埋めしない**。
+- record を持つ将来データだけ、**別契約で表示検討**（本契約の対象外）。
+
+### 32.4 表示対象
+- `recentRaces` を **最大5走**表示。
+- **`raceNumber` + `horseNumber` を主キー**に突合。`horse name` は補助照合。
+- entries JSON が **full venue の場合のみ使用**。
+- **partial / R01-only / totalRaces=1 は表示に使わない**。
+- `sourceMeta.races.length` と `races.length` が**一致しない場合は skip**。
+
+### 32.5 mapper 方針
+- entries `recentRaces` は既存表示 shape と異なるため **mapper を用意**する。
+  - `finish` → `rank`
+  - `weight` → `carriedWeight`
+  - entries horse `number` → `horseNumber`
+  - `surface` は race レベルから補完
+  - **`record` は mapper 対象外**（触らない）。
+- mapper は **recentRaces のみ**を扱い、featureScores / AI / 印 / 買い目 に接続しない。
+
+### 32.6 AK/KI 方針
+- AK/KI で **同じデータ契約・同じ由来ラベル**を使う。
+- ただし**既存の表示レイアウト差は維持**する（AK=details 形式 / KI=dhc- 形式・free/premium 差）。
+- **AK は SSG（prerender=true）のため included_files 不要**。
+- **KI は SSR（prerender=false）のため、実表示で entries を読む前に `astro-site/netlify.toml` の included_files に `src/data/entries/**` を追加**する（F5b）。
+
+### 32.7 PR 分割（F5 系列）
+- **F5a**（本 PR・docs-only）: 表示接続契約固定。
+- **F5b**: KI `netlify.toml` included_files に `src/data/entries/**` 追加のみ（表示接続なし）。AK は不要。
+- **F5c**: AK mapper/loader 追加（ページ接続なし・dry-run/単体確認のみ）。
+- **F5d**: KI mapper/loader 追加（ページ接続なし）。
+- **F5e**: AK 馬詳細表示へ接続。
+- **F5f**: KI 馬詳細表示へ接続。
+- **F5g**: 本番確認・docs 記録。
+
+### 32.8 本 PR（PR-F5a）でやらないこと（禁止事項）
+- **initial F5 では recentHorseHistories の fallback にしない**。
+- **AI指数 / 印 / 買い目 / 穴馬 に接続しない**。**predictions / featureScores に接続しない**。
+- **JRA 表示に影響させない**。**既存 recentHorseHistories 表示を壊さない**。
+- **record null を 0戦扱いしない**。**full venue 以外を表示に使わない**。
+- 実装 / mapper・loader 作成 / page 接続 / included_files 変更 / AK・KI 変更 / UI・CSS / dispatch / workflow 実行 / shared 保存 はしない（docs-only）。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1621,6 +1687,7 @@ F4d-1〜F4d-4 で配線（admin docs §31 / AK workflow #70 / KI workflow #34 / 
 
 ## 14. 更新履歴
 
+- 2026-06-12: **PR-F5a：南関 entries 表示接続契約を docs 固定（§32 新設）**。F5 初期方針＝entries `recentRaces` は **「馬詳細」専用**（馬名クリック/詳細展開/モーダル等）として扱い、**既存 recentHorseHistories の全馬 fallback には初期段階で使わない**（既存近走表示・予想カードは現行維持）。entries がある馬のみ表示・無ければ現行維持。由来ラベルは **「出馬表由来の近走」**（「全履歴/JRA同等/完全な過去走」禁止・recentHorseHistories/horseHistories と同等扱いしない）。record null＝正常・**通算/条件別は出さない・「0戦/成績なし/全履歴取得済み/JRA同等」禁止・0埋めしない**。表示対象＝最大5走・`raceNumber+horseNumber` 主キー突合（name 補助）・**full venue のみ（partial/R01-only/totalRaces=1 は使わない・sourceMeta.races.length≠races.length は skip）**。mapper＝`finish→rank`/`weight→carriedWeight`/`number→horseNumber`/surface は race 補完・**record は mapper 対象外**。AK/KI 同契約・同ラベル・レイアウト差は維持・**AK(SSG) included_files 不要 / KI(SSR) は表示前に netlify.toml included_files へ `src/data/entries/**` 追加（F5b）**。PR分割 F5a(docs)→F5b(KI included_files)→F5c(AK mapper)→F5d(KI mapper)→F5e(AK接続)→F5f(KI接続)→F5g(本番/記録)。**docs-only・実装/mapper/loader/page 接続/included_files 変更なし。AK/KI/shared/UI/CSS/predictions/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-11: **PR-F4d-5：南関 entries 手動 dispatch 成功結果を docs 記録（§31.9 追記）**。`entries-nankan-updated` を **1 回だけ手動 dispatch**（date=2026-06-10/venues=OOI・`scripts/dispatch-entries-nankan.mjs`・payload `{date,venues:["OOI"],category:nankan,kind:entries,source:nankan-entries}`・dry-run GET=200/PASS・実送信は AK/KI 各 status=204・2/2 success）。AK run 27354115021 / KI run 27354116393 とも `Import Entries Nankan (Dispatch)` が event=repository_dispatch で **completed/success**・import 2026-06-10 OOI（races=12/horses=156→`src/data/entries/nankan/2026/06/2026-06-10-OOI.json`）・**commit 発生なし（No changes detected・既存 main と同一）**。admin/AK/KI とも local==origin/main・clean、shared 変更なし。**end-to-end（admin dispatch→AK/KI workflow→import:entries:nankan→no-changes 正常終了）成立・重複 commit なし**を確認。次は F5 表示接続準備。**docs-only・実装/script/workflow/dispatch 再送/included_files 変更なし。AK/KI/shared/UI/CSS/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。
 - 2026-06-11: **PR-F4d-1：南関 entries 自動 import 接続方針を docs 固定（§31 新設）**。F4b(AK)/F4c(KI) で import script + 実 import（`2026-06-10-OOI`・AK `b2be7ca`/KI `c340516`）まで完了したのを受け、shared→AK/KI 自動 import の接続方針を固定。**dispatch event_type = `entries-nankan-updated`**（既存 `recent-horse-histories-nankan-updated` の命名規則準拠・`nankan-entries-updated` は非推奨・JRA event 流用禁止）。payload＝単一 date/venues 基本（`{date, venues, category, kind, source}`・updates 配列/複数日一括/sourcePath なし）。AK/KI 受信 workflow＝新規 `import-entries-nankan-on-dispatch.yml`（既存 recentHorseHistories workflow をテンプレ・`types:[entries-nankan-updated]`+workflow_dispatch・`npm run import:entries:nankan`・**git add は entries/nankan のみ**・専用 concurrency group・AK/KI byte 一致維持）。admin dispatch script＝新規 `scripts/dispatch-entries-nankan.mjs`（既存 dispatch-recent-horse-histories-nankan を テンプレ・**既定 dry-run**・`--dispatch`+`--confirm-dispatch=entries-nankan-updated` 二段 opt-in・AK/KI 2 repo・token 非表示・**実送信はマコさん手動**・F4d-1 では未実装）。**KI included_files＝現状 entries 未登録・import だけなら不要・KI SSR 表示で読む時に `src/data/entries/**` 追加が必要→F5 で実施（F4d では変更しない・F5 忘れ事故防止のため docs 明記）**。AK は included_files 不使用で変更不要。PR分割 F4d-1(docs)→F4d-2(AK workflow)→F4d-3(KI workflow)→F4d-4(admin dispatch script)→F4d-5(明示許可後 1回だけ送信)→F5(表示・KI included_files)。安全ガード＝workflow_dispatch inputs date/venues 必須・full venue 判定/R01-only skip は importEntriesNankan.js guard に委譲・git add entries/nankan 限定・dispatch payload 単一 date/venues・dispatch は workflow 準備後 opt-in。**docs-only・実装/workflow 追加/dispatch 送信/included_files 変更なし。shared/AK/KI/workflow/save-entries.mjs/entries-manager.astro/dry-run-aggregate-entries.mjs/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/predictions/既存 import script・workflow 変更なし**。
 - 2026-06-11: **PR-F4a：AK/KI import 契約を docs 固定（§30 新設・§27.6 更新）**。F3 系列で生成・保存できる **南関 full venue entries JSON** の取り込み契約。前提実績＝`2026-06-10-OOI.json` は R01-only→**full venue(totalRaces=12・156頭・record 全 null・validator error 0)** へ置換済（shared `ef584e7`・**dispatch 未実施**）。import 対象条件＝`category=nankan`／sourceType=auto または手作業でも schema OK／`totalRaces===races.length`／`totalRaces>1`／`races.length>1`／raceNumber 昇順／horses 空 race なし／validator error 0。スキップ条件＝`totalRaces===1`／`races.length===1`／`sourcePageType=uma_shosai` かつ `totalRaces===1`／`sourceMeta.races.length!==races.length`／validator error／record 0埋め／partial・`--max` 由来／date・venue・venueCode 不一致。**R01-only は今後も import 対象外・import 側にも防御的 skip**（前日 R01 を当日取込する事故の二重防御）。AK/KI 責務＝shared から取得・各 repo 配置ルールで保存・**horseHistories/recentHorseHistories/predictions/featureScores と混同しない**・entries は出馬表由来・**AI指数/印/買い目/穴馬 非接続**。record null＝auto/uma_shosai は `recordSourced=false`・**record は null が正・0戦扱いしない**・通算/条件別は record がある場合のみ表示・null は非表示or「データ未取得」・**「0戦」「成績なし」「全履歴取得済み」「JRA同等」と表示しない**。**F4 は import まで・表示分岐は F5・F4 で UI/CSS/買い目に触らない**。dispatch＝本 PR では送らない・接続方法は別PR（最初は手動/単発 dispatch→自動化は後段）。PR分割 F4a(docs)→F4b(AK import)→F4c(KI import)→F4d(dispatch/import 接続)→F5(表示)。**docs-only・実装/shared 保存/dispatch/AK・KI 変更/workflow 変更なし。scripts/nankan/dry-run-aggregate-entries.mjs・save-entries.mjs・entries-manager.astro・JRA horseHistories・recentHorseHistories・featureScores・AI・印・買い目・穴馬・dark-horse.mjs 変更なし**。

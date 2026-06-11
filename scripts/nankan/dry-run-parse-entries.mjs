@@ -27,6 +27,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { parseEntriesText, NANKAN_VENUE_NAME_BY_CODE } from '../../src/lib/nankan/entries-parser.mjs';
+import { validateNankanEntriesData } from '../../src/lib/nankan/entries-schema-validator.mjs';
 
 const NANKAN_CODES = Object.keys(NANKAN_VENUE_NAME_BY_CODE); // ['OOI','KAW','FUN','URA']
 
@@ -43,75 +44,6 @@ function parseArgs(argv) {
 
 function csv(v) {
   return String(v).split(',').map(s => s.trim()).filter(Boolean);
-}
-
-// ---------- 簡易 schema チェック（本格 validator は PR-F2） ----------
-const RECORD_KEYS = ['total', 'left', 'right', 'venue', 'distance'];
-const RECORD_FIELDS = ['wins', 'seconds', 'thirds', 'unplaced'];
-const TOP_KEYS = ['version', 'createdAt', 'lastUpdated', 'date', 'venue', 'venueCode', 'category', 'totalRaces', 'races'];
-
-function basicSchemaCheck(result, expect) {
-  const errors = [];
-  for (const k of TOP_KEYS) {
-    if (!(k in result)) errors.push(`top-level key 欠落: ${k}`);
-  }
-  if (expect.date && result.date !== expect.date) errors.push(`date 不一致: ${result.date} != ${expect.date}`);
-  if (expect.venueCode && result.venueCode !== expect.venueCode) errors.push(`venueCode 不一致: ${result.venueCode} != ${expect.venueCode}`);
-  if (expect.venue && result.venue !== expect.venue) errors.push(`venue 不一致: ${result.venue} != ${expect.venue}`);
-  if (expect.category && result.category !== expect.category) errors.push(`category 不一致: ${result.category} != ${expect.category}`);
-
-  if (!Array.isArray(result.races)) {
-    errors.push('races が配列でない');
-    return errors;
-  }
-  if (result.races.length === 0) {
-    errors.push('races が空（0レース）＝抽出に失敗（入力形式・date/venue を確認）');
-  }
-  if (result.totalRaces !== result.races.length) {
-    errors.push(`totalRaces(${result.totalRaces}) != races.length(${result.races.length})`);
-  }
-
-  result.races.forEach((race, ri) => {
-    if (race.raceNumber == null) errors.push(`race[${ri}] raceNumber 欠落`);
-    if (!Array.isArray(race.horses) || race.horses.length === 0) {
-      errors.push(`race[${ri}] horses 空`);
-      return;
-    }
-    race.horses.forEach((h, hi) => {
-      const tag = `race[${ri}].horse[${hi}]`;
-      if (h.number == null) errors.push(`${tag} number 欠落`);
-      if (!h.name) errors.push(`${tag} name 欠落`);
-      if (!h.record || typeof h.record !== 'object') {
-        errors.push(`${tag} record 欠落`);
-      } else {
-        for (const rk of RECORD_KEYS) {
-          if (!h.record[rk]) { errors.push(`${tag} record.${rk} 欠落`); continue; }
-          for (const f of RECORD_FIELDS) {
-            if (typeof h.record[rk][f] !== 'number') errors.push(`${tag} record.${rk}.${f} 非数値`);
-          }
-        }
-      }
-      if (!Array.isArray(h.recentRaces)) errors.push(`${tag} recentRaces 非配列`);
-      else if (h.recentRaces.length > 5) errors.push(`${tag} recentRaces > 5 (${h.recentRaces.length})`);
-    });
-  });
-
-  return errors;
-}
-
-// ---------- 充足率 ----------
-function fillRates(result) {
-  let horses = 0, recordFilled = 0, recentFilled = 0;
-  for (const race of result.races) {
-    for (const h of race.horses || []) {
-      horses++;
-      const t = h.record?.total;
-      if (t && (t.wins + t.seconds + t.thirds + t.unplaced) > 0) recordFilled++;
-      if (Array.isArray(h.recentRaces) && h.recentRaces.length > 0) recentFilled++;
-    }
-  }
-  const pct = (n) => horses === 0 ? '0%' : `${Math.round((n / horses) * 100)}%`;
-  return { horses, recordFilled, recentFilled, recordPct: pct(recordFilled), recentPct: pct(recentFilled) };
 }
 
 // ---------- 1 venue 処理 ----------
@@ -144,17 +76,19 @@ function processVenue({ date, code, inputPath, outPath, useStdin }) {
     return result;
   }
 
-  const errors = basicSchemaCheck(parsed, { date, venueCode: code, venue: venueName, category: 'nankan' });
-  const rates = fillRates(parsed);
+  const v = validateNankanEntriesData(parsed, {
+    expect: { date, venueCode: code, venue: venueName, category: 'nankan' }
+  });
 
   result.parsed = parsed;
-  result.warnings = warnings;
-  result.schemaErrors = errors;
-  result.rates = rates;
-  result.raceCount = parsed.races.length;
-  result.horseCount = rates.horses;
+  result.parseWarnings = warnings;        // parser からの警告
+  result.schemaErrors = v.errors;         // validator のハード失敗
+  result.schemaWarnings = v.warnings;     // validator のソフト警告
+  result.summary = v.summary;
+  result.raceCount = v.summary.totalRaces;
+  result.horseCount = v.summary.totalHorses;
   result.outPath = outPath || null;
-  result.ok = errors.length === 0;
+  result.ok = v.ok;
   return result;
 }
 
@@ -189,14 +123,18 @@ function logVenue(r) {
   L(`  venueCode   : ${r.code}`);
   L(`  input       : ${r.inputPath ?? '-'}`);
   if (!r.ok && r.error) { L(`  RESULT      : ❌ ${r.error}`); return; }
+  const s = r.summary || {};
   L(`  race count  : ${r.raceCount}`);
   L(`  horse count : ${r.horseCount}`);
-  L(`  record 充足率   : ${r.rates.recordPct} (${r.rates.recordFilled}/${r.rates.horses})`);
-  L(`  recentRaces 充足率: ${r.rates.recentPct} (${r.rates.recentFilled}/${r.rates.horses})`);
-  if (r.warnings && r.warnings.length) L(`  warnings    : ${r.warnings.length}件`);
+  L(`  record 充足率   : ${s.recordCoverage ?? '-'}`);
+  L(`  recentRaces 充足率: ${s.recentRacesCoverage ?? '-'}`);
+  const pw = (r.parseWarnings && r.parseWarnings.length) || 0;
+  const sw = (r.schemaWarnings && r.schemaWarnings.length) || 0;
+  L(`  warnings    : parser ${pw}件 / schema ${sw}件`);
   L(`  output      : ${r.outPath ? r.outPath : 'stdout'}`);
-  L(`  schema      : ${r.ok ? '✅ OK' : `❌ ${r.schemaErrors.length}件不一致`}`);
-  if (!r.ok) r.schemaErrors.slice(0, 20).forEach(e => L(`     - ${e}`));
+  L(`  schema      : ${r.ok ? '✅ OK' : `❌ ${r.schemaErrors.length}件 error`}`);
+  if (!r.ok) r.schemaErrors.slice(0, 20).forEach(e => L(`     - [error] ${e}`));
+  if (sw > 0) r.schemaWarnings.slice(0, 8).forEach(e => L(`     - [warn]  ${e}`));
 }
 
 // ---------- main ----------

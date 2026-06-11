@@ -161,7 +161,9 @@ async function main() {
   L(`  raceNumber  : ${parsed.races[0]?.raceNumber ?? '-'}`);
   L(`  raceName    : ${parsed.races[0]?.raceName || '-'}`);
   L(`  horse count : ${v.summary.totalHorses}`);
-  L(`  record 充足率   : ${v.summary.recordCoverage}${recordUnsourced ? '  ← record は当ページ未収録(番組表/成績ビュー由来・F1b未取得)' : ''}`);
+  L(`  sourceType  : ${v.summary.sourceType ?? '-'}`);
+  L(`  recordSourced: ${v.summary.recordSourced}`);
+  L(`  record 充足率   : ${v.summary.recordCoverage}${recordUnsourced ? `  ← record optional・未取得(${v.summary.missingRecordReason ?? 'unsourced'})・0埋めしない` : ''}`);
   L(`  recentRaces 充足率: ${v.summary.recentRacesCoverage}`);
   L(`  schema warn : ${v.warnings.length}件`);
   L(`  output      : ${outErr ? `❌ ${outErr}` : (outPath || 'stdout')}`);

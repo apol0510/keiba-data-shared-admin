@@ -1259,7 +1259,7 @@ docs に固定する契約節であり、**実装・admin/shared データ生成
   - 検証: top-level 必須キー・`category==='nankan'`・`totalRaces===races.length`・venueCode∈OOI/KAW/FUN/URA・venue名整合・1 JSON=1 venue／race(raceNumber数値・horses非空・headCount整合)／horse(number・name・record・recentRaces≤5)／record(total/left/right/venue/distance × wins/seconds/thirds/unplaced 数値・NaN不可)／recentRaces(order・finish|finishStatus・date等)。**error→保存停止(exit 1)・warning→継続**。
   - 利用: dry-run script（PR-F1a）の簡易 check を本 validator に置換。read-only CLI `scripts/nankan/validate-entries-json.mjs` で既存 JSON を検証可。shared 実例7件は **schema OK**（warning のみ）を確認済み。
 - **PR-F2a**: **record optional 方針 docs 固定（本 PR・§28）**。record 補完源 read-only 調査の結論＋自動取得 entries の record 扱いを docs に確定（docs-only）。
-- **PR-F2b**: validator を **record optional / 0埋め禁止**へ修正（§28.4・実装は別 PR）。
+- **PR-F2b**: validator を **record optional / 0埋め禁止**へ修正（§28.4・**実装済**）。`entries-schema-validator.mjs`＝record 欠落/null は **warning（error にしない）**・record 構造は従来チェック（NaN/部分欠損は error）・**0埋め＋未取得コンテキスト（`sourceMeta.recordSourced===false` or `missingRecordReason`）は error**・0埋め＋sourceMeta無しは warning（0戦の新馬等）。`sourceMeta`（optional）は `sourceType`/`sourcePageType`/`recordSourced`/`recordCoverage`/`missingRecordReason` を summary に反映。`entries-html-to-parsed.mjs`＝record を **0埋めせず null** にし `sourceMeta`（auto/uma_shosai/recordSourced:false/missingRecordReason:`uma_shosai_no_record`）を付与。shared 実例7件は引き続き **schema OK**。
 - **PR-F3**: opt-in shared 保存（dry-run → schema PASS 時のみ・opt-in・**record 有無のメタ情報を保存・§28.4**）。
 - **PR-F4**: AK/KI import（KI は included_files に `src/data/entries/**` 追加）。
 - **PR-F5**: 条件付き表示（取得方法非依存・**record がある場合のみ通算/条件別を表示・§28.5**・§23.4 禁止表現を守る）。

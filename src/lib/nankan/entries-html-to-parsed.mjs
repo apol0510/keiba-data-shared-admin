@@ -24,15 +24,9 @@ import * as cheerio from 'cheerio';
 
 const RECENT_MAX = 5;
 
-function zeroChaku() {
-  return { wins: 0, seconds: 0, thirds: 0, unplaced: 0 };
-}
-function emptyRecord() {
-  return {
-    total: zeroChaku(), left: zeroChaku(), right: zeroChaku(),
-    venue: zeroChaku(), distance: zeroChaku()
-  };
-}
+// uma_shosai 出馬表ページには着別 record（5分割）が無い（§28.1 / 契約§12.11）。
+// → record は 0 埋めせず **null（未取得）** とし、sourceMeta で明示する（PR-F2b）。
+const MISSING_RECORD_REASON = 'uma_shosai_no_record';
 
 const clean = (s) => (s == null ? '' : String(s).replace(/ /g, ' ').replace(/\s+/g, ' ').trim());
 const toIntOrNull = (s) => {
@@ -105,7 +99,7 @@ function parseHorseRow($, tr) {
     weight: null, jockey: '', jockeyAffiliation: '',
     trainer: '', trainerAffiliation: '', owner: '', breeder: '',
     sire: '', bms: '',
-    record: emptyRecord(),     // ← 当ページに着別 record 無し（0埋め・呼び出し側で coverage 明示）
+    record: null,              // ← 当ページに着別 record 無し。0埋めせず null（未取得）。sourceMeta で明示。
     bestTime: '',
     recentRaces: []
   };
@@ -279,18 +273,25 @@ export function convertNankanEntriesHtmlToParsed(html, meta = {}) {
     venueCode,
     category,
     totalRaces: 1,
-    races: [race]
+    races: [race],
+    // 取得方法と record 未取得を明示（PR-F2b・record optional 方針 §28）。
+    sourceMeta: {
+      sourceType: 'auto',
+      sourcePageType: meta.sourcePageType || 'uma_shosai',
+      sourceUrl: meta.sourceUrl || null,
+      recordSourced: false,                       // uma_shosai に着別 record 無し
+      recordCoverage: '0%',
+      missingRecordReason: MISSING_RECORD_REASON  // 'uma_shosai_no_record'
+    }
   };
 }
 
 /**
- * record が全頭 0（当ページ由来で record 未取得）かどうか。呼び出し側の coverage 明示用。
+ * 全頭の record が未取得（null）か。呼び出し側の coverage / 未取得明示用。
+ * record を 0 埋めせず null にする方針（PR-F2b）に合わせ、null を未取得とみなす。
  */
 export function isRecordUnsourced(parsed) {
   const horses = (parsed?.races || []).flatMap(r => r.horses || []);
   if (horses.length === 0) return false;
-  return horses.every(h => {
-    const t = h?.record?.total;
-    return t && (t.wins + t.seconds + t.thirds + t.unplaced) === 0;
-  });
+  return horses.every(h => h?.record == null);
 }

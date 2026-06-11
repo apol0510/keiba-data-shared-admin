@@ -106,6 +106,25 @@ export function validateNankanEntriesData(data, options = {}) {
     errors.push(`venue 不一致: ${data.venue} != ${expect.venue}`);
   }
 
+  // ---------- sourceMeta（optional・PR-F2b）----------
+  // 既存 shared entries は sourceMeta を持たない＝欠落は error にしない。
+  const sm = data.sourceMeta;
+  if (sm != null) {
+    if (!isPlainObject(sm)) {
+      warnings.push('sourceMeta がオブジェクトでない');
+    } else {
+      if (sm.sourceType != null && !['auto', 'manual'].includes(sm.sourceType)) {
+        warnings.push(`sourceMeta.sourceType が auto/manual でない: ${sm.sourceType}`);
+      }
+      if (sm.recordSourced != null && typeof sm.recordSourced !== 'boolean') {
+        warnings.push('sourceMeta.recordSourced が boolean でない');
+      }
+    }
+  }
+  // record が「未取得（自動取得で source できなかった）」コンテキストか。
+  // この状態で record が 0埋めされていたら error（0埋め保存禁止）。
+  const recordUnsourced = !!(isPlainObject(sm) && (sm.recordSourced === false || sm.missingRecordReason));
+
   // ---------- races ----------
   if (!Array.isArray(data.races)) {
     errors.push('races が配列でない');
@@ -169,8 +188,8 @@ export function validateNankanEntriesData(data, options = {}) {
       if (!isNonEmptyString(h.jockey)) warnings.push(`${htag} jockey が空`);
       if (!isNonEmptyString(h.trainer)) warnings.push(`${htag} trainer が空`);
 
-      // record（ハード）
-      validateRecord(h.record, htag, errors);
+      // record（optional・PR-F2b）。未取得は warning・0埋めは未取得コンテキストで error。
+      validateRecord(h.record, htag, errors, warnings, recordUnsourced);
 
       // recentRaces（ハード: 配列 & <= recentMax）
       if (!Array.isArray(h.recentRaces)) {
@@ -194,21 +213,44 @@ export function validateNankanEntriesData(data, options = {}) {
   };
 }
 
-function validateRecord(record, htag, errors) {
-  if (!isPlainObject(record)) {
-    errors.push(`${htag} record が無い/オブジェクトでない`);
+function validateRecord(record, htag, errors, warnings, recordUnsourced) {
+  // 未取得（null / undefined / 省略）= optional。error にしない。
+  if (record == null) {
+    warnings.push(`${htag} record 未取得（optional・null/省略）`);
     return;
   }
+  if (!isPlainObject(record)) {
+    errors.push(`${htag} record が無効（object/null 以外）`);
+    return;
+  }
+  // 構造・数値チェック（NaN/非数値は error）。同時に「全区分0」を判定。
+  let structureOk = true;
+  let allZero = true;
   for (const rk of RECORD_KEYS) {
     if (!isPlainObject(record[rk])) {
       errors.push(`${htag} record.${rk} が無い`);
+      structureOk = false;
       continue;
     }
     for (const f of RECORD_FIELDS) {
       const v = record[rk][f];
       if (typeof v !== 'number' || Number.isNaN(v)) {
         errors.push(`${htag} record.${rk}.${f} が数値でない/NaN`);
+        structureOk = false;
+      } else if (v !== 0) {
+        allZero = false;
       }
+    }
+  }
+  // 0埋め禁止: 構造OKで全区分0のとき、
+  //  - 未取得コンテキスト（recordSourced=false / missingRecordReason あり）なら error
+  //    （未取得を 0埋め保存してはいけない。record は省略/null にする）。
+  //  - そうでなければ 0戦の新馬等の可能性として warning（既存 shared を壊さない）。
+  if (structureOk && allZero) {
+    if (recordUnsourced) {
+      errors.push(`${htag} record が全区分0埋め＋未取得コンテキスト（0埋め保存禁止・record は省略/null にする）`);
+    } else {
+      warnings.push(`${htag} record が全区分0（0戦の新馬等の可能性・recordSourced=true での明示を推奨）`);
     }
   }
 }
@@ -239,10 +281,12 @@ function validateRecentRace(rr, tag, warnings, dateBucket) {
 /**
  * parsedResult のサマリを返す（検証可否に関わらず計算できる範囲で）。
  * @param {object} data
- * @returns {{ date, venue, venueCode, totalRaces, totalHorses, recordCoverage, recentRacesCoverage, warningsCount, errorsCount }}
+ * @returns {{ date, venue, venueCode, totalRaces, totalHorses, recordCoverage, recentRacesCoverage,
+ *   sourceType, recordSourced, missingRecordReason, warningsCount, errorsCount }}
  *   warningsCount / errorsCount は validate 経由で上書きされる（単独呼び出し時は 0）。
  */
 export function summarizeNankanEntriesData(data) {
+  const sm = isPlainObject(data) ? data.sourceMeta : null;
   const summary = {
     date: isPlainObject(data) ? (data.date ?? null) : null,
     venue: isPlainObject(data) ? (data.venue ?? null) : null,
@@ -251,6 +295,9 @@ export function summarizeNankanEntriesData(data) {
     totalHorses: 0,
     recordCoverage: '0%',
     recentRacesCoverage: '0%',
+    sourceType: isPlainObject(sm) ? (sm.sourceType ?? null) : null,
+    recordSourced: isPlainObject(sm) ? (sm.recordSourced ?? null) : null,
+    missingRecordReason: isPlainObject(sm) ? (sm.missingRecordReason ?? null) : null,
     warningsCount: 0,
     errorsCount: 0
   };

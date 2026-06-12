@@ -1772,6 +1772,115 @@ F4d で shared→AK/KI entries import の自動配線が成立した（§31.9）
 
 ---
 
+## 34. 南関馬詳細パネル 再設計方針（R1a：表示項目棚卸し）(2026-06-12)
+
+### 34.1 方針の転換
+- これは「南関過去走表示」だけの再設計ではなく、**「南関馬詳細パネル」全体の再設計**として扱う。
+- 近走だけを直すと、表示したい情報の多くを取りこぼす。
+- 別ブロック追加ではなく、**馬詳細パネル内でプロフィール・当日出走情報・近走・（将来の）集計欄を整理**する。
+
+### 34.2 現在の正本状態
+- entries data / import / inject / component は**温存**。
+- ユーザー向け entries 別ブロック表示は**一時停止中**（§33.7 #6・AK #74 `cff1a49` / KI #39 `4fa9d33`）。
+- 既存「過去N走 / 直近走」は**維持**。
+- `getDisplayRecentRacesForNankan` は**現時点で変更しない**。
+- entries `recentRaces` を recentHorseHistories fallback には**使わない**。
+- shared schema は**現時点で変更しない**。
+
+### 34.3 調査対象
+- shared entries：`nankan/entries/2026/06/2026-06-12-OOI.json` / `2026-06-10-OOI.json`。
+- AK/KI import 済み entries：`astro-site/src/data/entries/nankan/2026/06/2026-06-12-OOI.json`（shared と一致）。
+- racebook / computer / predictions（`horse.recentRaces`）。
+- admin scripts：`scripts/nankan/dry-run-aggregate-entries.mjs` / `src/lib/nankan/entries-html-to-parsed.mjs` / `entries-schema-validator.mjs`。
+- **専用 odds parser / uma_info プロフィール parser は現状なし**。
+
+### 34.4 P0：現 entries だけで表示候補にできる項目（高充足）
+**馬プロフィール**：馬番 / 馬名 / 性齢 / 毛色 / 父馬名 / 母父馬名
+**当日出走情報**：騎手 / 騎手所属 / 負担重量 / 調教師 / 調教師所属
+**近走1走ごと**：競走日 / 競馬場 / レース名 / 頭数 / 人気 / 着順 / タイム / 着差 / 騎手 / 負担重量 / 馬体重 / 上がり3F / コーナー通過順 / 1着馬または2着馬
+- これらは entries で概ね高充足（近走の主要項目は実測 約96〜100%）。
+- **別ブロックではなく、将来的には馬詳細パネル内の整理された表示**として扱う。
+
+### 34.5 P1：条件付き表示候補
+- 近走の距離 / 近走の馬場状態 / コース区分。
+- 理由：現状では充足率が十分でない項目がある（距離・馬場は実測 約52%、コース区分はほぼ空）。
+- 表示する場合は**「値がある時だけ表示」**。**空欄・不自然な補完・水増しはしない**。
+
+### 34.6 P2：premium / 折りたたみ / 集計欄候補（将来・すぐ出さない）
+- 距離別成績 / 場別成績 / 騎手別成績 / 騎手別勝利数 / 騎手別勝率 / 騎手別連対率 / 馬場状態別成績 / 出走間隔別成績 / 種牡馬分析 / 種牡馬勝率 / 種牡馬連対率 / 季節別成績 / 騎手コース別成績 / 回収率 / 連対時馬体重 / 持時計。
+- 理由：
+  - entries `recentRaces` 最大5走だけでは統計的に弱い。
+  - 継続蓄積または別取得が必要。
+  - 集計期間・最低サンプル数・欠損時の非表示ルールを別途定義する必要がある。
+  - 回収率はオッズと結果が必要。
+
+### 34.7 P3：現状保留項目
+現時点で entries / racebook / predictions から品質よく取れない、または空が多い項目：
+- 枠番 / 母馬名 / 生年月日 / 馬主名 / 生産牧場 / 当日馬体重 / 増減 / 単勝オッズ / 単勝人気 / 複勝オッズ / 複勝人気 / 上がり3F順位。
+- 補足：
+  - racebook に `predictedOdds` / `dam` などの field はあるが、現データでは null が多く表示品質に足りない（実測：predictedOdds 0/146、dam 0/146 非空）。
+  - 実オッズは変動データであり、静的プロフィールとは分けるべき。
+  - これらは将来 `oddsSnapshot` や別取得 schema として扱う（取得元の利用条件を確認しながら進める）。
+
+### 34.8 オッズ方針
+- 単勝 / 複勝 / 人気は**変動データ**。
+- entries プロフィール / 馬詳細プロフィールに**混ぜない**。
+- **表示用オッズと判定用オッズは分ける**。
+- 将来は `oddsSnapshot`（時刻付き・別取得・別 schema）として扱う。
+- **今回は取得・表示・判定接続をしない**。
+
+### 34.9 表示設計案
+- **A 馬プロフィール欄**：馬番 / 馬名 / 性齢 / 毛色 / 父 / 母父。
+- **B 当日出走欄**：騎手 / 騎手所属 / 負担重量 / 調教師 / 調教師所属。
+- **C 近走欄**：日付 / 競馬場 / レース名 / 頭数 / 人気 / 着順 / タイム / 着差 / 騎手 / 斤量 / 馬体重 / 上がり3F / 通過順 / 1着馬または2着馬。距離 / 馬場状態は**値がある場合のみ**。
+- **D 集計成績欄**：今回は作らない（継続蓄積・別取得・最低サンプル数定義後の別フェーズ）。
+- **E オッズ欄**：今回は作らない（`oddsSnapshot` フェーズで検討）。
+
+### 34.10 データ構造案（今回は schema 変更しない）
+- 現 entries JSON に近い候補（既存範囲で設計可能）：`horse.profile` / `horse.entryInfo` / `horse.recentRacesDetailed`。
+- 新規 schema 候補（別フェーズ）：`horse.summaryStats` / `horse.oddsSnapshot` / `horse.compatibility` / `horse.breeding` / `horse.ownerBreeder`。
+- 補足：P0/P1 は既存 entries の範囲で設計可能。P2/P3 は schema 追加や別取得の別フェーズ。
+
+### 34.11 文言方針
+- **使わない**：「出馬表由来」/「参考」/「中央版同等」/「詳細」。
+- **使ってよい候補**：「近走」/「近走成績」/「直近5走」/「出走馬情報」/「馬プロフィール」/「当日出走情報」。
+- 理由：条件別成績や履歴集計欄がない段階で「詳細」を使うと誇大に見える。取得元ではなく、ユーザーに見える価値ベースの文言にする。
+
+### 34.12 契約変更が必要な範囲（別フェーズ）
+以下はいずれも**別フェーズの契約変更が必要**：
+- `getDisplayRecentRacesForNankan` の優先順位変更。
+- entries `recentRaces` を recentHorseHistories fallback に使う。
+- `horse.recentRaces` の置き換え。
+- entries と recentHorseHistories の統合正本化。
+- shared JSON schema 変更。
+- `oddsSnapshot` 追加。
+- 集計成績 schema 追加。
+- free / premium の情報量差分拡大。
+- AK / KI の表示差分拡大。
+
+### 34.13 推奨フェーズ案
+- **R1a**：表示項目棚卸し docs 固定（今回）。
+- **R1b**：P0/P1 の画面設計案を docs 化。
+- **R1c**：P0/P1 の共通 component 設計。
+- **R1d**：AK preview 実装。
+- **R1e**：KI 実装。
+- **R1f**：本番表示確認。
+- **R2**：集計成績の設計。
+- **R3**：`oddsSnapshot` 設計。
+- **R4**：血統・馬主・生産牧場など別取得設計。
+
+### 34.14 非ゴール
+- 今回は実装しない。
+- 今回は entries 表示を再開しない。
+- 今回は `getDisplayRecentRacesForNankan` を変更しない。
+- 今回は fallback 化しない。
+- 今回はオッズを扱わない。
+- 今回は集計成績を作らない。
+- 今回は shared schema を変更しない。
+- 今回は予測スコア・評価記号・推奨系ロジックに接続しない。
+
+---
+
 ## Phase D クローズ記録（2026-06-09）
 
 南関 recentHorseHistories の admin opt-in dispatch（Phase D）は、以下をもって**クローズ扱い**とする。追加実装は行わない。
@@ -1802,6 +1911,7 @@ F4d で shared→AK/KI entries import の自動配線が成立した（§31.9）
 
 ## 14. 更新履歴
 
+- 2026-06-12: **南関馬詳細パネルの表示項目棚卸しを docs 固定（§34 新設・R1a）**。再設計を「南関過去走表示」単体ではなく **「南関馬詳細パネル」全体**として扱う方針に転換。read-only 棚卸しの結果を表示優先度で固定：**P0**＝現 entries だけで高充足の項目（馬番/馬名/性齢/毛色/父/母父・騎手/騎手所属/負担重量/調教師/調教師所属・近走の 競走日/競馬場/レース名/頭数/人気/着順/タイム/着差/騎手/斤量/馬体重/上がり3F/通過順/相手馬＝実測 約96〜100%）。**P1**＝条件付き（近走の距離/馬場状態＝実測 約52%・値がある時のみ表示）。**P2**＝集計成績（距離別/場別/騎手別/馬場別/出走間隔別/種牡馬/季節別/騎手コース別/回収率/連対時馬体重/持時計＝最大5走では統計的に弱く別取得・継続蓄積前提）。**P3**＝現状保留（枠番/母馬名/生年月日/馬主名/生産牧場/当日馬体重/増減/オッズ各種/上がり3F順位＝取得不可 or 空多。racebook の predictedOdds・dam は field のみ実測 0/146 非空）。オッズは変動データとしてプロフィールに混ぜず将来 `oddsSnapshot`（別取得・別 schema・時刻付き）で扱う。文言は「出馬表由来/参考/中央版同等/詳細」を避け「近走/直近5走/馬プロフィール/当日出走情報」を使う。フェーズ案 R1a(docs)→R1b/R1c(P0/P1 設計・共通 component)→R1d/R1e(AK/KI 実装)→R1f(確認)→R2(集計)/R3(oddsSnapshot)/R4(血統・馬主・生産)。**docs-only・実装/component/page/included_files/AK/KI/shared/UI/CSS/dispatch/workflow/import 変更なし。`getDisplayRecentRacesForNankan` 変更なし・fallback 化なし・shared schema 変更なし・entries 表示再開なし。featureScores/予測スコア/評価記号/推奨系ロジック/dark-horse.mjs 非接続**。
 - 2026-06-12: **南関 entries 当日データ一気通貫の実地表示確認を docs 記録（§33.7 新設）**。最新予想日と同一日付の当日 entries `2026-06-12-OOI`（full venue・totalRaces=12/races=12/horses=144/recentRacesCoverage=100%/schema OK/sourcePageType=uma_shosai/record optional・0埋めなし）を **shared 保存（`nankan/entries/2026/06/2026-06-12-OOI.json`・gh auth fallback で status 201）→ AK/KI import（`entries-nankan-updated` dispatch・date=2026-06-12/venues=["OOI"]・AK/KI 各 status=204・両 workflow success・AK HEAD `cd5d267`/KI HEAD `59b1e14`・両 repo に `astro-site/src/data/entries/nankan/2026/06/2026-06-12-OOI.json` create）→ 表示確認** まで一気通貫で完走。**AK**：build exit 0・`premium-prediction/nankan` summary「出馬表由来の近走（参考）」**112 件**・`free-prediction/nankan` **144 件**・既存近走残存・record/opponentName/postPosition 非表示・entries 無し馬の空表示なし。**KI**：build exit 0・free slug `2026-06-12-ooi` summary **60 件**・SSR index は `2026-06-12-ooi` prediction に inject 実行で **145 頭中 144 頭注入成立**（1 頭未マッチはブロック非表示で正常）。既存「直近走/過去N走」不変・`getDisplayRecentRacesForNankan` 不変・entries `recentRaces` は馬詳細専用で recentHorseHistories 全馬 fallback には不使用・予測スコア/評価記号/推奨系ロジック非接続。**ただし実画面確認の結果、既存過去走との重複・文言・表示品質の理由で AK/KI の表表示は一時停止（§33.7 #6）**：AK PR #74（main `cff1a49`）/ KI PR #39（main `4fa9d33`）で page からの component 呼び出しのみ除去、component/inject/loader/mapper/entries data/workflow/dispatch は温存（再設計後に呼び出しを戻すだけで再表示可能）。**docs-only・実装/component/page/included_files/AK/KI/shared/UI/CSS/dispatch/workflow/import 変更なし。featureScores/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-12: **F5g：南関 entries 表示接続の完了を docs 記録（§33 新設）**。KI 側の表示接続が **F5f-1（注入）→ F5f-2（表示）→ F5g（確認・記録）** で完了。F5f-1＝KI PR #37（main `4f1bb36`）で `astro-site/src/utils/injectEntriesRecentRacesNankan.js` 追加・南関3ページに注入呼び出し追加、`data.predictions[].horses[]` を `raceNumber+horseNumber`（name 補助）で突合し **別フィールド `horse.recentRacesFromEntriesNankan`** へ注入（`recentRaces`/`recentRacesFromHistoriesNankan`/`getDisplayRecentRacesForNankan` 不変・fallback 化なし・inert 完了）。F5f-2＝KI PR #38（main `06d8d86`）で共通 component `astro-site/src/components/RecentRacesFromEntriesNankan.astro` 新規＋3ページ呼び出し、summary **「出馬表由来の近走（参考）」**・最大5走・**CSS 追加ゼロ（C-1）**・premium/free index は「直近走」直後に別ブロック・**free slug は table のため `<tr><td colspan="5">` ラップ＋空行防止 gate**・record/opponentName/postPosition 非表示・既存「直近走/過去N走」不変。F5g＝KI main clean・HEAD=`06d8d86`・**build exit 0・禁止差分なし・禁止語なし**、**slug アーカイブ `2026-06-10-ooi` の build HTML で summary 出現＝表示成立を確認**、premium/free index は最新予想 `2026-06-12` に対し entries が `2026-06-10-OOI` のみのため **非表示が正常（data fallback）**・同一日付 entries 取込後に index でも表示。AK/KI 対称＝AK F5e(`src/lib`/SSG・PR #71/#72/#73)・KI F5f(`src/utils`/SSR・included_files `src/data/entries/**`=F5b・PR #36/#37/#38)、両者とも entries `recentRaces` は **馬詳細専用・recentHorseHistories 全馬 fallback には使わない**・ラベル統一。残＝当日 entries の shared 取込・dispatch/workflow/import 配線（`entries-nankan-updated`・§31）は別タスク・実送信はマコさん手動。**docs-only・実装/component/page/included_files/AK/KI/shared/UI/CSS/dispatch/workflow/import 変更なし。予測スコア/評価記号/推奨系ロジック/featureScores/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-12: **PR-F5a：南関 entries 表示接続契約を docs 固定（§32 新設）**。F5 初期方針＝entries `recentRaces` は **「馬詳細」専用**（馬名クリック/詳細展開/モーダル等）として扱い、**既存 recentHorseHistories の全馬 fallback には初期段階で使わない**（既存近走表示・予想カードは現行維持）。entries がある馬のみ表示・無ければ現行維持。由来ラベルは **「出馬表由来の近走」**（「全履歴/JRA同等/完全な過去走」禁止・recentHorseHistories/horseHistories と同等扱いしない）。record null＝正常・**通算/条件別は出さない・「0戦/成績なし/全履歴取得済み/JRA同等」禁止・0埋めしない**。表示対象＝最大5走・`raceNumber+horseNumber` 主キー突合（name 補助）・**full venue のみ（partial/R01-only/totalRaces=1 は使わない・sourceMeta.races.length≠races.length は skip）**。mapper＝`finish→rank`/`weight→carriedWeight`/`number→horseNumber`/surface は race 補完・**record は mapper 対象外**。AK/KI 同契約・同ラベル・レイアウト差は維持・**AK(SSG) included_files 不要 / KI(SSR) は表示前に netlify.toml included_files へ `src/data/entries/**` 追加（F5b）**。PR分割 F5a(docs)→F5b(KI included_files)→F5c(AK mapper)→F5d(KI mapper)→F5e(AK接続)→F5f(KI接続)→F5g(本番/記録)。**docs-only・実装/mapper/loader/page 接続/included_files 変更なし。AK/KI/shared/UI/CSS/predictions/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。

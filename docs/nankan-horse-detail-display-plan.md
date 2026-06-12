@@ -1714,6 +1714,40 @@ F4d で shared→AK/KI entries import の自動配線が成立した（§31.9）
 - 実装ファイル変更 / mapper・loader・inject・component の改修 / page 接続変更 / included_files 変更 / AK・KI・shared 変更 / UI・CSS / dispatch・workflow・import 実行 / shared 保存 はしない。
 - 予測スコア・評価記号・推奨系ロジック・featureScores・dark-horse.mjs・JRA 表示・既存 recentHorseHistories 表示 には触れない。
 
+### 33.7 2026-06-12-OOI 実地表示確認（当日 entries 一気通貫）(2026-06-12)
+
+最新予想日と同一日付の当日 entries（`2026-06-12-OOI`）で、**shared 保存 → AK/KI import → 表示確認**まで一気通貫で完走した。§33.5 で別タスクとしていた「当日 entries の shared 取込」と「premium/free index 本番表示確認」の実地成立記録。
+
+#### 1. shared 保存
+- path: `nankan/entries/2026/06/2026-06-12-OOI.json`（新規 create）。
+- **full venue**: `totalRaces=12` / `races.length=12` / `sourceMeta.races=12` / **horses=144** / 各 race `recentRacesCoverage=100%` / schema OK（error 0）。
+- `sourcePageType=uma_shosai`。**record は optional・0埋めしない**（warning は record 未取得 optional のみ）。
+- 取得・保存は `scripts/nankan/dry-run-aggregate-entries.mjs`（`--program-url`→dry-run→`--push`→`--push --execute`）。program URL は当日 program 一覧から確定（`20260612200405`）。shared PUT は env token 401 のため gh auth fallback で status 201。
+
+#### 2. AK/KI import
+- `entries-nankan-updated` dispatch を **1 回だけ**実行。payload = `date=2026-06-12` / `venues=["OOI"]`。
+- dispatch: analytics-keiba **status=204** / keiba-intelligence **status=204**（実送信はマコさん端末 token）。
+- workflow: AK・KI とも `import-entries-nankan-on-dispatch` が event=repository_dispatch で **success**。
+- AK HEAD=`cd5d267` / KI HEAD=`59b1e14`。両 repo に `astro-site/src/data/entries/nankan/2026/06/2026-06-12-OOI.json`（618019 bytes・date=2026-06-12/venueCode=OOI/totalRaces=12/races=12/horses=144）が **create** 済み。
+
+#### 3. AK 表示確認（SSG・生成 HTML）
+- `npm run build` **exit 0**。
+- `premium-prediction/nankan` 生成 HTML：summary **「出馬表由来の近走（参考）」112 件**。
+- `free-prediction/nankan` 生成 HTML：summary **「出馬表由来の近走（参考）」144 件**（＝総頭数）。
+- 既存近走（過去N走）表示は残存。entries 行 class は `recent-race-venue/distance/rank/meta` のみで **record / opponentName / postPosition は表示されない**。entries 無し馬は `entries.length>0` gate により**空表示なし**。
+
+#### 4. KI 表示確認（SSR）
+- `npm run build` **exit 0**。
+- free slug `2026-06-12-ooi`（prerender=true）：summary **「出馬表由来の近走（参考）」60 件**。
+- SSR index（premium `prediction/nankan/index.astro` / free `free-prediction/nankan/index.astro`・prerender=false で静的 HTML 無し）：`injectEntriesRecentRacesNankanIntoData` を `2026-06-12-ooi` prediction に対し実行し、**145 頭中 144 頭に `recentRacesFromEntriesNankan` 注入成立**（runtime 表示成立を実証）。
+- 1 頭未マッチは entries 未マッチ扱いで、ブロック非表示により**正常**。注入フィールドに record / opponentName / postPosition は含まれない。既存近走表示は残存。
+
+#### 5. 非破壊確認
+- 既存「直近走 / 過去N走」表示は不変。`getDisplayRecentRacesForNankan` 不変。
+- entries `recentRaces` は **馬詳細専用**。`recentHorseHistories` の全馬 fallback には使わない。
+- 予測スコア・評価記号・推奨系ロジックには接続しない。
+- 本記録 PR では dispatch / workflow / import を再実行しない（docs-only）。
+
 ---
 
 ## Phase D クローズ記録（2026-06-09）
@@ -1746,6 +1780,7 @@ F4d で shared→AK/KI entries import の自動配線が成立した（§31.9）
 
 ## 14. 更新履歴
 
+- 2026-06-12: **南関 entries 当日データ一気通貫の実地表示確認を docs 記録（§33.7 新設）**。最新予想日と同一日付の当日 entries `2026-06-12-OOI`（full venue・totalRaces=12/races=12/horses=144/recentRacesCoverage=100%/schema OK/sourcePageType=uma_shosai/record optional・0埋めなし）を **shared 保存（`nankan/entries/2026/06/2026-06-12-OOI.json`・gh auth fallback で status 201）→ AK/KI import（`entries-nankan-updated` dispatch・date=2026-06-12/venues=["OOI"]・AK/KI 各 status=204・両 workflow success・AK HEAD `cd5d267`/KI HEAD `59b1e14`・両 repo に `astro-site/src/data/entries/nankan/2026/06/2026-06-12-OOI.json` create）→ 表示確認** まで一気通貫で完走。**AK**：build exit 0・`premium-prediction/nankan` summary「出馬表由来の近走（参考）」**112 件**・`free-prediction/nankan` **144 件**・既存近走残存・record/opponentName/postPosition 非表示・entries 無し馬の空表示なし。**KI**：build exit 0・free slug `2026-06-12-ooi` summary **60 件**・SSR index は `2026-06-12-ooi` prediction に inject 実行で **145 頭中 144 頭注入成立**（1 頭未マッチはブロック非表示で正常）。既存「直近走/過去N走」不変・`getDisplayRecentRacesForNankan` 不変・entries `recentRaces` は馬詳細専用で recentHorseHistories 全馬 fallback には不使用・予測スコア/評価記号/推奨系ロジック非接続。**docs-only・実装/component/page/included_files/AK/KI/shared/UI/CSS/dispatch/workflow/import 変更なし。featureScores/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-12: **F5g：南関 entries 表示接続の完了を docs 記録（§33 新設）**。KI 側の表示接続が **F5f-1（注入）→ F5f-2（表示）→ F5g（確認・記録）** で完了。F5f-1＝KI PR #37（main `4f1bb36`）で `astro-site/src/utils/injectEntriesRecentRacesNankan.js` 追加・南関3ページに注入呼び出し追加、`data.predictions[].horses[]` を `raceNumber+horseNumber`（name 補助）で突合し **別フィールド `horse.recentRacesFromEntriesNankan`** へ注入（`recentRaces`/`recentRacesFromHistoriesNankan`/`getDisplayRecentRacesForNankan` 不変・fallback 化なし・inert 完了）。F5f-2＝KI PR #38（main `06d8d86`）で共通 component `astro-site/src/components/RecentRacesFromEntriesNankan.astro` 新規＋3ページ呼び出し、summary **「出馬表由来の近走（参考）」**・最大5走・**CSS 追加ゼロ（C-1）**・premium/free index は「直近走」直後に別ブロック・**free slug は table のため `<tr><td colspan="5">` ラップ＋空行防止 gate**・record/opponentName/postPosition 非表示・既存「直近走/過去N走」不変。F5g＝KI main clean・HEAD=`06d8d86`・**build exit 0・禁止差分なし・禁止語なし**、**slug アーカイブ `2026-06-10-ooi` の build HTML で summary 出現＝表示成立を確認**、premium/free index は最新予想 `2026-06-12` に対し entries が `2026-06-10-OOI` のみのため **非表示が正常（data fallback）**・同一日付 entries 取込後に index でも表示。AK/KI 対称＝AK F5e(`src/lib`/SSG・PR #71/#72/#73)・KI F5f(`src/utils`/SSR・included_files `src/data/entries/**`=F5b・PR #36/#37/#38)、両者とも entries `recentRaces` は **馬詳細専用・recentHorseHistories 全馬 fallback には使わない**・ラベル統一。残＝当日 entries の shared 取込・dispatch/workflow/import 配線（`entries-nankan-updated`・§31）は別タスク・実送信はマコさん手動。**docs-only・実装/component/page/included_files/AK/KI/shared/UI/CSS/dispatch/workflow/import 変更なし。予測スコア/評価記号/推奨系ロジック/featureScores/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-12: **PR-F5a：南関 entries 表示接続契約を docs 固定（§32 新設）**。F5 初期方針＝entries `recentRaces` は **「馬詳細」専用**（馬名クリック/詳細展開/モーダル等）として扱い、**既存 recentHorseHistories の全馬 fallback には初期段階で使わない**（既存近走表示・予想カードは現行維持）。entries がある馬のみ表示・無ければ現行維持。由来ラベルは **「出馬表由来の近走」**（「全履歴/JRA同等/完全な過去走」禁止・recentHorseHistories/horseHistories と同等扱いしない）。record null＝正常・**通算/条件別は出さない・「0戦/成績なし/全履歴取得済み/JRA同等」禁止・0埋めしない**。表示対象＝最大5走・`raceNumber+horseNumber` 主キー突合（name 補助）・**full venue のみ（partial/R01-only/totalRaces=1 は使わない・sourceMeta.races.length≠races.length は skip）**。mapper＝`finish→rank`/`weight→carriedWeight`/`number→horseNumber`/surface は race 補完・**record は mapper 対象外**。AK/KI 同契約・同ラベル・レイアウト差は維持・**AK(SSG) included_files 不要 / KI(SSR) は表示前に netlify.toml included_files へ `src/data/entries/**` 追加（F5b）**。PR分割 F5a(docs)→F5b(KI included_files)→F5c(AK mapper)→F5d(KI mapper)→F5e(AK接続)→F5f(KI接続)→F5g(本番/記録)。**docs-only・実装/mapper/loader/page 接続/included_files 変更なし。AK/KI/shared/UI/CSS/predictions/featureScores/AI/印/買い目/穴馬/dark-horse.mjs/JRA 表示/既存 recentHorseHistories 表示 変更なし**。
 - 2026-06-11: **PR-F4d-5：南関 entries 手動 dispatch 成功結果を docs 記録（§31.9 追記）**。`entries-nankan-updated` を **1 回だけ手動 dispatch**（date=2026-06-10/venues=OOI・`scripts/dispatch-entries-nankan.mjs`・payload `{date,venues:["OOI"],category:nankan,kind:entries,source:nankan-entries}`・dry-run GET=200/PASS・実送信は AK/KI 各 status=204・2/2 success）。AK run 27354115021 / KI run 27354116393 とも `Import Entries Nankan (Dispatch)` が event=repository_dispatch で **completed/success**・import 2026-06-10 OOI（races=12/horses=156→`src/data/entries/nankan/2026/06/2026-06-10-OOI.json`）・**commit 発生なし（No changes detected・既存 main と同一）**。admin/AK/KI とも local==origin/main・clean、shared 変更なし。**end-to-end（admin dispatch→AK/KI workflow→import:entries:nankan→no-changes 正常終了）成立・重複 commit なし**を確認。次は F5 表示接続準備。**docs-only・実装/script/workflow/dispatch 再送/included_files 変更なし。AK/KI/shared/UI/CSS/featureScores/AI/印/買い目/穴馬/dark-horse.mjs 変更なし**。

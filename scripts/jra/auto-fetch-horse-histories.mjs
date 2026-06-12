@@ -63,7 +63,7 @@ const DEFAULT_OUT_DIR = 'tmp/jra-horse-histories';
 // JRA 場コード → 名称 / 3文字コード (auto-fetch-jra-official.mjs と同一)
 const JYO_MAP = {
   '01': { name: '札幌', code: 'SAP' },
-  '02': { name: '函館', code: 'HAK' },
+  '02': { name: '函館', code: 'HKD' },
   '03': { name: '福島', code: 'FKS' },
   '04': { name: '新潟', code: 'NII' },
   '05': { name: '東京', code: 'TOK' },

@@ -39,7 +39,7 @@ const RACES_PER_VENUE = 12;
 // JRA 場コード → 名称 / 3文字コード
 const JYO_MAP = {
   '01': { name: '札幌', code: 'SAP' },
-  '02': { name: '函館', code: 'HAK' },
+  '02': { name: '函館', code: 'HKD' },
   '03': { name: '福島', code: 'FKS' },
   '04': { name: '新潟', code: 'NII' },
   '05': { name: '東京', code: 'TOK' },

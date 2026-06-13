@@ -24,6 +24,10 @@ import * as cheerio from 'cheerio';
 
 const RECENT_MAX = 5;
 
+// §34.27: 非完走行（取消等）の状態語。主テーブルの .nk23_u-text16 に厳密一致した場合のみ
+// finishStatus に保持する（馬名・騎手名・レース名の誤検出を防ぐため exact-match）。
+const RECENT_STATUS = new Set(['取消', '出走取消', '除外', '中止', '競走中止', '能試']);
+
 // uma_shosai 出馬表ページには着別 record（5分割）が無い（§28.1 / 契約§12.11）。
 // → record は 0 埋めせず **null（未取得）** とし、sourceMeta で明示する（PR-F2b）。
 const MISSING_RECORD_REASON = 'uma_shosai_no_record';
@@ -164,6 +168,13 @@ function parseRecentCell($, $cell, order) {
   const finRaw = clean($cell.find('.nk23_u-text19').first().text()).replace(/着/g, '');
   if (/^\d+$/.test(finRaw)) rr.finish = parseInt(finRaw, 10);
   else if (finRaw) rr.finishStatus = finRaw;
+  else {
+    // §34.27 / 原因A: 非完走行（取消・出走取消・除外・中止・競走中止・能試）は着順セル(.nk23_u-text19)が空で、
+    // 状態が主テーブル先頭の .nk23_u-text16 に入る。状態語に厳密一致した場合のみ finishStatus に保持する。
+    // finish / rank には数値を入れない（order は着順代替に使わない）。
+    const statusRaw = clean($cell.find('.nk23_u-text16').first().text());
+    if (RECENT_STATUS.has(statusRaw)) rr.finishStatus = statusRaw;
+  }
 
   // 日付（hidden rcd_ を最優先・無ければ "大井26.5.19" 等から）
   const rcd = $cell.find('input[id^="rcd_"]').first().attr('value');

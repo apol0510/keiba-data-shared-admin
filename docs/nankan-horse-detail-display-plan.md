@@ -16,6 +16,8 @@
 
 **重要: A（5走表示）と B（馬詳細）は別タスク。** 同じ md で管理するが、shared 契約・参照元・UI は分けて扱う。
 
+> **日次運用手順** は [nankan-entries-daily-runbook.md](nankan-entries-daily-runbook.md) に集約（entries 主系統の `dry-run → shared PUT → AK/KI dispatch → import 確認 → 本番確認`）。本 doc §29〜§33 の設計・実証を運用 1 枚に再構成したもの。
+
 ---
 
 ## 2. 現在の確定済み状況（2026-06-05）
